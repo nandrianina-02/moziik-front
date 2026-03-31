@@ -3,6 +3,7 @@ import { Heart, ListPlus, Eye, MoreHorizontal, Trash2, Edit2, Plus, Check, X, Pl
 import ReactionsBar from './ReactionsBar';
 import CommentsSection from './CommentsSection';
 import { API } from '../../config/api';
+import { ShareButton } from '../social/SocialFeatures';
 
 const EditSongModal = ({ song, token, onClose, onSaved }) => {
   const [titre, setTitre] = useState(song.titre || '');
@@ -126,21 +127,27 @@ const SongRow = ({
             <p className="text-[10px] text-zinc-500 truncate uppercase">{song.artiste}</p>
           </div>
 
-          {/* Actions - always visible on hover */}
-          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition shrink-0">
-            <button onClick={e => { e.stopPropagation(); toggleLike(song._id); }}
+          {/* Actions — visibles au hover, stopPropagation sur chaque bouton */}
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
+            <button
+              onClick={e => { e.stopPropagation(); toggleLike(song._id); }}
               className="p-1.5 hover:bg-white/10 rounded-lg transition">
               <Heart size={14} fill={song.liked ? 'red' : 'none'} className={song.liked ? 'text-red-500' : 'text-zinc-400 hover:text-white'} />
             </button>
-            <button onClick={e => { e.stopPropagation(); addToQueue(song); }}
+            <button
+              onClick={e => { e.stopPropagation(); addToQueue(song); }}
               className="p-1.5 hover:bg-white/10 rounded-lg transition">
               <ListPlus size={14} className="text-zinc-400 hover:text-white" />
             </button>
+            {/* ShareButton wrapped pour stopper la propagation et garantir l'affichage */}
+            <div onClick={e => e.stopPropagation()} className="p-1.5 hover:bg-white/10 rounded-lg transition flex items-center justify-center">
+              <ShareButton song={song} size={14} />
+            </div>
           </div>
 
           {/* Play count */}
           {song.plays > 0 && (
-            <div className="flex items-center gap-1 text-[10px] text-zinc-700 shrink-0 group-hover:opacity-0">
+            <div className="flex items-center gap-1 text-[10px] text-zinc-700 shrink-0 group-hover:opacity-0 transition">
               <Eye size={9} /> {song.plays}
             </div>
           )}

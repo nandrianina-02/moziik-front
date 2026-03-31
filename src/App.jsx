@@ -5,7 +5,7 @@ import {
   Trash2, ListPlus, Search, Music, Heart, ListOrdered, Sliders,
   LogIn, LogOut, ShieldCheck, Repeat, Repeat1, Timer, Gauge, BarChart2,
   Users, Mic2, X, Disc3, Globe, Lock, ChevronDown, UserCircle, Settings,
-  Maximize2, Minimize2, ChevronUp, Eye, TrendingUp, Flame, Sparkles, Dices
+  Maximize2, Minimize2, ChevronUp, Eye, TrendingUp, Flame, Sparkles, Dices, History
 } from 'lucide-react';
 
 import { API } from './config/api';
@@ -28,6 +28,10 @@ import ArtistsListView from './views/ArtistsListView';
 import AccountView from './views/AccountView';
 import UsersAdminView from './views/UsersAdminView';
 import PublicPlaylistsView from './views/PublicPlaylistsView';
+import { NotificationsPanel } from './components/social/SocialFeatures';
+import { HistoryView } from './components/social/SocialFeatures';
+import { RecommendationsView } from './components/social/SocialFeatures';
+
 
 // ── GRANDE PAGE PLAYER ────────────────────────────────────────────────────────
 const FullPlayerPage = ({
@@ -351,7 +355,7 @@ const MoozikWeb = () => {
   const chargerMusiques = async () => {
     try {
       const data = await fetch(`${API}/songs`).then(r => r.json());
-      setMusiques(data);
+      setMusiques(data.songs || data);
       if (data.length > 0) setCurrentSong(prev => prev ?? data[0]);
     } catch {} finally { setIsLoading(false); }
   };
@@ -545,6 +549,12 @@ const MoozikWeb = () => {
       { to: '/admin-users', icon: <Users size={17} />, label: 'Utilisateurs' },
     ] : []),
     ...(isLoggedIn ? [{ to: '/account', icon: <Settings size={17} />, label: 'Mon compte' }] : []),
+    ...(isLoggedIn ? [
+      { to: '/history', icon: <History size={17}/>, label: 'Historique' }
+    ] : []),
+    ...(isLoggedIn ? [
+      { to: '/recommendations', icon: <Sparkles size={17}/>, label: 'Pour vous' }
+    ] : []),
   ];
 
   const songProps = {
@@ -671,6 +681,13 @@ const MoozikWeb = () => {
                     <p className="text-[9px] text-zinc-600 uppercase tracking-widest">{userRole}</p>
                   </div>
                 </div>
+                <NotificationsPanel
+                  token={token}
+                  onPlaySong={(songId) => {
+                    const song = musiques.find(s => s._id === songId);
+                    if (song) { setCurrentSong(song); setIsPlaying(true); }
+                  }}
+                />
                 <button onClick={handleLogout} className="flex items-center gap-2 text-xs text-zinc-600 hover:text-white px-1 py-1 rounded-lg hover:bg-zinc-900 transition w-full">
                   <LogOut size={12} /> Déconnexion
                 </button>
@@ -773,6 +790,19 @@ const MoozikWeb = () => {
                   ))}
                 </div>
               )}
+              {/* Notifications mobile */}
+              <div className="px-4 py-2 border-b border-zinc-800">
+                <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2">Notifications</p>
+                <NotificationsPanel
+                  token={token}
+                  onPlaySong={(songId) => {
+                    const song = musiques.find(s => s._id === songId);
+                    if (song) { setCurrentSong(song); setIsPlaying(true); }
+                    setShowMobileMenu(false);
+                  }}
+                  isMobile={true}
+                />
+              </div>
               <button onClick={() => { handleLogout(); setShowMobileMenu(false); }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-500 hover:text-red-400 hover:bg-zinc-900 transition">
                 <LogOut size={15} /> Déconnexion
@@ -795,6 +825,21 @@ const MoozikWeb = () => {
             <Route path="/public-playlists" element={<PublicPlaylistsView {...songProps} />} />
             <Route path="/dashboard" element={isAdmin ? <DashboardView token={token} /> : <div className="p-8 text-zinc-600">Accès refusé</div>} />
             <Route path="/admin-artists" element={isAdmin ? <ArtistsAdminView token={token} /> : <div className="p-8 text-zinc-600">Accès refusé</div>} />
+            <Route path="/history" element={
+              isLoggedIn
+                ? <HistoryView token={token} currentSong={currentSong}
+                    setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} />
+                : <div className="p-8 text-zinc-500">Connectez-vous</div>
+            } />
+            <Route path="/recommendations" element={
+              <RecommendationsView
+                token={token}
+                currentSong={currentSong}
+                setCurrentSong={setCurrentSong}
+                setIsPlaying={setIsPlaying}
+                isPlaying={isPlaying}
+              />
+            } />
             <Route path="/admin-users" element={isAdmin ? <UsersAdminView token={token} musiques={musiques} /> : <div className="p-8 text-zinc-600">Accès refusé</div>} />
             <Route path="/account" element={
               isLoggedIn
