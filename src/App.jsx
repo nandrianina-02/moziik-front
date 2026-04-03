@@ -10,7 +10,7 @@ import {
 
 import { API } from './config/api';
 import { useDominantColor, applyDynamicTheme } from './hooks/useDominantColor';
-import { useRealtimeListeners, ListenersWidget } from './hooks/useRealtimeListeners';
+import { useRealtimeListeners, ListenersWidget } from './hooks/useRealtimeListeners.jsx';
 import MiniPlayerMobile from './components/player/MiniPlayerMobile';
 
 import LoginModal from './components/modals/LoginModal';

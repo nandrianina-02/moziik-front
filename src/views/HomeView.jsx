@@ -9,7 +9,8 @@ const HomeView = ({
   setActiveMenu, ajouterAPlaylist, deleteSong, editSong,
   dragOverId, dragSongId, handleDragStart, handleDragOver, handleDrop,
   setShowEQ, initAudioEngine, searchTerm, setShowUpload,
-  onAddToUserPlaylist, isLoggedIn, userNom
+  onAddToUserPlaylist, isLoggedIn, userNom,
+  userId, onDeleted, onRefresh, onTogglePlaylistVisibility
 }) => {
   const canUpload = isAdmin || isArtist;
   const topMusiques = [...(Array.isArray(musiques) ? musiques : [])]
@@ -17,16 +18,27 @@ const HomeView = ({
     .slice(0, 5);
 
   const recentMusiques = [...(Array.isArray(musiques) ? musiques : [])]
-  .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-  .slice(0, 10);
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, 10);
+
   const shuffled = [...(Array.isArray(musiques) ? musiques : [])]
-  .sort(() => Math.random() - 0.5)
-  .slice(0, 4);
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 4);
 
   const filteredMusiques = (Array.isArray(musiques) ? musiques : []).filter(s =>
-  s.titre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  s.artiste.toLowerCase().includes(searchTerm.toLowerCase())
-);
+    s.titre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.artiste.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Props communs passés à tous les SongRow
+  const songRowProps = {
+    currentSong, setCurrentSong, setIsPlaying, isPlaying,
+    toggleLike, addToQueue, token, isLoggedIn, userNom,
+    isAdmin, isArtist, userArtistId, userId,
+    playlists, userPlaylists,
+    onAddToUserPlaylist, ajouterAPlaylist,
+    onDeleted, onRefresh, onTogglePlaylistVisibility,
+  };
 
   if (searchTerm) {
     return (
@@ -36,10 +48,7 @@ const HomeView = ({
           {filteredMusiques.length === 0
             ? <p className="text-zinc-600 italic p-4">Aucun résultat...</p>
             : filteredMusiques.map((song, i) => (
-              <SongRow key={song._id} song={song} index={i} currentSong={currentSong}
-                setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}
-                toggleLike={toggleLike} addToQueue={addToQueue}
-                token={token} isLoggedIn={isLoggedIn} userNom={userNom} />
+              <SongRow key={song._id} song={song} index={i} {...songRowProps} />
             ))}
         </div>
       </section>
@@ -108,10 +117,7 @@ const HomeView = ({
           </div>
           <div className="flex flex-col gap-1">
             {musiques.filter(s => s.liked).slice(0, 5).map((song, i) => (
-              <SongRow key={song._id} song={song} index={i} currentSong={currentSong}
-                setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}
-                toggleLike={toggleLike} addToQueue={addToQueue}
-                token={token} isLoggedIn={isLoggedIn} userNom={userNom} />
+              <SongRow key={song._id} song={song} index={i} {...songRowProps} />
             ))}
           </div>
         </section>
@@ -171,18 +177,7 @@ const HomeView = ({
               onDrop={isAdmin ? (e) => handleDrop(e, song._id) : undefined}
               className={`${dragOverId === song._id ? 'ring-2 ring-red-500 rounded-xl' : ''}`}
             >
-              <SongRow
-                song={song}
-                index={i}
-                currentSong={currentSong}
-                setCurrentSong={setCurrentSong}
-                setIsPlaying={setIsPlaying}
-                toggleLike={toggleLike}
-                addToQueue={addToQueue}
-                token={token}
-                isLoggedIn={isLoggedIn}
-                userNom={userNom}
-              />
+              <SongRow key={song._id} song={song} index={i} {...songRowProps} />
             </div>
           ))}
         </div>
