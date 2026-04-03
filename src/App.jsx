@@ -1,19 +1,23 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import {
   Home, Play, Pause, SkipBack, SkipForward, Volume2, Plus, Shuffle,
   Trash2, ListPlus, Search, Music, Heart, ListOrdered, Sliders,
   LogIn, LogOut, ShieldCheck, Repeat, Repeat1, Timer, Gauge, BarChart2,
   Users, Mic2, X, Disc3, Globe, Lock, ChevronDown, UserCircle, Settings,
-  Maximize2, Minimize2, ChevronUp, Eye, TrendingUp, Flame, Sparkles, Dices, History
+  Maximize2, Minimize2, ChevronUp, Eye, TrendingUp, Flame, Sparkles, Dices, History, Bell
 } from 'lucide-react';
 
 import { API } from './config/api';
+import { useDominantColor, applyDynamicTheme } from './hooks/useDominantColor';
+import { useRealtimeListeners, ListenersWidget } from './hooks/useRealtimeListeners';
+import MiniPlayerMobile from './components/player/MiniPlayerMobile';
 
 import LoginModal from './components/modals/LoginModal';
 import UploadModal from './components/modals/UploadModal';
 import CreatePlaylistModal from './components/modals/CreatePlaylistModal';
 import LoadingScreen from './components/ui/LoadingScreen';
+import { SongListSkeleton } from './components/ui/Skeletons';
 
 import HomeView from './views/HomeView';
 import AlbumView from './views/AlbumView';
@@ -21,16 +25,23 @@ import ArtistView from './views/ArtistView';
 import PlaylistView from './views/PlaylistView';
 import UserPlaylistView from './views/UserPlaylistView';
 import FavoritesView from './views/FavoritesView';
-import DashboardView from './views/DashboardView';
 import ArtistsAdminView from './views/ArtistsAdminView';
 import MyAlbumsView from './views/MyAlbumsView';
 import ArtistsListView from './views/ArtistsListView';
 import AccountView from './views/AccountView';
 import UsersAdminView from './views/UsersAdminView';
 import PublicPlaylistsView from './views/PublicPlaylistsView';
+
+// Lazy loading — chargé seulement quand la route est visitée
+const DashboardView     = lazy(() => import('./views/EnhancedDashboardView'));
+const PublicProfileView = lazy(() => import('./views/PublicProfileView'));
+
 import { NotificationsPanel } from './components/social/SocialFeatures';
 import { HistoryView } from './components/social/SocialFeatures';
 import { RecommendationsView } from './components/social/SocialFeatures';
+
+// Fallback Suspense
+const ViewLoader = () => <div className="p-6"><SongListSkeleton count={6} /></div>;
 
 
 // ── GRANDE PAGE PLAYER ────────────────────────────────────────────────────────
@@ -285,6 +296,13 @@ const MoozikWeb = () => {
   const canUpload = isAdmin || isArtist;
   const authHeaders = () => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` });
 
+  // ── Couleur dynamique depuis la pochette ──
+  const dominantColor = useDominantColor(currentSong?.image);
+  useEffect(() => { applyDynamicTheme(dominantColor); }, [dominantColor]);
+
+  // ── Auditeurs en temps réel ──
+  const { listeners, connected } = useRealtimeListeners(token, currentSong);
+
   // ── AUTH ──
   useEffect(() => {
     const savedToken = localStorage.getItem('moozik_token');
@@ -436,11 +454,24 @@ const MoozikWeb = () => {
   const initAudioEngine = () => {
     if (audioContextRef.current || !audioRef.current) return;
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // ── Fix stéréo : forcer 2 canaux sur tous les nœuds ──────────────────────
+    const setStereo = (node) => {
+      node.channelCount = 2;
+      node.channelCountMode = 'explicit';
+      node.channelInterpretation = 'speakers';
+      return node;
+    };
+
     const source = audioCtx.createMediaElementSource(audioRef.current);
-    const analyser = audioCtx.createAnalyser();
-    const bass = audioCtx.createBiquadFilter(); bass.type = 'lowshelf'; bass.frequency.value = 200;
-    const mid = audioCtx.createBiquadFilter(); mid.type = 'peaking'; mid.frequency.value = 1000;
-    const treble = audioCtx.createBiquadFilter(); treble.type = 'highshelf'; treble.frequency.value = 4000;
+    // La source hérite du channelCount du fichier audio (1 ou 2)
+    // On force le contexte destination en stéréo
+    audioCtx.destination.channelCount = Math.min(2, audioCtx.destination.maxChannelCount);
+
+    const analyser = setStereo(audioCtx.createAnalyser());
+    const bass   = setStereo(audioCtx.createBiquadFilter()); bass.type = 'lowshelf';  bass.frequency.value = 200;
+    const mid    = setStereo(audioCtx.createBiquadFilter()); mid.type  = 'peaking';   mid.frequency.value  = 1000;
+    const treble = setStereo(audioCtx.createBiquadFilter()); treble.type = 'highshelf'; treble.frequency.value = 4000;
     bassFilterRef.current = bass; midFilterRef.current = mid; trebleFilterRef.current = treble;
     source.connect(bass); bass.connect(mid); mid.connect(treble); treble.connect(analyser); analyser.connect(audioCtx.destination);
     analyser.fftSize = 128; audioContextRef.current = { audioCtx, analyser };
@@ -554,6 +585,9 @@ const MoozikWeb = () => {
     ] : []),
     ...(isLoggedIn ? [
       { to: '/recommendations', icon: <Sparkles size={17}/>, label: 'Pour vous' }
+    ] : []),
+    ...(isLoggedIn ? [
+      { to: '/notifications', icon: <Bell size={17}/>, label: 'Notifications' }
     ] : []),
   ];
 
@@ -743,6 +777,7 @@ const MoozikWeb = () => {
               ...(isArtist ? [{ to: '/my-albums', label: 'Albums' }] : []),
               ...(isAdmin ? [{ to: '/dashboard', label: 'Stats' }, { to: '/admin-users', label: 'Users' }] : []),
               ...(isLoggedIn ? [{ to: '/account', label: 'Compte' }] : []),
+              ...(isLoggedIn ? [{ to: '/history', label: 'Historique' }, { to: '/notifications', label: 'Notifs' }] : []),
             ].map(item => (
               <Link key={item.to} to={item.to} onClick={() => setShowMobileMenu(false)}
                 className="shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold text-zinc-500 hover:text-white hover:bg-zinc-800/80 transition whitespace-nowrap">
@@ -790,19 +825,6 @@ const MoozikWeb = () => {
                   ))}
                 </div>
               )}
-              {/* Notifications mobile */}
-              <div className="px-4 py-2 border-b border-zinc-800">
-                <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2">Notifications</p>
-                <NotificationsPanel
-                  token={token}
-                  onPlaySong={(songId) => {
-                    const song = musiques.find(s => s._id === songId);
-                    if (song) { setCurrentSong(song); setIsPlaying(true); }
-                    setShowMobileMenu(false);
-                  }}
-                  isMobile={true}
-                />
-              </div>
               <button onClick={() => { handleLogout(); setShowMobileMenu(false); }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-500 hover:text-red-400 hover:bg-zinc-900 transition">
                 <LogOut size={15} /> Déconnexion
@@ -823,7 +845,34 @@ const MoozikWeb = () => {
             <Route path="/my-albums" element={<MyAlbumsView token={token} userArtistId={userArtistId} userNom={userNom} />} />
             <Route path="/artists-list" element={<ArtistsListView artists={artists} />} />
             <Route path="/public-playlists" element={<PublicPlaylistsView {...songProps} />} />
-            <Route path="/dashboard" element={isAdmin ? <DashboardView token={token} /> : <div className="p-8 text-zinc-600">Accès refusé</div>} />
+            <Route path="/dashboard" element={
+              isAdmin
+                ? <Suspense fallback={<ViewLoader />}><DashboardView token={token} /></Suspense>
+                : <div className="p-8 text-zinc-600">Accès refusé</div>
+            } />
+            <Route path="/profile/:userId" element={
+              <Suspense fallback={<ViewLoader />}>
+                <PublicProfileView
+                  token={token} currentSong={currentSong}
+                  setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} isPlaying={isPlaying}
+                />
+              </Suspense>
+            } />
+            <Route path="/notifications" element={
+              isLoggedIn
+                ? <div className="max-w-xl mx-auto py-6">
+                    <h1 className="text-xl font-black mb-6 flex items-center gap-2">
+                      <Bell size={20} className="text-red-400" /> Notifications
+                    </h1>
+                    <NotificationsPanel token={token} isPage={true}
+                      onPlaySong={(songId) => {
+                        const song = musiques.find(s => s._id === songId);
+                        if (song) { setCurrentSong(song); setIsPlaying(true); }
+                      }}
+                    />
+                  </div>
+                : <div className="p-8 text-zinc-500">Connectez-vous</div>
+            } />
             <Route path="/admin-artists" element={isAdmin ? <ArtistsAdminView token={token} /> : <div className="p-8 text-zinc-600">Accès refusé</div>} />
             <Route path="/history" element={
               isLoggedIn
@@ -897,7 +946,7 @@ const MoozikWeb = () => {
         {/* ── PLAYER BAR ── */}
         {currentSong && (
           <footer className="
-            fixed bottom-0 left-0 right-0
+            hidden md:flex fixed bottom-0 left-0 right-0
             md:bottom-3 md:left-[calc(240px+12px)] md:right-3 md:rounded-2xl
             bg-zinc-950/98 border-t border-zinc-800/60
             md:border md:border-zinc-800/60
@@ -947,6 +996,11 @@ const MoozikWeb = () => {
 
             {/* Droite */}
             <div className="flex items-center justify-end gap-2 md:gap-3 w-1/3">
+              {listeners.length > 0 && (
+                <div className="hidden lg:block">
+                  <ListenersWidget listeners={listeners} connected={connected} />
+                </div>
+              )}
               <button onClick={() => toggleLike(currentSong._id)} className="hidden sm:block">
                 <Heart size={15} fill={currentSong.liked ? '#ef4444' : 'none'} className={currentSong.liked ? 'text-red-500' : 'text-zinc-600 hover:text-white transition'} />
               </button>
@@ -962,6 +1016,18 @@ const MoozikWeb = () => {
             </div>
           </footer>
         )}
+        {/* ── MINI PLAYER MOBILE (remplace la footer sur mobile) ── */}
+        <MiniPlayerMobile
+          currentSong={currentSong}
+          isPlaying={isPlaying}
+          setIsPlaying={setIsPlaying}
+          handleNext={handleNext}
+          toggleLike={toggleLike}
+          onOpenFullPlayer={() => setShowFullPlayer(true)}
+          currentTime={currentTime}
+          duration={duration}
+          initAudioEngine={initAudioEngine}
+        />
       </div>
     </Router>
   );
