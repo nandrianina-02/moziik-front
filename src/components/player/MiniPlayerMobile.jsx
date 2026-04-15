@@ -1,10 +1,9 @@
 import React from 'react';
-import { Play, Pause, SkipForward, Heart, ChevronUp } from 'lucide-react';
+import { Play, Pause, SkipForward, Heart, ChevronUp, Download, Check } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────
 // MiniPlayerMobile
-// Barre fixe en bas sur mobile avec fond ambiant depuis la pochette
-// Tap sur la barre → ouvre le FullPlayer
+// Bouton téléchargement hors-ligne inclus et visible sur mobile
 // ─────────────────────────────────────────────────────────────────
 const MiniPlayerMobile = ({
   currentSong,
@@ -16,10 +15,25 @@ const MiniPlayerMobile = ({
   currentTime,
   duration,
   initAudioEngine,
+  // Props optionnels pour le cache hors-ligne
+  cacheAudio,
+  removeCached,
+  isAudioCached,
 }) => {
   if (!currentSong) return null;
 
-  const prog = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const prog   = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const cached = isAudioCached ? isAudioCached(currentSong) : false;
+
+  const handleCacheToggle = async (e) => {
+    e.stopPropagation();
+    if (!cacheAudio || !removeCached) return;
+    if (cached) {
+      await removeCached(currentSong);
+    } else {
+      await cacheAudio(currentSong);
+    }
+  };
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-50">
@@ -45,9 +59,9 @@ const MiniPlayerMobile = ({
           </div>
         )}
 
-        {/* Contenu */}
+        {/* Contenu — tap sur le fond ouvre le FullPlayer */}
         <div
-          className="relative flex items-center gap-3 px-4 py-3 cursor-pointer"
+          className="relative flex items-center gap-2 px-3 py-3 cursor-pointer"
           onClick={onOpenFullPlayer}
         >
           {/* Pochette */}
@@ -57,7 +71,6 @@ const MiniPlayerMobile = ({
               className={`w-11 h-11 rounded-xl object-cover shadow-lg shadow-black/50 transition-all duration-300 ${isPlaying ? 'scale-100' : 'scale-95 opacity-80'}`}
               alt=""
             />
-            {/* Indicateur lecture */}
             {isPlaying && (
               <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-linear-to-br from-blue-400 to-violet-500 border border-zinc-950" />
             )}
@@ -69,8 +82,22 @@ const MiniPlayerMobile = ({
             <p className="text-[11px] text-white/50 truncate mt-0.5">{currentSong.artiste}</p>
           </div>
 
-          {/* Boutons action */}
-          <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+          {/* Boutons action — stopPropagation pour ne pas ouvrir le FullPlayer */}
+          <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
+
+            {/* Téléchargement hors-ligne */}
+            {(cacheAudio || removeCached) && (
+              <button
+                onClick={handleCacheToggle}
+                title={cached ? 'Supprimer du hors-ligne' : 'Écouter hors-ligne'}
+                className="p-2 active:scale-90 transition">
+                {cached
+                  ? <Check size={16} className="text-green-400" />
+                  : <Download size={16} className="text-white/40 hover:text-white transition" />
+                }
+              </button>
+            )}
+
             {/* Like */}
             <button
               onClick={() => toggleLike(currentSong._id)}
@@ -85,8 +112,7 @@ const MiniPlayerMobile = ({
             {/* Play/Pause — anneau gradient */}
             <button
               onClick={() => { initAudioEngine(); setIsPlaying(p => !p); }}
-              className="relative flex items-center justify-center w-10 h-10 active:scale-95 transition mx-1">
-              {/* Anneau gradient */}
+              className="relative flex items-center justify-center w-10 h-10 active:scale-95 transition mx-0.5">
               <div
                 className="absolute inset-0 rounded-full"
                 style={{
@@ -108,8 +134,8 @@ const MiniPlayerMobile = ({
             </button>
           </div>
 
-          {/* Flèche haut — tap pour ouvrir */}
-          <ChevronUp size={14} className="text-white/25 shrink-0 ml-1" />
+          {/* Flèche haut */}
+          <ChevronUp size={14} className="text-white/25 shrink-0" />
         </div>
       </div>
     </div>

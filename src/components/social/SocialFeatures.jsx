@@ -3,8 +3,9 @@ import {
   Bell, BellOff, History, Share2, Sparkles, Check, CheckCheck,
   Trash2, Loader2, X, Play, Pause, Clock, TrendingUp,
   Copy, Link, ExternalLink, ChevronRight, BarChart2,
-  Calendar, Headphones, RefreshCw, Heart, Music
+  Calendar, Headphones, RefreshCw, Heart, Music, Download
 } from 'lucide-react';
+import { useParams } from 'react-router-dom';
 
 const API = 'https://moozik-gft1.onrender.com';
 
@@ -27,8 +28,10 @@ const NOTIF_CFG = {
 
 // ════════════════════════════════════════════
 // 🔔 NOTIFICATIONS PANEL
+// isPage={true}  → vue pleine page (route /notifications)
+// isPage={false} → popover cloche dans la sidebar
 // ════════════════════════════════════════════
-export const NotificationsPanel = ({ token, onPlaySong }) => {
+export const NotificationsPanel = ({ token, onPlaySong, onUnreadCount, isPage = false }) => {
   const [open, setOpen]           = useState(false);
   const [notifications, setNotifs]= useState([]);
   const [unread, setUnread]       = useState(0);
@@ -42,19 +45,29 @@ export const NotificationsPanel = ({ token, onPlaySong }) => {
     if (!token) return;
     const poll = () =>
       fetch(`${API}/notifications/unread-count`, { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.json()).then(d => setUnread(d.count || 0)).catch(() => {});
+        .then(r => r.json())
+        .then(d => {
+          setUnread(d.count || 0);
+          if (onUnreadCount) onUnreadCount(d.count || 0);
+        })
+        .catch(() => {});
     poll();
     const id = setInterval(poll, 30_000);
     return () => clearInterval(id);
   }, [token]);
 
-  // Fermer en cliquant dehors
+  // Charger auto si mode page
   useEffect(() => {
-    if (!open) return;
+    if (isPage && token) loadNotifs(1);
+  }, [isPage, token]);
+
+  // Fermer en cliquant dehors (mode popover)
+  useEffect(() => {
+    if (!open || isPage) return;
     const h = (e) => { if (panelRef.current && !panelRef.current.contains(e.target)) setOpen(false); };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
-  }, [open]);
+  }, [open, isPage]);
 
   const loadNotifs = useCallback(async (p = 1) => {
     if (!token) return;
@@ -66,6 +79,7 @@ export const NotificationsPanel = ({ token, onPlaySong }) => {
       if (p === 1) setNotifs(data.notifications || []);
       else setNotifs(prev => [...prev, ...(data.notifications || [])]);
       setUnread(data.unreadCount || 0);
+      if (onUnreadCount) onUnreadCount(data.unreadCount || 0);
       setHasMore(p < (data.pagination?.pages || 1));
       setPage(p);
     } catch {}
@@ -78,12 +92,14 @@ export const NotificationsPanel = ({ token, onPlaySong }) => {
     await fetch(`${API}/notifications/${id}/read`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     setNotifs(prev => prev.map(n => n._id === id ? { ...n, lu: true } : n));
     setUnread(prev => Math.max(0, prev - 1));
+    if (onUnreadCount) onUnreadCount(Math.max(0, unread - 1));
   };
 
   const markAllRead = async () => {
     await fetch(`${API}/notifications/read-all`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     setNotifs(prev => prev.map(n => ({ ...n, lu: true })));
     setUnread(0);
+    if (onUnreadCount) onUnreadCount(0);
   };
 
   const clearRead = async () => {
@@ -93,29 +109,108 @@ export const NotificationsPanel = ({ token, onPlaySong }) => {
 
   const handleClick = (notif) => {
     if (!notif.lu) markRead(notif._id);
-    if (notif.songId && onPlaySong) onPlaySong(notif.songId);
-    setOpen(false);
+    if (notif.songId && onPlaySong) onPlaySong(notif.songId._id || notif.songId);
+    if (!isPage) setOpen(false);
   };
 
   if (!token) return null;
 
+  // ── Contenu partagé (liste de notifs) ──────
+  const NotifList = () => (
+    <>
+      {loading && notifications.length === 0 ? (
+        <div className="flex items-center justify-center py-12 text-zinc-600">
+          <Loader2 size={18} className="animate-spin mr-2" /> Chargement...
+        </div>
+      ) : notifications.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-zinc-600">
+          <BellOff size={30} className="mb-2 opacity-40" />
+          <p className="text-xs">Aucune notification</p>
+        </div>
+      ) : (
+        <>
+          {notifications.map(notif => {
+            const cfg = NOTIF_CFG[notif.type] || NOTIF_CFG.new_song;
+            return (
+              <div key={notif._id} onClick={() => handleClick(notif)}
+                className={`flex gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 transition border-b border-zinc-800/40 ${!notif.lu ? 'bg-white/2' : ''}`}>
+                <div className={`w-9 h-9 rounded-xl ${cfg.bg} flex items-center justify-center shrink-0 overflow-hidden`}>
+                  {notif.songId?.image
+                    ? <img src={notif.songId.image} className="w-full h-full object-cover" alt="" />
+                    : <span className="text-base">{cfg.emoji}</span>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-bold leading-tight ${!notif.lu ? 'text-white' : 'text-zinc-400'}`}>{notif.titre}</p>
+                  {notif.message && <p className="text-[10px] text-zinc-600 mt-0.5 truncate">{notif.message}</p>}
+                  <p className="text-[9px] text-zinc-700 mt-1">{timeAgo(notif.createdAt)}</p>
+                </div>
+                {!notif.lu && <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" />}
+              </div>
+            );
+          })}
+          {hasMore && (
+            <button onClick={() => loadNotifs(page + 1)} disabled={loading}
+              className="w-full py-2.5 text-xs text-zinc-500 hover:text-white hover:bg-zinc-800 transition flex items-center justify-center gap-1.5">
+              {loading ? <Loader2 size={12} className="animate-spin" /> : <ChevronRight size={12} />} Voir plus
+            </button>
+          )}
+        </>
+      )}
+    </>
+  );
+
+  // ── Actions communes ──────────────────────
+  const Actions = () => (
+    <div className="flex items-center gap-1">
+      {unread > 0 && (
+        <button onClick={markAllRead} title="Tout marquer lu"
+          className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition">
+          <CheckCheck size={13} />
+        </button>
+      )}
+      <button onClick={clearRead} title="Effacer lues"
+        className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition">
+        <Trash2 size={13} />
+      </button>
+    </div>
+  );
+
+  // ── MODE PAGE (vue pleine) ────────────────
+  if (isPage) {
+    return (
+      <div className="space-y-4">
+        {/* Barre d'actions */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {unread > 0 && <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{unread} non lues</span>}
+          </div>
+          <Actions />
+        </div>
+        {/* Liste */}
+        <div className="bg-zinc-900/40 border border-zinc-800/50 rounded-2xl overflow-hidden">
+          <NotifList />
+        </div>
+      </div>
+    );
+  }
+
+  // ── MODE POPOVER (cloche dans sidebar) ───
   return (
     <div className="relative" ref={panelRef}>
-      {/* Badge */}
+      {/* Badge cloche */}
       <button onClick={openPanel}
         className="relative p-2 text-zinc-400 hover:text-white transition rounded-xl hover:bg-zinc-800">
         <Bell size={20} />
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1 animate-pulse">
+          <span className="absolute -top-0.5 -right-0.5 min-w-4.5 h-4.5 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1 animate-pulse">
             {unread > 99 ? '99+' : unread}
           </span>
         )}
       </button>
 
-      {/* Panel */}
+      {/* Popover */}
       {open && (
-        <div className="absolute z-50 left-0 top-0 w-80 md:w-96 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl z-[200] overflow-hidden">
-          {/* Header */}
+        <div className="absolute z-200 left-0 top-0 w-80 md:w-96 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
             <div className="flex items-center gap-2">
               <Bell size={15} className="text-red-500" />
@@ -123,63 +218,15 @@ export const NotificationsPanel = ({ token, onPlaySong }) => {
               {unread > 0 && <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{unread}</span>}
             </div>
             <div className="flex items-center gap-1">
-              {unread > 0 && (
-                <button onClick={markAllRead} title="Tout marquer lu"
-                  className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition">
-                  <CheckCheck size={13} />
-                </button>
-              )}
-              <button onClick={clearRead} title="Effacer lues"
-                className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition">
-                <Trash2 size={13} />
-              </button>
+              <Actions />
               <button onClick={() => setOpen(false)}
                 className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition">
                 <X size={13} />
               </button>
             </div>
           </div>
-
-          {/* List */}
           <div className="max-h-96 overflow-y-auto">
-            {loading && notifications.length === 0 ? (
-              <div className="flex items-center justify-center py-12 text-zinc-600">
-                <Loader2 size={18} className="animate-spin mr-2" /> Chargement...
-              </div>
-            ) : notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-zinc-600">
-                <BellOff size={30} className="mb-2 opacity-40" />
-                <p className="text-xs">Aucune notification</p>
-              </div>
-            ) : (
-              <>
-                {notifications.map(notif => {
-                  const cfg = NOTIF_CFG[notif.type] || NOTIF_CFG.new_song;
-                  return (
-                    <div key={notif._id} onClick={() => handleClick(notif)}
-                      className={`flex gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 transition border-b border-zinc-800/40 ${!notif.lu ? 'bg-white/[0.02]' : ''}`}>
-                      <div className={`w-9 h-9 rounded-xl ${cfg.bg} flex items-center justify-center shrink-0 overflow-hidden`}>
-                        {notif.songId?.image
-                          ? <img src={notif.songId.image} className="w-full h-full object-cover" alt="" />
-                          : <span className="text-base">{cfg.emoji}</span>}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-bold leading-tight ${!notif.lu ? 'text-white' : 'text-zinc-400'}`}>{notif.titre}</p>
-                        {notif.message && <p className="text-[10px] text-zinc-600 mt-0.5 truncate">{notif.message}</p>}
-                        <p className="text-[9px] text-zinc-700 mt-1">{timeAgo(notif.createdAt)}</p>
-                      </div>
-                      {!notif.lu && <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" />}
-                    </div>
-                  );
-                })}
-                {hasMore && (
-                  <button onClick={() => loadNotifs(page + 1)} disabled={loading}
-                    className="w-full py-2.5 text-xs text-zinc-500 hover:text-white hover:bg-zinc-800 transition flex items-center justify-center gap-1.5">
-                    {loading ? <Loader2 size={12} className="animate-spin" /> : <ChevronRight size={12} />} Voir plus
-                  </button>
-                )}
-              </>
-            )}
+            <NotifList />
           </div>
         </div>
       )}
@@ -230,7 +277,6 @@ export const HistoryView = ({ token, currentSong, setCurrentSong, setIsPlaying }
     setHistory([]); setStats(null); setClearing(false);
   };
 
-  // Grouper par jour
   const grouped = history.reduce((acc, entry) => {
     if (!entry.song) return acc;
     const day = new Date(entry.playedAt).toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
@@ -257,7 +303,6 @@ export const HistoryView = ({ token, currentSong, setCurrentSong, setIsPlaying }
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="flex bg-zinc-800/50 rounded-xl p-1 mb-6 gap-1">
         {[['history', <Clock size={12}/>, 'Écoutes'], ['stats', <BarChart2 size={12}/>, 'Mes stats']].map(([key, icon, label]) => (
           <button key={key} onClick={() => setTab(key)}
@@ -267,7 +312,6 @@ export const HistoryView = ({ token, currentSong, setCurrentSong, setIsPlaying }
         ))}
       </div>
 
-      {/* ── ÉCOUTES ── */}
       {tab === 'history' && (
         loading && history.length === 0 ? (
           <div className="flex items-center justify-center py-16 text-zinc-600"><Loader2 size={22} className="animate-spin mr-2" /> Chargement...</div>
@@ -321,7 +365,6 @@ export const HistoryView = ({ token, currentSong, setCurrentSong, setIsPlaying }
         )
       )}
 
-      {/* ── STATS ── */}
       {tab === 'stats' && (
         loadingStats ? (
           <div className="flex items-center justify-center py-16 text-zinc-600"><Loader2 size={22} className="animate-spin mr-2" /> Chargement...</div>
@@ -378,8 +421,8 @@ export const HistoryView = ({ token, currentSong, setCurrentSong, setIsPlaying }
 // 🔗 BOUTON PARTAGE
 // ════════════════════════════════════════════
 export const ShareButton = ({ song, size = 15 }) => {
-  const [state, setstate]   = useState('idle'); // idle | loading | copied | error
-  const [shareUrl, setUrl]  = useState('');
+  const [state, setstate]     = useState('idle');
+  const [shareUrl, setUrl]    = useState('');
   const [showPop, setShowPop] = useState(false);
   const ref = useRef(null);
 
@@ -396,7 +439,11 @@ export const ShareButton = ({ song, size = 15 }) => {
     setstate('loading');
     try {
       const data = await fetch(`${API}/songs/${song._id}/share`, { method: 'POST' }).then(r => r.json());
-      setUrl(data.shareUrl);
+      // Remplacer le domaine de l'URL par le frontend courant
+      const frontendUrl = window.location.origin;
+      const token = data.shareToken;
+      const url = `${frontendUrl}/share/${token}`;
+      setUrl(url);
       setShowPop(true);
       setstate('idle');
     } catch { setstate('error'); setTimeout(() => setstate('idle'), 2000); }
@@ -407,7 +454,6 @@ export const ShareButton = ({ song, size = 15 }) => {
     try {
       await navigator.clipboard.writeText(shareUrl);
     } catch {
-      // Fallback Safari mobile
       const el = document.createElement('textarea');
       el.value = shareUrl; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
     }
@@ -429,7 +475,7 @@ export const ShareButton = ({ song, size = 15 }) => {
       </button>
 
       {showPop && shareUrl && (
-        <div className="absolute bottom-9 right-0 w-68 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl z-[100] p-4" onClick={e => e.stopPropagation()}>
+        <div className="absolute bottom-9 right-0 w-72 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl z-100 p-4" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-2 mb-3">
             <img src={song.image} className="w-8 h-8 rounded-lg object-cover shrink-0" alt="" />
             <div className="min-w-0">
@@ -456,6 +502,81 @@ export const ShareButton = ({ song, size = 15 }) => {
           <p className="text-[9px] text-zinc-700 text-center mt-2">Lien valable 7 jours</p>
         </div>
       )}
+    </div>
+  );
+};
+
+// ════════════════════════════════════════════
+// 🎵 PAGE DE PARTAGE  (/share/:shareToken)
+// Reçoit un token JWT de partage et affiche la musique
+// ════════════════════════════════════════════
+export const SharePageView = ({ setCurrentSong, setIsPlaying }) => {
+  const { shareToken } = useParams();
+  const [song, setSong]     = useState(null);
+  const [error, setError]   = useState('');
+  const [loading, setLoading] = useState(true);
+  const [played, setPlayed] = useState(false);
+
+  useEffect(() => {
+    if (!shareToken) { setError('Lien invalide'); setLoading(false); return; }
+    fetch(`${API}/share/${shareToken}`)
+      .then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.message || 'Lien invalide');
+        setSong(data.song);
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [shareToken]);
+
+  const playNow = () => {
+    if (!song) return;
+    setCurrentSong(song);
+    setIsPlaying(true);
+    setPlayed(true);
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64 text-zinc-500">
+      <Loader2 size={24} className="animate-spin mr-2" /> Chargement du titre...
+    </div>
+  );
+
+  if (error) return (
+    <div className="flex flex-col items-center justify-center h-64 text-zinc-500 gap-3">
+      <Music size={40} className="opacity-20" />
+      <p className="text-sm font-bold">{error}</p>
+      <p className="text-xs text-zinc-700">Ce lien est peut-être expiré ou invalide.</p>
+    </div>
+  );
+
+  return (
+    <div className="max-w-sm mx-auto mt-12 animate-in fade-in duration-500">
+      <div className="bg-zinc-900/60 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl">
+        {/* Cover */}
+        <div className="relative">
+          <img src={song.image} className="w-full aspect-square object-cover" alt="" />
+          <div className="absolute inset-0 bg-linear-to-t from-zinc-900 via-transparent to-transparent" />
+        </div>
+        {/* Info */}
+        <div className="p-6">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-red-500 mb-1">Partagé avec vous</p>
+          <h2 className="text-2xl font-black mb-1">{song.titre}</h2>
+          <p className="text-zinc-400 text-sm mb-6">{song.artiste}</p>
+          <button onClick={playNow}
+            className={`w-full py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition active:scale-95 ${
+              played ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'
+            }`}>
+            {played
+              ? <><Check size={16}/> En cours de lecture</>
+              : <><Play fill="white" size={16}/> Écouter maintenant</>
+            }
+          </button>
+          <p className="text-center text-[10px] text-zinc-700 mt-4">
+            Écoute via <span className="text-zinc-500 font-bold">MOOZIK</span>
+          </p>
+        </div>
+      </div>
     </div>
   );
 };
@@ -496,7 +617,7 @@ export const RecommendationsView = ({ token, currentSong, setCurrentSong, setIsP
     <div className="animate-in fade-in duration-500">
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl flex items-center justify-center">
+          <div className="w-10 h-10 bg-linear-to-br from-purple-600 to-pink-600 rounded-2xl flex items-center justify-center">
             <Sparkles size={19} className="text-white" />
           </div>
           <div>
@@ -562,7 +683,6 @@ export const RecommendationsView = ({ token, currentSong, setCurrentSong, setIsP
         </div>
       )}
 
-      {/* Similaires à la chanson en cours */}
       {currentSong && (
         <SimilarSongs song={currentSong} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} isPlaying={isPlaying} currentSong={currentSong} />
       )}
@@ -614,22 +734,12 @@ const SimilarSongs = ({ song, setCurrentSong, setIsPlaying, isPlaying, currentSo
   );
 };
 
-// ════════════════════════════════════════════
-// HOOK: enregistrement automatique historique
-// Usage dans MoozikWeb.jsx:
-//   useHistoryTracker(currentSong, currentTime, token)
-// ════════════════════════════════════════════
 export const useHistoryTracker = (currentSong, currentTime, token) => {
   const tracked = useRef(null);
-
-  // Reset à chaque changement de chanson
   useEffect(() => { tracked.current = null; }, [currentSong?._id]);
-
   useEffect(() => {
     if (!token || !currentSong || currentTime < 30) return;
     if (tracked.current === currentSong._id) return;
     tracked.current = currentSong._id;
-    // Le PUT /songs/:id/play gère déjà l'historique côté serveur
-    // Ce hook sert uniquement si on veut appeler /history directement
   }, [currentSong, currentTime, token]);
 };

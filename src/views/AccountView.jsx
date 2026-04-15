@@ -14,7 +14,8 @@ const AccountView = ({ token, userNom, userEmail, userRole, userId: userIdProp, 
   const [showNewPwd, setShowNewPwd]           = useState(false);
   const [avatarFile, setAvatarFile]   = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
-  const [savedAvatar, setSavedAvatar] = useState(localStorage.getItem('moozik_avatar') || null);
+  const avatarKey = `moozik_avatar_${userId || userArtistId || 'guest'}`;
+  const [savedAvatar, setSavedAvatar] = useState(localStorage.getItem(avatarKey) || null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [loadingPassword, setLoadingPassword] = useState(false);
   const [successProfile, setSuccessProfile]   = useState('');
@@ -38,7 +39,8 @@ const AccountView = ({ token, userNom, userEmail, userRole, userId: userIdProp, 
     setLoadingProfile(true); setErrorProfile(''); setSuccessProfile('');
     try {
       if (avatarFile && avatarPreview) {
-        localStorage.setItem('moozik_avatar', avatarPreview);
+        // Stocker avec clé scopée à l'utilisateur
+        localStorage.setItem(avatarKey, avatarPreview);
         setSavedAvatar(avatarPreview); setAvatarFile(null);
         if (onUpdateProfile) onUpdateProfile({ avatar: avatarPreview });
       }
@@ -88,7 +90,7 @@ const AccountView = ({ token, userNom, userEmail, userRole, userId: userIdProp, 
   };
 
   const removeAvatar = () => {
-    localStorage.removeItem('moozik_avatar');
+    localStorage.removeItem(avatarKey);
     setSavedAvatar(null); setAvatarPreview(null); setAvatarFile(null);
     if (onUpdateProfile) onUpdateProfile({ avatar: null });
   };
@@ -99,10 +101,19 @@ const AccountView = ({ token, userNom, userEmail, userRole, userId: userIdProp, 
     ? { label: 'Artiste', color: 'from-purple-600 to-purple-800', Icon: Mic2, badge: 'bg-purple-600/20 text-purple-400 border-purple-600/30' }
     : { label: 'Utilisateur', color: 'from-blue-600 to-blue-800', Icon: UserCircle, badge: 'bg-blue-600/20 text-blue-400 border-blue-600/30' };
 
+  const [favCount, setFavCount] = React.useState(0);
+  React.useEffect(() => {
+    if (!token) return;
+    fetch(`${API}/songs/favorites`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setFavCount(Array.isArray(d) ? d.length : 0))
+      .catch(() => {});
+  }, [token]);
+
   const stats = [
-    { label: 'Musiques',  value: musiques?.length || 0,                         icon: <Music size={16} />,     color: 'text-red-400' },
-    { label: 'Favoris',   value: musiques?.filter(s => s.liked)?.length || 0,   icon: <Heart size={16} />,     color: 'text-pink-400' },
-    { label: 'Playlists', value: userPlaylists?.length || 0,                    icon: <ListOrdered size={16} />, color: 'text-blue-400' },
+    { label: 'Musiques',  value: musiques?.length || 0,  icon: <Music size={16} />,       color: 'text-red-400' },
+    { label: 'Favoris',   value: favCount,                icon: <Heart size={16} />,       color: 'text-pink-400' },
+    { label: 'Playlists', value: userPlaylists?.length || 0, icon: <ListOrdered size={16} />, color: 'text-blue-400' },
   ];
 
   const displayAvatar = avatarPreview || savedAvatar;
@@ -113,7 +124,7 @@ const AccountView = ({ token, userNom, userEmail, userRole, userId: userIdProp, 
   return (
     <div className="animate-in fade-in duration-500 max-w-2xl mx-auto space-y-5">
       {/* Hero */}
-      <div className={`bg-gradient-to-br ${roleConfig.color} rounded-3xl p-6 md:p-8 relative overflow-hidden`}>
+      <div className={`bg-linear-to-br ${roleConfig.color} rounded-3xl p-6 md:p-8 relative overflow-hidden`}>
         <div className="absolute inset-0 opacity-10 pointer-events-none"><div className="absolute top-0 right-0 w-80 h-80 bg-white rounded-full translate-x-24 -translate-y-24" /></div>
         <div className="relative flex items-center gap-5">
           <div className="relative shrink-0">
@@ -169,7 +180,7 @@ const AccountView = ({ token, userNom, userEmail, userRole, userId: userIdProp, 
               className="w-full bg-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed" />
           </div>
           <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2 flex items-center gap-1"><Mail size={10} /> Email</label>
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2 items-center gap-1"><Mail size={10} /> Email</label>
             <input value={userEmail} readOnly className="w-full bg-zinc-800/40 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-zinc-500 cursor-not-allowed" />
           </div>
           {errorProfile   && <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 text-red-400 text-xs px-4 py-3 rounded-xl"><AlertCircle size={14} className="shrink-0 mt-0.5" /><span>{errorProfile}</span></div>}

@@ -46,7 +46,7 @@ const DashboardView     = lazy(() => import('./views/EnhancedDashboardView'));
 const PublicProfileView = lazy(() => import('./views/PublicProfileView'));
 
 // ── Social ─────────────────────────────────────────────────────────────────────
-import { NotificationsPanel, HistoryView, RecommendationsView } from './components/social/SocialFeatures';
+import { NotificationsPanel, HistoryView, RecommendationsView, SharePageView } from './components/social/SocialFeatures';
 
 // ── Fallback Suspense ──────────────────────────────────────────────────────────
 const ViewLoader = () => <div className="p-6"><SongListSkeleton count={6} /></div>;
@@ -104,7 +104,7 @@ const MoozikWeb = () => {
   const [userId, setUserId]                   = useState('');
   const [showLoginModal, setShowLoginModal]   = useState(false);
   const [token, setToken]                     = useState(localStorage.getItem('moozik_token') || '');
-  const [userAvatar, setUserAvatar]           = useState(localStorage.getItem('moozik_avatar') || null);
+  const [userAvatar, setUserAvatar]           = useState(null); // initialisé après login avec clé user-scoped
 
   // ── Refs ────────────────────────────────────────────────────────────────────
   const audioRef        = useRef(null);
@@ -121,7 +121,7 @@ const MoozikWeb = () => {
   const canUpload   = isAdmin || isArtist;
   const authHeaders = () => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` });
   const roleColor   = isAdmin ? 'bg-red-600' : isArtist ? 'bg-purple-600' : 'bg-blue-600';
-  const avatarDisplay = userAvatar || localStorage.getItem('moozik_avatar');
+  const avatarDisplay = userAvatar || null;
 
   // ── Hooks avancés ───────────────────────────────────────────────────────────
   const dominantColor = useDominantColor(currentSong?.image);
@@ -174,7 +174,16 @@ const MoozikWeb = () => {
             setUserNom(data.nom || localStorage.getItem('moozik_nom'));
             const uid = data.userId || data.id || data._id || localStorage.getItem('moozik_userId');
             setUserId(uid);
-            if (uid) localStorage.setItem('moozik_userId', uid);
+            if (uid) {
+              localStorage.setItem('moozik_userId', uid);
+              // Charger avatar scopé à cet utilisateur
+              const savedAvatar = localStorage.getItem(`moozik_avatar_${uid}`);
+              if (savedAvatar) setUserAvatar(savedAvatar);
+              else if (data.avatar) {
+                setUserAvatar(data.avatar);
+                localStorage.setItem(`moozik_avatar_${uid}`, data.avatar);
+              }
+            }
           }
         } else {
           ['moozik_token','moozik_email','moozik_role','moozik_nom','moozik_artisteId','moozik_userId'].forEach(k => localStorage.removeItem(k));
@@ -194,21 +203,39 @@ const MoozikWeb = () => {
       setIsUser(true); setUserNom(data.nom);
       const uid = data.userId || data.id || data._id;
       setUserId(uid); if (uid) localStorage.setItem('moozik_userId', uid);
+      // Avatar scopé par userId
+      if (uid) {
+        const savedAvatar = localStorage.getItem(`moozik_avatar_${uid}`);
+        if (savedAvatar) setUserAvatar(savedAvatar);
+        else if (data.avatar) {
+          setUserAvatar(data.avatar);
+          localStorage.setItem(`moozik_avatar_${uid}`, data.avatar);
+        }
+      }
     }
-    chargerUserPlaylists(data.token); // tous les rôles
+    chargerUserPlaylists(data.token);
     setShowLoginModal(false);
   };
 
   const handleLogout = () => {
     ['moozik_token','moozik_email','moozik_role','moozik_nom','moozik_artisteId','moozik_userId'].forEach(k => localStorage.removeItem(k));
+    // Ne pas effacer l'avatar scopé (lié au userId, pas partagé)
     setToken(''); setIsAdmin(false); setIsArtist(false); setIsUser(false);
     setUserRole(''); setUserEmail(''); setUserNom(''); setUserArtistId(''); setUserId('');
+    setUserAvatar(null);
     setUserPlaylists([]);
   };
 
   const handleUpdateProfile = ({ nom, avatar }) => {
     if (nom) setUserNom(nom);
-    if (avatar !== undefined) setUserAvatar(avatar || localStorage.getItem('moozik_avatar'));
+    if (avatar !== undefined) {
+      setUserAvatar(avatar || null);
+      const uid = userId || localStorage.getItem('moozik_userId');
+      if (uid) {
+        if (avatar) localStorage.setItem(`moozik_avatar_${uid}`, avatar);
+        else localStorage.removeItem(`moozik_avatar_${uid}`);
+      }
+    }
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -238,10 +265,14 @@ const MoozikWeb = () => {
   // ACTIONS
   // ═══════════════════════════════════════════════════════════════════════════
   const toggleLike = async (id) => {
+    if (!token || !isLoggedIn) { setShowLoginModal(true); return; }
     try {
-      const updated = await fetch(`${API}/songs/${id}/like`, { method: 'PUT' }).then(r => r.json());
-      setMusiques(prev => prev.map(s => s._id === id ? updated : s));
-      if (currentSong?._id === id) setCurrentSong(updated);
+      const updated = await fetch(`${API}/songs/${id}/like`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(r => r.json());
+      setMusiques(prev => prev.map(s => s._id === id ? { ...s, liked: updated.liked } : s));
+      if (currentSong?._id === id) setCurrentSong(prev => ({ ...prev, liked: updated.liked }));
     } catch {}
   };
   const addToQueue  = (song) => { setQueue(prev => [...prev, song]); setActiveMenu(null); };
@@ -700,6 +731,11 @@ const MoozikWeb = () => {
             <Route path="/profile/:userId" element={<Suspense fallback={<ViewLoader />}><PublicProfileView token={token} currentSong={currentSong} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} isPlaying={isPlaying} /></Suspense>} />
             <Route path="/history"         element={isLoggedIn ? <HistoryView token={token} currentSong={currentSong} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} /> : <div className="p-8 text-zinc-500">Connectez-vous</div>} />
             <Route path="/recommendations" element={<RecommendationsView token={token} currentSong={currentSong} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} isPlaying={isPlaying} />} />
+            <Route path="/share/:shareToken" element={
+              <Suspense fallback={<ViewLoader />}>
+                <SharePageView setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} />
+              </Suspense>
+            } />
             <Route path="/notifications"   element={
               isLoggedIn
                 ? <div className="max-w-xl mx-auto py-6">
@@ -875,6 +911,7 @@ const MoozikWeb = () => {
           handleNext={handleNext} toggleLike={toggleLike}
           onOpenFullPlayer={() => setShowFullPlayer(true)}
           currentTime={currentTime} duration={duration} initAudioEngine={initAudioEngine}
+          cacheAudio={cacheAudio} removeCached={removeCached} isAudioCached={isAudioCached}
         />
 
       </div>
