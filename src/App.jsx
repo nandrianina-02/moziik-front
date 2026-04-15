@@ -638,7 +638,7 @@ const MoozikWeb = () => {
         {showMobileMenu && (
           <>
             <div className="md:hidden fixed inset-0 z-40" onClick={() => setShowMobileMenu(false)} />
-            <div className="md:hidden fixed top-[104px] left-3 right-3 z-50 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="md:hidden fixed top-26 left-3 right-3 z-50 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden">
               <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-3">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black overflow-hidden ${roleColor}`}>
                   {avatarDisplay ? <img src={avatarDisplay} className="w-full h-full object-cover" alt="" /> : (userNom || '?')[0].toUpperCase()}
@@ -683,7 +683,7 @@ const MoozikWeb = () => {
         {/* ══════════════════════════════════════════════════════════════════
             MAIN
         ══════════════════════════════════════════════════════════════════ */}
-        <main className={`flex-1 overflow-y-auto bg-gradient-to-b from-zinc-900 to-black p-4 md:p-7 pb-40 pt-28 md:pt-7 lg:pb-40 md:pb-40 transition-all ${showQueue ? 'md:mr-72' : ''}`}
+        <main className={`flex-1 overflow-y-auto bg-linear-to-b from-zinc-900 to-black p-4 md:p-7 pb-40 pt-28 md:pt-7 lg:pb-40 md:pb-40 transition-all ${showQueue ? 'md:mr-72' : ''}`}
           onClick={() => setActiveMenu(null)}>
           <Routes>
             <Route path="/favorites"       element={<FavoritesView musiques={musiques} {...songProps} />} />
@@ -737,7 +737,7 @@ const MoozikWeb = () => {
             EQ MODAL (séparé pour accessibilité)
         ══════════════════════════════════════════════════════════════════ */}
         {showEQ && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-150 flex items-center justify-center p-4">
             <div className="bg-zinc-900 border border-zinc-800 p-6 md:p-8 rounded-3xl w-full max-w-md shadow-2xl">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-black italic flex items-center gap-2"><Sliders className="text-red-600" /> ÉGALISEUR</h3>
@@ -810,7 +810,7 @@ const MoozikWeb = () => {
             PLAYER BAR DESKTOP
         ══════════════════════════════════════════════════════════════════ */}
         {currentSong && (
-          <footer className="hidden md:flex fixed bottom-0 left-0 right-0 md:bottom-3 md:left-[calc(256px+12px)] md:right-3 md:rounded-2xl bg-zinc-950/98 border-t border-zinc-800/60 md:border md:border-zinc-800/60 h-20 md:h-24 px-3 md:px-5 items-center justify-between backdrop-blur-xl shadow-2xl z-50">
+          <footer className="hidden md:flex fixed bottom-0 left-0 right-0 md:bottom-3 md:left-67 md:right-3 md:rounded-2xl bg-zinc-950/98 border-t border-zinc-800/60 md:border md:border-zinc-800/60 h-20 md:h-24 px-3 md:px-5 items-center justify-between backdrop-blur-xl shadow-2xl z-50">
             <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-0.5 opacity-70 pointer-events-none" width="1000" height="4" />
 
             {/* Info */}
