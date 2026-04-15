@@ -1,117 +1,115 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React from 'react';
 import { Play, Pause, SkipForward, Heart, ChevronUp } from 'lucide-react';
 
-/**
- * MiniPlayerMobile — barre player compacte en bas sur mobile.
- * Swipe vers le haut → ouvre le FullPlayer.
- * Swipe vers le bas → réduit (ne fait rien si déjà réduit).
- */
+// ─────────────────────────────────────────────────────────────────
+// MiniPlayerMobile
+// Barre fixe en bas sur mobile avec fond ambiant depuis la pochette
+// Tap sur la barre → ouvre le FullPlayer
+// ─────────────────────────────────────────────────────────────────
 const MiniPlayerMobile = ({
-  currentSong, isPlaying, setIsPlaying,
-  handleNext, toggleLike, onOpenFullPlayer,
-  currentTime, duration, initAudioEngine,
+  currentSong,
+  isPlaying,
+  setIsPlaying,
+  handleNext,
+  toggleLike,
+  onOpenFullPlayer,
+  currentTime,
+  duration,
+  initAudioEngine,
 }) => {
-  const startY = useRef(null);
-  const [translateY, setTranslateY] = useState(0);
-  const [swiping, setSwiping] = useState(false);
+  if (!currentSong) return null;
 
   const prog = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  const onTouchStart = (e) => {
-    startY.current = e.touches[0].clientY;
-    setSwiping(true);
-  };
-
-  const onTouchMove = (e) => {
-    if (startY.current === null) return;
-    const dy = e.touches[0].clientY - startY.current;
-    // On autorise seulement le swipe vers le haut (dy négatif)
-    if (dy < 0) setTranslateY(Math.max(dy, -80));
-  };
-
-  const onTouchEnd = (e) => {
-    const dy = e.changedTouches[0].clientY - (startY.current ?? 0);
-    setSwiping(false);
-    setTranslateY(0);
-    startY.current = null;
-    if (dy < -40) onOpenFullPlayer(); // swipe haut → full player
-  };
-
-  if (!currentSong) return null;
-
   return (
-    <div
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50"
-      style={{
-        transform: `translateY(${translateY}px)`,
-        transition: swiping ? 'none' : 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
-      }}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-    >
-      {/* Barre de progression fine en haut */}
-      <div className="h-0.5 bg-zinc-800 w-full">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50">
+      {/* ── Barre de progression ultra-fine tout en haut ── */}
+      <div className="h-0.5 w-full bg-white/10 relative">
         <div
-          className="h-full bg-red-500 transition-all duration-300"
+          className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all duration-300"
           style={{ width: `${prog}%` }}
         />
       </div>
 
-      {/* Corps du mini player */}
-      <div className="bg-zinc-950/98 backdrop-blur-xl border-t border-zinc-800/60 px-4 py-3 flex items-center gap-3">
-        {/* Swipe handle */}
-        <button
-          onClick={onOpenFullPlayer}
-          className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-1 bg-zinc-700 rounded-full"
-          aria-label="Ouvrir lecteur"
-        />
-
-        {/* Cover — tap → full player */}
-        <button onClick={onOpenFullPlayer} className="relative shrink-0">
-          <img
-            src={currentSong.image}
-            className="w-11 h-11 rounded-xl object-cover shadow-lg"
-            alt=""
-          />
-          {isPlaying && (
-            <div className="absolute inset-0 rounded-xl ring-1 ring-red-500/50 animate-pulse" />
-          )}
-        </button>
-
-        {/* Info */}
-        <button onClick={onOpenFullPlayer} className="flex-1 min-w-0 text-left">
-          <p className="text-sm font-bold truncate text-white">{currentSong.titre}</p>
-          <p className="text-[11px] text-zinc-500 truncate">{currentSong.artiste}</p>
-        </button>
-
-        {/* Actions */}
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={(e) => { e.stopPropagation(); toggleLike(currentSong._id); }}
-            className="p-2 rounded-xl hover:bg-zinc-800 transition"
-          >
-            <Heart
-              size={17}
-              fill={currentSong.liked ? '#ef4444' : 'none'}
-              className={currentSong.liked ? 'text-red-500' : 'text-zinc-500'}
+      {/* ── Corps du mini player ── */}
+      <div className="relative overflow-hidden">
+        {/* Fond ambiant depuis la pochette */}
+        {currentSong.image && (
+          <div className="absolute inset-0 pointer-events-none">
+            <img
+              src={currentSong.image}
+              className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-40"
+              alt=""
             />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); initAudioEngine(); setIsPlaying(p => !p); }}
-            className="p-2 rounded-xl hover:bg-zinc-800 transition"
-          >
-            {isPlaying
-              ? <Pause size={20} fill="white" className="text-white" />
-              : <Play size={20} fill="white" className="text-white" />
-            }
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleNext(); }}
-            className="p-2 rounded-xl hover:bg-zinc-800 transition"
-          >
-            <SkipForward size={17} className="text-zinc-400" />
-          </button>
+            <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" />
+          </div>
+        )}
+
+        {/* Contenu */}
+        <div
+          className="relative flex items-center gap-3 px-4 py-3 cursor-pointer"
+          onClick={onOpenFullPlayer}
+        >
+          {/* Pochette */}
+          <div className="relative shrink-0">
+            <img
+              src={currentSong.image}
+              className={`w-11 h-11 rounded-xl object-cover shadow-lg shadow-black/50 transition-all duration-300 ${isPlaying ? 'scale-100' : 'scale-95 opacity-80'}`}
+              alt=""
+            />
+            {/* Indicateur lecture */}
+            {isPlaying && (
+              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 border border-zinc-950" />
+            )}
+          </div>
+
+          {/* Titre + artiste */}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-white truncate leading-tight">{currentSong.titre}</p>
+            <p className="text-[11px] text-white/50 truncate mt-0.5">{currentSong.artiste}</p>
+          </div>
+
+          {/* Boutons action */}
+          <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+            {/* Like */}
+            <button
+              onClick={() => toggleLike(currentSong._id)}
+              className="p-2 active:scale-90 transition">
+              <Heart
+                size={18}
+                fill={currentSong.liked ? '#ef4444' : 'none'}
+                className={currentSong.liked ? 'text-red-500' : 'text-white/40'}
+              />
+            </button>
+
+            {/* Play/Pause — anneau gradient */}
+            <button
+              onClick={() => { initAudioEngine(); setIsPlaying(p => !p); }}
+              className="relative flex items-center justify-center w-10 h-10 active:scale-95 transition mx-1">
+              {/* Anneau gradient */}
+              <div
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: 'conic-gradient(from 180deg, #6366f1, #8b5cf6, #3b82f6, #6366f1)',
+                  padding: '2px'
+                }}>
+                <div className="w-full h-full rounded-full bg-zinc-900" />
+              </div>
+              <div className="relative z-10">
+                {isPlaying
+                  ? <Pause fill="white" size={16} className="text-white" />
+                  : <Play  fill="white" size={16} className="text-white ml-0.5" />}
+              </div>
+            </button>
+
+            {/* Suivant */}
+            <button onClick={handleNext} className="p-2 active:scale-90 transition">
+              <SkipForward size={18} className="text-white/70" />
+            </button>
+          </div>
+
+          {/* Flèche haut — tap pour ouvrir */}
+          <ChevronUp size={14} className="text-white/25 shrink-0 ml-1" />
         </div>
       </div>
     </div>

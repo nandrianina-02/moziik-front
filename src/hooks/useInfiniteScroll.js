@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { API } from '../config/api';
+import { API } from '../config/api.js';
 
 /**
  * Hook de pagination avec infinite scroll.

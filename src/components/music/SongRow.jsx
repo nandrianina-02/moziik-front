@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Heart, ListPlus, Eye, MoreHorizontal, Trash2, Edit2, Plus, Check, X, Play, Pause, Globe, Lock } from 'lucide-react';
-import ReactionsBar from './ReactionsBar';
-import CommentsSection from './CommentsSection';
-import { API } from '../../config/api';
-import { ShareButton } from '../social/SocialFeatures';
+import ReactionsBar from './ReactionsBar.jsx';
+import CommentsSection from './CommentsSection.jsx';
+import { API } from '../../config/api.js';
+import { ShareButton } from '../social/SocialFeatures.jsx';
 
 const EditSongModal = ({ song, token, onClose, onSaved }) => {
   const [titre, setTitre] = useState(song.titre || '');

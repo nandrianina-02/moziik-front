@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API } from '../../config/api';
+import { API } from '../../config/api.js';
 
 const ReactionsBar = ({ songId, token, isLoggedIn }) => {
   const [reactions, setReactions] = useState({ fire: 0, heart: 0, star: 0, userReaction: null });

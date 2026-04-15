@@ -27,3 +27,8 @@
   scrollbar-width: thin;
   scrollbar-color: #27272a #09090b;
 }
+
+@keyframes slideUp {
+  from { transform: translate(-50%, 100px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
