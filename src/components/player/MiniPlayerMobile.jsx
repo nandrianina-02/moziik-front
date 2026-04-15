@@ -26,7 +26,7 @@ const MiniPlayerMobile = ({
       {/* ── Barre de progression ultra-fine tout en haut ── */}
       <div className="h-0.5 w-full bg-white/10 relative">
         <div
-          className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all duration-300"
+          className="absolute top-0 left-0 h-full bg-linear-to-r from-blue-500 to-violet-500 transition-all duration-300"
           style={{ width: `${prog}%` }}
         />
       </div>
@@ -59,7 +59,7 @@ const MiniPlayerMobile = ({
             />
             {/* Indicateur lecture */}
             {isPlaying && (
-              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 border border-zinc-950" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-linear-to-br from-blue-400 to-violet-500 border border-zinc-950" />
             )}
           </div>
 

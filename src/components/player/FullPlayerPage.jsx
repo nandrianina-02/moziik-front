@@ -277,7 +277,7 @@ const FullPlayerPage = ({
   );
 
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col md:flex-row overflow-hidden select-none">
+    <div className="fixed inset-0 z-200 flex flex-col md:flex-row overflow-hidden select-none">
 
       {/* ══ FOND AMBIANT ══ */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -285,8 +285,8 @@ const FullPlayerPage = ({
           <img src={currentSong.image}
             className="absolute inset-0 w-full h-full object-cover scale-125 blur-3xl opacity-50" alt=""/>
         )}
-        <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/75 via-zinc-950/65 to-zinc-950/95"/>
-        <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/40 via-transparent to-zinc-950/40"/>
+        <div className="absolute inset-0 bg-linear-to-b from-zinc-950/75 via-zinc-950/65 to-zinc-950/95"/>
+        <div className="absolute inset-0 bg-linear-to-r from-zinc-950/40 via-transparent to-zinc-950/40"/>
       </div>
 
       {/* ══ COLONNE PRINCIPALE ══ */}
@@ -330,7 +330,7 @@ const FullPlayerPage = ({
             <div className="flex flex-col flex-1">
               {/* Cover */}
               <div className="flex items-center justify-center px-8 py-20 shrink-0">
-                <div className="relative w-full max-w-[240px] md:max-w-[280px] aspect-square">
+                <div className="relative w-full max-w-60 md:max-w-70 aspect-square">
                   {currentSong?.image && (
                     <div className="absolute inset-3 rounded-3xl blur-2xl opacity-55 scale-95"
                       style={{ backgroundImage: `url(${currentSong.image})`, backgroundSize: 'cover' }}/>
@@ -428,7 +428,7 @@ const FullPlayerPage = ({
       </div>
 
       {/* ══ COLONNE DROITE desktop ══ */}
-      <div className="relative hidden md:flex w-[340px] lg:w-[400px] flex-col border-l border-white/8 overflow-hidden">
+      <div className="relative hidden md:flex w-85 lg:w-100 flex-col border-l border-white/8 overflow-hidden">
         <div className="absolute inset-0 bg-black/30 backdrop-blur-sm"/>
         <div className="relative flex flex-col h-full">
           <div className="flex border-b border-white/8 shrink-0">

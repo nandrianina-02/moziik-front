@@ -6,7 +6,7 @@ export const OfflineBanner = ({ isOnline, wasOffline }) => {
   if (isOnline && !wasOffline) return null;
 
   return (
-    <div className={`fixed top-0 left-0 right-0 z-[500] flex items-center justify-center gap-2 py-2 text-xs font-bold transition-all duration-500
+    <div className={`fixed top-0 left-0 right-0 z-500 flex items-center justify-center gap-2 py-2 text-xs font-bold transition-all duration-500
       ${isOnline
         ? 'bg-green-600/90 text-white backdrop-blur-sm'
         : 'bg-zinc-900/95 text-zinc-300 border-b border-zinc-800 backdrop-blur-sm'
