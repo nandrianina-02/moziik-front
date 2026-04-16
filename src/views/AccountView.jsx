@@ -38,11 +38,27 @@ const AccountView = ({ token, userNom, userEmail, userRole, userId: userIdProp, 
     e.preventDefault();
     setLoadingProfile(true); setErrorProfile(''); setSuccessProfile('');
     try {
-      if (avatarFile && avatarPreview) {
-        // Stocker avec clé scopée à l'utilisateur
-        localStorage.setItem(avatarKey, avatarPreview);
-        setSavedAvatar(avatarPreview); setAvatarFile(null);
-        if (onUpdateProfile) onUpdateProfile({ avatar: avatarPreview });
+      if (avatarFile) {
+        // Envoyer l'avatar AU SERVEUR (Cloudinary) pour persistance multi-appareils
+        let endpoint = '';
+        if (isArtist && userArtistId) endpoint = `${API}/artists/${userArtistId}`;
+        else if (userId)              endpoint = `${API}/users/${userId}`;
+        if (endpoint) {
+          const fd = new FormData();
+          fd.append('avatar', avatarFile);
+          const res = await fetch(endpoint, { method: 'PUT', headers: { Authorization: `Bearer ${token}` }, body: fd });
+          if (res.ok) {
+            const data = await res.json();
+            const cloudUrl = data.avatar || data.image || avatarPreview;
+            localStorage.setItem(avatarKey, cloudUrl);
+            setSavedAvatar(cloudUrl); setAvatarFile(null);
+            if (onUpdateProfile) onUpdateProfile({ avatar: cloudUrl });
+          }
+        } else {
+          localStorage.setItem(avatarKey, avatarPreview);
+          setSavedAvatar(avatarPreview); setAvatarFile(null);
+          if (onUpdateProfile) onUpdateProfile({ avatar: avatarPreview });
+        }
       }
       const trimmed = nom.trim();
       if (trimmed && trimmed !== userNom) {
@@ -124,7 +140,7 @@ const AccountView = ({ token, userNom, userEmail, userRole, userId: userIdProp, 
   return (
     <div className="animate-in fade-in duration-500 max-w-2xl mx-auto space-y-5">
       {/* Hero */}
-      <div className={`bg-linear-to-br ${roleConfig.color} rounded-3xl p-6 md:p-8 relative overflow-hidden`}>
+      <div className={`bg-gradient-to-br ${roleConfig.color} rounded-3xl p-6 md:p-8 relative overflow-hidden`}>
         <div className="absolute inset-0 opacity-10 pointer-events-none"><div className="absolute top-0 right-0 w-80 h-80 bg-white rounded-full translate-x-24 -translate-y-24" /></div>
         <div className="relative flex items-center gap-5">
           <div className="relative shrink-0">
@@ -180,7 +196,7 @@ const AccountView = ({ token, userNom, userEmail, userRole, userId: userIdProp, 
               className="w-full bg-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed" />
           </div>
           <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2 items-center gap-1"><Mail size={10} /> Email</label>
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2 flex items-center gap-1"><Mail size={10} /> Email</label>
             <input value={userEmail} readOnly className="w-full bg-zinc-800/40 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-zinc-500 cursor-not-allowed" />
           </div>
           {errorProfile   && <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 text-red-400 text-xs px-4 py-3 rounded-xl"><AlertCircle size={14} className="shrink-0 mt-0.5" /><span>{errorProfile}</span></div>}

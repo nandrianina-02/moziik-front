@@ -1,54 +1,204 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Heart, ListPlus, Eye, MoreHorizontal, Trash2, Edit2, Plus, Check, X, Play, Pause, Globe, Lock } from 'lucide-react';
+import {
+  Heart, ListPlus, Eye, MoreHorizontal, Trash2, Edit2,
+  Plus, Check, X, Play, Pause, Globe, Lock, Camera,
+  Loader2, Image as ImageIcon, Mic2, Disc3, AlertCircle
+} from 'lucide-react';
 import ReactionsBar from './ReactionsBar.jsx';
 import CommentsSection from './CommentsSection.jsx';
 import { API } from '../../config/api.js';
 import { ShareButton } from '../social/SocialFeatures.jsx';
+import ConfirmDialog, { useConfirm } from '../ui/ConfirmDialog.jsx';
 
+// ════════════════════════════════════════════
+// MODAL ÉDITION COMPLÈTE (Admin)
+// titre, artiste (recherche), album, photo
+// ════════════════════════════════════════════
 const EditSongModal = ({ song, token, onClose, onSaved }) => {
-  const [titre, setTitre] = useState(song.titre || '');
-  const [artiste, setArtiste] = useState(song.artiste || '');
-  const [loading, setLoading] = useState(false);
+  const [titre, setTitre]       = useState(song.titre || '');
+  const [artiste, setArtiste]   = useState(song.artiste || '');
+  const [artisteId, setArtisteId] = useState(song.artisteId?._id || song.artisteId || '');
+  const [albumId, setAlbumId]   = useState(song.albumId?._id || song.albumId || '');
+  const [artists, setArtists]   = useState([]);
+  const [albums, setAlbums]     = useState([]);
+  const [artistSearch, setArtistSearch] = useState('');
+  const [imgFile, setImgFile]   = useState(null);
+  const [imgPrev, setImgPrev]   = useState(song.image || '');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+  const fileRef = useRef();
+
+  // Charger artistes et albums filtrés
+  useEffect(() => {
+    fetch(`${API}/artists`).then(r => r.json()).then(d => setArtists(Array.isArray(d) ? d : [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!artisteId) { setAlbums([]); setAlbumId(''); return; }
+    fetch(`${API}/albums?artisteId=${artisteId}`)
+      .then(r => r.json()).then(d => setAlbums(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [artisteId]);
+
+  const filteredArtists = artists.filter(a =>
+    !artistSearch || a.nom.toLowerCase().includes(artistSearch.toLowerCase())
+  );
+
+  const handleImg = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    setImgFile(f);
+    const r = new FileReader(); r.onload = () => setImgPrev(r.result); r.readAsDataURL(f);
+  };
+
+  const handleSelectArtist = (a) => {
+    setArtisteId(a._id);
+    setArtiste(a.nom);
+    setArtistSearch('');
+    setAlbumId('');
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    await fetch(`${API}/songs/${song._id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ titre, artiste })
-    });
-    setLoading(false);
-    onSaved();
-    onClose();
+    setLoading(true); setError('');
+    try {
+      const fd = new FormData();
+      fd.append('titre', titre.trim());
+      fd.append('artiste', artiste.trim());
+      if (artisteId) fd.append('artisteId', artisteId);
+      else fd.append('artisteId', '');
+      if (albumId) fd.append('albumId', albumId);
+      else fd.append('albumId', '');
+      if (imgFile) fd.append('image', imgFile);
+
+      const res = await fetch(`${API}/songs/${song._id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || `Erreur ${res.status}`);
+      onSaved(data);
+      onClose();
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[350] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h4 className="font-black text-base flex items-center gap-2">
-            <Edit2 size={16} className="text-red-400" /> Modifier le titre
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[350] flex items-center justify-center p-4"
+      onClick={onClose}>
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-zinc-800">
+          <h4 className="font-black text-sm flex items-center gap-2">
+            <Edit2 size={15} className="text-red-400" /> Modifier la musique
           </h4>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition">
-            <X size={16} />
+          <button onClick={onClose} className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition">
+            <X size={15} />
           </button>
         </div>
-        <form onSubmit={handleSave} className="flex flex-col gap-4">
+
+        <form onSubmit={handleSave} className="p-5 space-y-4">
+
+          {/* Photo */}
+          <div className="flex items-center gap-4">
+            <div className="relative shrink-0">
+              <div className="w-20 h-20 rounded-xl overflow-hidden bg-zinc-800 border border-zinc-700">
+                {imgPrev
+                  ? <img src={imgPrev} className="w-full h-full object-cover" alt="" />
+                  : <ImageIcon size={24} className="text-zinc-600 m-auto mt-6" />}
+              </div>
+              <button type="button" onClick={() => fileRef.current?.click()}
+                className="absolute -bottom-1.5 -right-1.5 w-7 h-7 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center shadow-lg transition">
+                <Camera size={12} className="text-white" />
+              </button>
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImg} />
+            </div>
+            <div className="text-xs text-zinc-500">
+              <p className="font-bold text-zinc-300 mb-0.5">Pochette</p>
+              <p>JPG, PNG, WEBP · max 5 Mo</p>
+              {imgFile && <p className="text-green-400 mt-1">✓ Nouvelle photo prête</p>}
+            </div>
+          </div>
+
+          {/* Titre */}
           <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Titre</label>
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Titre *</label>
             <input value={titre} onChange={e => setTitre(e.target.value)} required
               className="w-full bg-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white" />
           </div>
+
+          {/* Artiste avec recherche */}
           <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Artiste</label>
-            <input value={artiste} onChange={e => setArtiste(e.target.value)}
-              className="w-full bg-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white" />
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
+              <Mic2 size={9} /> Artiste
+            </label>
+            {/* Artiste sélectionné */}
+            {artisteId && (
+              <div className="flex items-center gap-2 mb-2 bg-purple-600/10 border border-purple-600/20 rounded-xl px-3 py-2">
+                <div className="w-6 h-6 rounded-full bg-purple-600/30 flex items-center justify-center text-[10px] font-black text-purple-300">
+                  {artiste[0]}
+                </div>
+                <span className="text-sm font-bold text-purple-300 flex-1">{artiste}</span>
+                <button type="button" onClick={() => { setArtisteId(''); setArtiste(''); setAlbums([]); setAlbumId(''); }}
+                  className="text-zinc-500 hover:text-white">
+                  <X size={13} />
+                </button>
+              </div>
+            )}
+            {/* Recherche */}
+            {!artisteId && (
+              <>
+                <input value={artistSearch} onChange={e => setArtistSearch(e.target.value)}
+                  placeholder="Rechercher un artiste..."
+                  className="w-full bg-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600 mb-1" />
+                {artistSearch && (
+                  <div className="max-h-32 overflow-y-auto bg-zinc-800 rounded-xl border border-zinc-700">
+                    {filteredArtists.length === 0
+                      ? <p className="px-4 py-2 text-xs text-zinc-600 italic">Aucun artiste</p>
+                      : filteredArtists.slice(0, 6).map(a => (
+                        <button key={a._id} type="button" onClick={() => handleSelectArtist(a)}
+                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-700 transition text-left">
+                          <div className="w-6 h-6 rounded-full bg-zinc-700 overflow-hidden shrink-0">
+                            {a.image ? <img src={a.image} className="w-full h-full object-cover" alt="" /> : <Mic2 size={12} className="text-zinc-500 m-auto mt-0.5" />}
+                          </div>
+                          <span className="text-sm">{a.nom}</span>
+                        </button>
+                      ))}
+                  </div>
+                )}
+                {/* Saisie manuelle si pas de résultat */}
+                <input value={artiste} onChange={e => setArtiste(e.target.value)}
+                  placeholder="Ou saisir le nom de l'artiste manuellement"
+                  className="w-full bg-zinc-800/50 rounded-xl px-4 py-2 text-sm outline-none focus:ring-1 ring-zinc-600 text-zinc-400 placeholder-zinc-700 mt-1" />
+              </>
+            )}
           </div>
-          <div className="flex gap-2 mt-1">
+
+          {/* Album (filtré selon artiste) */}
+          <div>
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
+              <Disc3 size={9} /> Album (optionnel)
+            </label>
+            <select value={albumId} onChange={e => setAlbumId(e.target.value)}
+              disabled={albums.length === 0}
+              className="w-full bg-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white disabled:opacity-40">
+              <option value="">Aucun album</option>
+              {albums.map(a => <option key={a._id} value={a._id}>{a.titre} ({a.annee})</option>)}
+            </select>
+            {!artisteId && <p className="text-[10px] text-zinc-600 mt-1">Sélectionnez d'abord un artiste</p>}
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 text-red-400 text-xs px-3 py-2.5 rounded-xl">
+              <AlertCircle size={13} /> {error}
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-1">
             <button type="submit" disabled={loading}
-              className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-1.5 disabled:opacity-50">
-              {loading ? 'Sauvegarde...' : <><Check size={14} /> Sauvegarder</>}
+              className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-2 active:scale-[0.98]">
+              {loading ? <><Loader2 size={14} className="animate-spin" /> Sauvegarde...</> : <><Check size={14} /> Sauvegarder</>}
             </button>
             <button type="button" onClick={onClose}
               className="px-4 py-2.5 rounded-xl text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition">
@@ -61,64 +211,69 @@ const EditSongModal = ({ song, token, onClose, onSaved }) => {
   );
 };
 
+// ════════════════════════════════════════════
+// SONG ROW
+// ════════════════════════════════════════════
 const SongRow = ({
   song, index, currentSong, setCurrentSong, setIsPlaying, toggleLike,
   addToQueue, token, isLoggedIn, userNom, isAdmin, isArtist, userArtistId,
-  userId,
-  playlists, userPlaylists, onAddToUserPlaylist, ajouterAPlaylist,
-  onDeleted, onRefresh, isPlaying,
-  onTogglePlaylistVisibility,
+  userId, playlists, userPlaylists, onAddToUserPlaylist, ajouterAPlaylist,
+  onDeleted, onRefresh, isPlaying, onTogglePlaylistVisibility,
 }) => {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [menuOpen, setMenuOpen]             = useState(false);
+  const [showEditModal, setShowEditModal]   = useState(false);
   const [showPlaylistPicker, setShowPlaylistPicker] = useState(false);
   const menuRef = useRef();
   const isActive = currentSong?._id === song._id;
-  const canManage = isAdmin || (isArtist && String(song.artisteId) === String(userArtistId));
+  const canManage = isAdmin || (isArtist && String(song.artisteId?._id || song.artisteId) === String(userArtistId));
+  const { confirmDialog, ask, close: closeConfirm } = useConfirm();
 
   useEffect(() => {
-    const handler = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const h = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  const handleDelete = async () => {
-    if (!window.confirm(`Supprimer "${song.titre}" ?`)) return;
+  const handleDelete = () => {
     setMenuOpen(false);
-    await fetch(`${API}/songs/${song._id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
+    ask({
+      title: `Supprimer "${song.titre}" ?`,
+      message: 'Cette musique sera définitivement supprimée ainsi que ses commentaires et réactions.',
+      confirmLabel: 'Supprimer',
+      variant: 'danger',
+      onConfirm: async () => {
+        await fetch(`${API}/songs/${song._id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (onDeleted) onDeleted(song._id);
+      }
     });
-    if (onDeleted) onDeleted(song._id);
   };
 
   const handleToggleVisibility = async (playlist) => {
     try {
       const res = await fetch(`${API}/user-playlists/${playlist._id}/visibility`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ isPublic: !playlist.isPublic })
       });
       if (res.ok && onTogglePlaylistVisibility) onTogglePlaylistVisibility();
     } catch {}
   };
 
-  // /user-playlists/mine retourne déjà seulement les playlists de l'user connecté
-  // Pas besoin de filtrer côté frontend
-  const myPlaylists = userPlaylists || [];
+  const myPlaylists    = userPlaylists || [];
   const adminPlaylists = isAdmin ? (playlists || []) : [];
   const allMyPlaylists = [...myPlaylists, ...adminPlaylists];
 
-
   return (
     <>
+      <ConfirmDialog config={confirmDialog} onClose={closeConfirm} />
       {showEditModal && (
         <EditSongModal
           song={song} token={token}
           onClose={() => setShowEditModal(false)}
-          onSaved={() => { if (onRefresh) onRefresh(); }}
+          onSaved={(updated) => { if (onRefresh) onRefresh(); setShowEditModal(false); }}
         />
       )}
 
@@ -127,7 +282,7 @@ const SongRow = ({
       }`}>
         <div className="flex items-center gap-3">
 
-          {/* Index / Play indicator */}
+          {/* Index / Play */}
           <div className="w-5 shrink-0 flex items-center justify-center">
             {isActive && isPlaying
               ? <div className="flex gap-0.5 items-end h-4">
@@ -138,8 +293,7 @@ const SongRow = ({
               : <span className="text-zinc-600 font-mono text-xs group-hover:hidden">{index + 1}</span>
             }
             {!isActive && (
-              <button
-                className="hidden group-hover:flex items-center justify-center text-white"
+              <button className="hidden group-hover:flex items-center justify-center text-white"
                 onClick={() => { setCurrentSong(song); setIsPlaying(true); }}>
                 <Play size={12} fill="white" />
               </button>
@@ -162,24 +316,18 @@ const SongRow = ({
             <p className="text-[10px] text-zinc-500 truncate uppercase">{song.artiste}</p>
           </div>
 
-          {/* Actions — toujours visibles sur mobile, au hover sur desktop */}
+          {/* Actions */}
           <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition shrink-0">
-            <button
-              onClick={e => { e.stopPropagation(); toggleLike(song._id); }}
+            <button onClick={e => { e.stopPropagation(); toggleLike(song._id); }}
               className="p-1.5 hover:bg-white/10 rounded-lg transition">
-              <Heart
-                size={14}
-                fill={song.liked ? 'red' : 'none'}
-                className={song.liked ? 'text-red-500' : 'text-zinc-400 hover:text-white'}
-              />
+              <Heart size={14} fill={song.liked ? 'red' : 'none'}
+                className={song.liked ? 'text-red-500' : 'text-zinc-400 hover:text-white'} />
             </button>
-            <button
-              onClick={e => { e.stopPropagation(); addToQueue(song); }}
+            <button onClick={e => { e.stopPropagation(); addToQueue(song); }}
               className="p-1.5 hover:bg-white/10 rounded-lg transition">
               <ListPlus size={14} className="text-zinc-400 hover:text-white" />
             </button>
-            <div
-              onClick={e => e.stopPropagation()}
+            <div onClick={e => e.stopPropagation()}
               className="p-1.5 hover:bg-white/10 rounded-lg transition flex items-center justify-center">
               <ShareButton song={song} size={14} />
             </div>
@@ -195,8 +343,7 @@ const SongRow = ({
           {/* Context menu */}
           {(canManage || isLoggedIn) && (
             <div className="relative shrink-0" ref={menuRef}>
-              <button
-                onClick={e => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
+              <button onClick={e => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
                 className="p-1.5 hover:bg-white/10 rounded-lg transition opacity-100 md:opacity-0 md:group-hover:opacity-100">
                 <MoreHorizontal size={14} className="text-zinc-400" />
               </button>
@@ -204,11 +351,9 @@ const SongRow = ({
               {menuOpen && (
                 <div className="absolute right-0 top-8 z-[100] bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl py-1 min-w-[200px] overflow-hidden">
 
-                  {/* Ajouter à une playlist — propriétaire uniquement */}
                   {isLoggedIn && (
                     <>
-                      <button
-                        onClick={e => { e.stopPropagation(); setShowPlaylistPicker(!showPlaylistPicker); }}
+                      <button onClick={e => { e.stopPropagation(); setShowPlaylistPicker(!showPlaylistPicker); }}
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-white transition">
                         <Plus size={13} /> Ajouter à une playlist
                       </button>
@@ -224,54 +369,39 @@ const SongRow = ({
                                   <button
                                     onClick={e => {
                                       e.stopPropagation();
-                                      if (isUserPl) {
-                                        onAddToUserPlaylist?.(p._id, song._id);
-                                      } else {
-                                        ajouterAPlaylist?.(p._id, song._id);
-                                      }
+                                      if (isUserPl) onAddToUserPlaylist?.(p._id, song._id);
+                                      else ajouterAPlaylist?.(p._id, song._id);
                                       setMenuOpen(false);
                                     }}
                                     className="flex-1 flex items-center gap-2 px-4 py-2 text-xs text-zinc-400 hover:text-white hover:bg-white/5 transition text-left">
                                     {p.isPublic !== undefined
-                                      ? p.isPublic
-                                        ? <Globe size={10} className="text-green-500 shrink-0" />
-                                        : <Lock size={10} className="text-zinc-600 shrink-0" />
+                                      ? p.isPublic ? <Globe size={10} className="text-green-500 shrink-0" /> : <Lock size={10} className="text-zinc-600 shrink-0" />
                                       : <div className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
                                     }
                                     <span className="truncate">{p.nom}</span>
                                   </button>
-
-                                  {/* Toggle public/privé */}
                                   {isUserPl && (
-                                    <button
-                                      onClick={e => { e.stopPropagation(); handleToggleVisibility(p); }}
+                                    <button onClick={e => { e.stopPropagation(); handleToggleVisibility(p); }}
                                       title={p.isPublic ? 'Rendre privée' : 'Rendre publique'}
                                       className="p-1.5 rounded-lg hover:bg-white/10 transition shrink-0">
-                                      {p.isPublic
-                                        ? <Globe size={11} className="text-green-500" />
-                                        : <Lock size={11} className="text-zinc-600 hover:text-zinc-400" />
-                                      }
+                                      {p.isPublic ? <Globe size={11} className="text-green-500" /> : <Lock size={11} className="text-zinc-600 hover:text-zinc-400" />}
                                     </button>
                                   )}
                                 </div>
                               );
-                            })
-                          }
+                            })}
                         </div>
                       )}
                     </>
                   )}
 
-                  {/* Admin/artiste actions */}
                   {canManage && (
                     <div className="border-t border-zinc-800 mt-1 pt-1">
-                      <button
-                        onClick={e => { e.stopPropagation(); setMenuOpen(false); setShowEditModal(true); }}
+                      <button onClick={e => { e.stopPropagation(); setMenuOpen(false); setShowEditModal(true); }}
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-white transition">
                         <Edit2 size={13} /> Modifier
                       </button>
-                      <button
-                        onClick={e => { e.stopPropagation(); handleDelete(); }}
+                      <button onClick={e => { e.stopPropagation(); handleDelete(); }}
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition">
                         <Trash2 size={13} /> Supprimer
                       </button>
@@ -283,7 +413,6 @@ const SongRow = ({
           )}
         </div>
 
-        {/* Reactions + Comments */}
         <div className="pl-8 mt-0.5">
           <ReactionsBar songId={song._id} token={token} isLoggedIn={isLoggedIn} />
           <CommentsSection songId={song._id} token={token} userNom={userNom} isLoggedIn={isLoggedIn} />

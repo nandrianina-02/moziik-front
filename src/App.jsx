@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import {
   Home, Play, Pause, SkipBack, SkipForward, Volume2, Plus, Shuffle,
   Trash2, ListPlus, Search, Music, Heart, ListOrdered, Sliders,
@@ -29,6 +29,7 @@ import { OfflineBanner, CacheButton } from './components/ui/OfflineBanner';
 
 // ── Vues ───────────────────────────────────────────────────────────────────────
 import HomeView from './views/HomeView';
+import SettingsView from './views/SettingsView';
 import AlbumView from './views/AlbumView';
 import ArtistView from './views/ArtistView';
 import PlaylistView from './views/PlaylistView';
@@ -105,6 +106,7 @@ const MoozikWeb = () => {
   const [showLoginModal, setShowLoginModal]   = useState(false);
   const [token, setToken]                     = useState(localStorage.getItem('moozik_token') || '');
   const [userAvatar, setUserAvatar]           = useState(null); // initialisé après login avec clé user-scoped
+  const [isPrimary, setIsPrimary]             = useState(false);
 
   // ── Refs ────────────────────────────────────────────────────────────────────
   const audioRef        = useRef(null);
@@ -115,6 +117,7 @@ const MoozikWeb = () => {
   const trebleFilterRef = useRef(null);
   const sleepRef        = useRef(null);
   const playCountedRef  = useRef(false);
+  const [cachedIds, setCachedIds] = useState([]);
 
   // ── Dérivés ─────────────────────────────────────────────────────────────────
   const isLoggedIn  = isAdmin || isArtist || isUser;
@@ -161,7 +164,7 @@ const MoozikWeb = () => {
           const role = data.role || savedRole;
           setUserRole(role);
           setUserEmail(data.email || localStorage.getItem('moozik_email'));
-          if (role === 'admin') setIsAdmin(true);
+          if (role === 'admin') { setIsAdmin(true); if (data.isPrimary) setIsPrimary(true); }
           if (role === 'artist') {
             setIsArtist(true);
             setUserNom(data.nom || localStorage.getItem('moozik_nom'));
@@ -193,7 +196,7 @@ const MoozikWeb = () => {
 
   const handleLogin = (data) => {
     setToken(data.token); setUserRole(data.role); setUserEmail(data.email);
-    if (data.role === 'admin') setIsAdmin(true);
+    if (data.role === 'admin') { setIsAdmin(true); if (data.isPrimary) setIsPrimary(true); }
     if (data.role === 'artist') {
       setIsArtist(true); setUserNom(data.nom);
       const aid = data.artisteId || data.artistId || data.id || data._id;
@@ -222,7 +225,7 @@ const MoozikWeb = () => {
     // Ne pas effacer l'avatar scopé (lié au userId, pas partagé)
     setToken(''); setIsAdmin(false); setIsArtist(false); setIsUser(false);
     setUserRole(''); setUserEmail(''); setUserNom(''); setUserArtistId(''); setUserId('');
-    setUserAvatar(null);
+    setUserAvatar(null); setIsPrimary(false);
     setUserPlaylists([]);
   };
 
@@ -271,8 +274,12 @@ const MoozikWeb = () => {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` }
       }).then(r => r.json());
+      // Mise à jour locale SANS changer la chanson en cours (pas de restart)
       setMusiques(prev => prev.map(s => s._id === id ? { ...s, liked: updated.liked } : s));
-      if (currentSong?._id === id) setCurrentSong(prev => ({ ...prev, liked: updated.liked }));
+      if (currentSong?._id === id) {
+        // Mettre à jour seulement le champ liked, sans toucher à l'objet src/audio
+        setCurrentSong(prev => prev ? { ...prev, liked: updated.liked } : prev);
+      }
     } catch {}
   };
   const addToQueue  = (song) => { setQueue(prev => [...prev, song]); setActiveMenu(null); };
@@ -360,14 +367,22 @@ const MoozikWeb = () => {
 
   // ── MediaSession (PWA — contrôles système) ──────────────────────────────────
   // défini après handleNext/handlePrev pour éviter la référence avant déclaration
+  const shuffleHistoryRef = React.useRef(new Set());
   const handleNext = useCallback(() => {
-    if (queue.length > 0) { const next = queue[0]; setQueue(prev => prev.slice(1)); setCurrentSong(next); }
-    else {
-      if (!musiques.length) return;
-      if (repeatMode === 2) { audioRef.current?.play(); return; }
-      const idx = musiques.findIndex(s => s._id === currentSong?._id);
-      setCurrentSong(musiques[isShuffle ? Math.floor(Math.random() * musiques.length) : (idx + 1) % musiques.length]);
+    if (queue.length > 0) { const next = queue[0]; setQueue(prev => prev.slice(1)); setCurrentSong(next); setIsPlaying(true); return; }
+    if (!musiques.length) return;
+    if (repeatMode === 2) { audioRef.current?.play(); return; }
+    if (isShuffle) {
+      // Éviter les répétitions — réinitialiser quand tous les titres ont été joués
+      if (shuffleHistoryRef.current.size >= musiques.length - 1) shuffleHistoryRef.current.clear();
+      const remaining = musiques.filter(s => s._id !== currentSong?._id && !shuffleHistoryRef.current.has(s._id));
+      const pool = remaining.length > 0 ? remaining : musiques.filter(s => s._id !== currentSong?._id);
+      const next = pool[Math.floor(Math.random() * pool.length)];
+      if (currentSong?._id) shuffleHistoryRef.current.add(currentSong._id);
+      setCurrentSong(next); setIsPlaying(true); return;
     }
+    const idx = musiques.findIndex(s => s._id === currentSong?._id);
+    setCurrentSong(musiques[(idx + 1) % musiques.length]);
     setIsPlaying(true);
   }, [queue, musiques, currentSong, isShuffle, repeatMode]);
 
@@ -454,7 +469,10 @@ const MoozikWeb = () => {
       { to: '/admin-artists', icon: <Mic2 size={17} />,      label: 'Gérer artistes' },
       { to: '/admin-users',   icon: <Users size={17} />,     label: 'Utilisateurs' },
     ] : []),
-    ...(isLoggedIn ? [{ to: '/account', icon: <Settings size={17} />, label: 'Mon compte' }] : []),
+    ...(isLoggedIn ? [
+      { to: '/account', icon: <Settings size={17} />, label: 'Mon compte' },
+      { to: '/settings', icon: <Sliders size={17} />, label: 'Paramètres' },
+    ] : []),
   ];
 
   const songProps = {
@@ -591,6 +609,7 @@ const MoozikWeb = () => {
                 </Link>
                 <NotificationsPanel token={token} onUnreadCount={setUnreadNotifs}
                   onPlaySong={(songId) => { const s = musiques.find(m => m._id === songId); if (s) { setCurrentSong(s); setIsPlaying(true); } }}
+                  navigateToPage={true}
                 />
                 <button onClick={handleLogout} className="flex items-center gap-2 text-xs text-zinc-500 hover:text-red-400 px-1 py-1.5 rounded-xl hover:bg-zinc-900 transition w-full">
                   <LogOut size={13} /> Déconnexion
@@ -669,7 +688,7 @@ const MoozikWeb = () => {
         {showMobileMenu && (
           <>
             <div className="md:hidden fixed inset-0 z-40" onClick={() => setShowMobileMenu(false)} />
-            <div className="md:hidden fixed top-26 left-3 right-3 z-50 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="md:hidden fixed top-[104px] left-3 right-3 z-50 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden">
               <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-3">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black overflow-hidden ${roleColor}`}>
                   {avatarDisplay ? <img src={avatarDisplay} className="w-full h-full object-cover" alt="" /> : (userNom || '?')[0].toUpperCase()}
@@ -714,7 +733,7 @@ const MoozikWeb = () => {
         {/* ══════════════════════════════════════════════════════════════════
             MAIN
         ══════════════════════════════════════════════════════════════════ */}
-        <main className={`flex-1 overflow-y-auto bg-linear-to-b from-zinc-900 to-black p-4 md:p-7 pb-40 pt-28 md:pt-7 lg:pb-40 md:pb-40 transition-all ${showQueue ? 'md:mr-72' : ''}`}
+        <main className={`flex-1 overflow-y-auto bg-gradient-to-b from-zinc-900 to-black p-4 md:p-7 pb-40 pt-28 md:pt-7 lg:pb-40 md:pb-40 transition-all ${showQueue ? 'md:mr-72' : ''}`}
           onClick={() => setActiveMenu(null)}>
           <Routes>
             <Route path="/favorites"       element={<FavoritesView musiques={musiques} {...songProps} />} />
@@ -744,6 +763,15 @@ const MoozikWeb = () => {
                   </div>
                 : <div className="p-8 text-zinc-500">Connectez-vous</div>
             } />
+            <Route path="/settings" element={
+              <SettingsView
+                token={token} isAdmin={isAdmin} isLoggedIn={isLoggedIn}
+                userNom={userNom} userEmail={userEmail} userRole={userRole}
+                isPrimary={isPrimary} musiques={musiques}
+                isAudioCached={isAudioCached} cachedIds={cachedIds}
+                cacheAudio={cacheAudio} removeCached={removeCached}
+              />
+            } />
             <Route path="/account"         element={
               isLoggedIn
                 ? <AccountView token={token} userNom={userNom} userEmail={userEmail} userRole={userRole}
@@ -764,6 +792,7 @@ const MoozikWeb = () => {
                 onAddToUserPlaylist={ajouterAUserPlaylist}
                 userId={userId} onDeleted={deleteSong} onRefresh={chargerMusiques}
                 onTogglePlaylistVisibility={togglePlaylistVisibility}
+                isAudioCached={isAudioCached} cachedIds={cachedIds}
               />
             } />
           </Routes>
@@ -773,7 +802,7 @@ const MoozikWeb = () => {
             EQ MODAL (séparé pour accessibilité)
         ══════════════════════════════════════════════════════════════════ */}
         {showEQ && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-150 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
             <div className="bg-zinc-900 border border-zinc-800 p-6 md:p-8 rounded-3xl w-full max-w-md shadow-2xl">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-black italic flex items-center gap-2"><Sliders className="text-red-600" /> ÉGALISEUR</h3>
@@ -846,7 +875,7 @@ const MoozikWeb = () => {
             PLAYER BAR DESKTOP
         ══════════════════════════════════════════════════════════════════ */}
         {currentSong && (
-          <footer className="hidden md:flex fixed bottom-0 left-0 right-0 md:bottom-3 md:left-67 md:right-3 md:rounded-2xl bg-zinc-950/98 border-t border-zinc-800/60 md:border md:border-zinc-800/60 h-20 md:h-24 px-3 md:px-5 items-center justify-between backdrop-blur-xl shadow-2xl z-50">
+          <footer className="hidden md:flex fixed bottom-0 left-0 right-0 md:bottom-3 md:left-[calc(256px+12px)] md:right-3 md:rounded-2xl bg-zinc-950/98 border-t border-zinc-800/60 md:border md:border-zinc-800/60 h-20 md:h-24 px-3 md:px-5 items-center justify-between backdrop-blur-xl shadow-2xl z-50">
             <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-0.5 opacity-70 pointer-events-none" width="1000" height="4" />
 
             {/* Info */}

@@ -40,13 +40,12 @@ const FullPlayerPage = ({
   handleNext, handlePrev, isShuffle, setIsShuffle, repeatMode, setRepeatMode,
   toggleLike, volume, setVolume, queue, setQueue, musiques,
   audioRef, initAudioEngine, audioContextRef,
+  eqGains, setEqGains, eqFiltersRef,
   playbackRate, setPlaybackRate, sleepTimer, setSleepTimer, sleepRemaining,
   formatTime, onClose, canvasRef,
 }) => {
   const [activeTab, setActiveTab] = useState('player');
-  const [eqGains, setEqGains] = useState([0,0,0,0,0,0,0,0,0,0]);
   const [activePreset, setActivePreset] = useState('Flat');
-  const eqFiltersRef = useRef([]);
   const dragIdx = useRef(null);
   const [dragOver, setDragOver] = useState(null);
   const prog = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -61,37 +60,6 @@ const FullPlayerPage = ({
       setQueue(after);
     }
   }, [currentSong?._id]);
-
-  // ── Créer 10 filtres EQ dans le graphe audio ──
-  useEffect(() => {
-    const ctx = audioContextRef?.current;
-    if (!ctx?.audioCtx || eqFiltersRef.current.length === 10) return;
-    const { audioCtx, analyser } = ctx;
-
-    // Chercher le dernier noeud de la chaîne existante (treble ou autre)
-    // On crée 10 filtres et on les connecte en sortie de l'analyser
-    // Approche : on insère les filtres entre la destination et l'analyser
-    try {
-      analyser.disconnect();
-      const filters = EQ_BANDS.map((band, i) => {
-        const f = audioCtx.createBiquadFilter();
-        f.type = i === 0 ? 'lowshelf' : i === 9 ? 'highshelf' : 'peaking';
-        f.frequency.value = band.hz;
-        f.Q.value = 1.2;
-        f.gain.value = 0;
-        return f;
-      });
-      // analyser → filters[0] → ... → filters[9] → destination
-      analyser.connect(filters[0]);
-      filters.forEach((f, i) => {
-        if (i < filters.length - 1) f.connect(filters[i + 1]);
-      });
-      filters[filters.length - 1].connect(audioCtx.destination);
-      eqFiltersRef.current = filters;
-    } catch (e) {
-      console.warn('EQ setup:', e);
-    }
-  }, [audioContextRef?.current?.audioCtx]);
 
   const setEqBand = useCallback((idx, value) => {
     setEqGains(prev => { const n = [...prev]; n[idx] = value; return n; });
