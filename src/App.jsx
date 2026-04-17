@@ -136,9 +136,13 @@ const MoozikWeb = () => {
   useWakeLock(isPlaying);
   useAppBadge(unreadNotifs);
 
+  const [eqGains, setEqGains] = useState([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  const eqFiltersRef = useRef([]);
+
+
   // ── Favicon + titre dynamique ────────────────────────────────────────────────
   useEffect(() => {
-    if (!currentSong) { document.title = 'MOOZIK'; return; }
+    if (!currentSong) { document.title = 'MooZik'; return; }
     document.title = `${isPlaying ? '▶' : '⏸'} ${currentSong.titre} — ${currentSong.artiste}`;
     let link = document.querySelector("link[rel~='icon']");
     if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
@@ -244,14 +248,22 @@ const MoozikWeb = () => {
   // ═══════════════════════════════════════════════════════════════════════════
   // DATA
   // ═══════════════════════════════════════════════════════════════════════════
-  const chargerMusiques = async () => {
+const chargerMusiques = async () => {
     try {
-      const data = await fetch(`${API}/songs`).then(r => r.json());
-      const list = data.songs || data;
-      const arr  = Array.isArray(list) ? list : [];
-      setMusiques(arr);
-      if (arr.length > 0) setCurrentSong(prev => prev ?? arr[0]);
-    } catch {} finally { setIsLoading(false); }
+      let allSongs = [];
+      let page = 1;
+      let totalPages = 1;
+      do {
+        const data = await fetch(`${API}/songs?page=${page}&limit=50`).then(r => r.json());
+        if (Array.isArray(data)) { allSongs = data; break; }
+        allSongs = [...allSongs, ...(data.songs || [])];
+        totalPages = data.pagination?.pages || 1;
+        page++;
+      } while (page <= totalPages);
+      setMusiques(allSongs);
+      if (allSongs.length > 0) setCurrentSong(prev => prev ?? allSongs[0]);
+    } catch (e) { console.error('Erreur musiques:', e); }
+    finally { setIsLoading(false); }
   };
   const chargerPlaylists     = async () => { try { setPlaylists(await fetch(`${API}/playlists`).then(r => r.json())); } catch {} };
   const chargerArtists       = async () => { try { setArtists(await fetch(`${API}/artists`).then(r => r.json())); } catch {} };
@@ -495,7 +507,7 @@ const MoozikWeb = () => {
     bassGain, setBassGain, midGain, setMidGain, trebleGain, setTrebleGain,
     bassFilterRef, midFilterRef, trebleFilterRef,
     playbackRate, setPlaybackRate, sleepTimer, setSleepTimer, sleepRemaining,
-    formatTime, canvasRef, audioContextRef, musiques,
+    formatTime, canvasRef, audioContextRef, musiques, eqGains, setEqGains, eqFiltersRef,
     onClose: () => setShowFullPlayer(false),
   };
 
@@ -640,9 +652,13 @@ const MoozikWeb = () => {
             </div>
             <div className="flex items-center gap-1 shrink-0">
               {isLoggedIn && (
-                <NotificationsPanel token={token} onUnreadCount={setUnreadNotifs}
-                  onPlaySong={(sid) => { const s = musiques.find(m => m._id === sid); if (s) { setCurrentSong(s); setIsPlaying(true); } }}
-                />
+                < >
+                  <div className="flex items-center gap-3 px-2 py-1 rounded-full bg-zinc-900/80">
+                    <Link to="/notifications"><Bell size={17} /></Link>
+                    <Link to="/settings"><Sliders size={17} /></Link>
+                  </div>
+                  
+                </>
               )}
               {isLoggedIn ? (
                 <button onClick={() => setShowMobileMenu(!showMobileMenu)}

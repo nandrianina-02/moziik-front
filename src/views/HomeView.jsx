@@ -5,6 +5,7 @@ import {
   Users, AlertTriangle, Share2, Clock, WifiOff
 } from 'lucide-react';
 import SongRow from '../components/music/SongRow';
+import GlobalSearchView from './GlobalSearchView';
 import { API } from '../config/api';
 
 // ── Bannière alertes admin ──────────────────
@@ -189,18 +190,16 @@ const HomeView = ({
     onDeleted, onRefresh, onTogglePlaylistVisibility,
   };
 
-  // ── Recherche ──────────────────────────────
+  // ── Recherche globale ──────────────────────
   if (searchTerm) return (
-    <section className="max-w-3xl mx-auto">
-      <h2 className="text-base font-bold mb-4 text-zinc-400">
-        Résultats pour <span className="text-white">"{searchTerm}"</span>
-      </h2>
-      <div className="flex flex-col gap-1">
-        {filteredMusiques.length === 0
-          ? <p className="text-zinc-600 italic p-4 text-sm">Aucun résultat...</p>
-          : filteredMusiques.map((song, i) => <SongRow key={song._id} song={song} index={i} {...songRowProps}/>)}
-      </div>
-    </section>
+    <GlobalSearchView
+      searchTerm={searchTerm}
+      currentSong={currentSong}
+      setCurrentSong={setCurrentSong}
+      setIsPlaying={setIsPlaying}
+      isPlaying={isPlaying}
+      toggleLike={toggleLike}
+    />
   );
 
   return (
