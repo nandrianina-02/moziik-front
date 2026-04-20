@@ -42,6 +42,14 @@ import AccountView from './views/AccountView';
 import UsersAdminView from './views/UsersAdminView';
 import PublicPlaylistsView from './views/PublicPlaylistsView';
 
+
+import SmartLinkPage     from './views/SmartLinkPage';
+import ArtistDashboard   from './views/ArtistDashboard';
+import AdminCertificationsView from './views/AdminCertificationsView';
+import { usePushNotifications } from './hooks/usePushNotifications';
+import { useI18n } from './hooks/useI18n';
+
+
 // ── Lazy loading ───────────────────────────────────────────────────────────────
 const DashboardView     = lazy(() => import('./views/EnhancedDashboardView'));
 const PublicProfileView = lazy(() => import('./views/PublicProfileView'));
@@ -138,6 +146,8 @@ const MoozikWeb = () => {
 
   const [eqGains, setEqGains] = useState([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
   const eqFiltersRef = useRef([]);
+
+  const { lang, setLang, t } = useI18n();
 
 
   // ── Favicon + titre dynamique ────────────────────────────────────────────────
@@ -475,11 +485,15 @@ const chargerMusiques = async () => {
       { to: '/recommendations', icon: <Sparkles size={17} />, label: 'Pour vous' },
       { to: '/notifications',   icon: <Bell size={17} />,     label: 'Notifications' },
     ] : []),
-    ...(isArtist ? [{ to: '/my-albums', icon: <Disc3 size={17} />, label: 'Mes Albums' }] : []),
+    ...(isArtist ? [
+      { to: '/my-albums', icon: <Disc3 size={17} />, label: 'Mes Albums'},
+      { to: '/artist-dashboard', icon: <Star size={17}/>, label: 'Espace Artiste' },
+    ] : []),
     ...(isAdmin ? [
       { to: '/dashboard',     icon: <BarChart2 size={17} />, label: 'Dashboard' },
       { to: '/admin-artists', icon: <Mic2 size={17} />,      label: 'Gérer artistes' },
       { to: '/admin-users',   icon: <Users size={17} />,     label: 'Utilisateurs' },
+      { to: '/admin-certifications', icon: <CheckCircle size={17}/>, label: 'Certifications' },
     ] : []),
     ...(isLoggedIn ? [
       { to: '/account', icon: <Settings size={17} />, label: 'Mon compte' },
@@ -517,6 +531,7 @@ const chargerMusiques = async () => {
   return (
     <Router>
       <div className="flex h-screen bg-black text-white font-sans overflow-hidden">
+
 
         {/* ── Bannière offline ── */}
         <OfflineBanner isOnline={isOnline} wasOffline={wasOffline} />
@@ -810,6 +825,27 @@ const chargerMusiques = async () => {
                 onTogglePlaylistVisibility={togglePlaylistVisibility}
                 isAudioCached={isAudioCached} cachedIds={cachedIds}
               />
+            } />
+            <Route path="/a/:slug" element={
+              <SmartLinkPage
+                token={token} isLoggedIn={isLoggedIn}
+                setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}
+                currentSong={currentSong} isPlaying={isPlaying}
+              />
+            } />
+
+            {/* Dashboard artiste */}
+            <Route path="/artist-dashboard" element={
+              isArtist
+                ? <ArtistDashboard token={token} userArtistId={userArtistId} userNom={userNom} />
+                : <div className="p-8 text-zinc-600">Accès refusé</div>
+            } />
+
+            {/* Admin certifications */}
+            <Route path="/admin-certifications" element={
+              isAdmin
+                ? <AdminCertificationsView token={token} />
+                : <div className="p-8 text-zinc-600">Accès refusé</div>
             } />
           </Routes>
         </main>

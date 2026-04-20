@@ -5,6 +5,7 @@ import {
   ListMusic, Sliders, X, Gauge, Timer,
   GripVertical, RotateCcw
 } from 'lucide-react';
+import { LyricsDisplay, LyricsEditor } from '../music/LyricsDisplay';
 
 
 // ─── 10 bandes EQ ─────────────────────────────────────────────
@@ -246,6 +247,13 @@ const FullPlayerPage = ({
 
   return (
     <div className="fixed inset-0 z-200 flex flex-col md:flex-row overflow-hidden select-none">
+      <LyricsDisplay songId={currentSong._id} currentTime={currentTime} isPlaying={isPlaying} />
+      <LyricsEditor
+        songId={currentSong._id}
+        songTitre={currentSong.titre}
+        token={token}
+        canEdit={isAdmin || (isArtist && currentSong.artisteId === userArtistId)}
+      />
 
       {/* ══ FOND AMBIANT ══ */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">

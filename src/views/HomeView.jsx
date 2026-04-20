@@ -7,6 +7,9 @@ import {
 import SongRow from '../components/music/SongRow';
 import GlobalSearchView from './GlobalSearchView';
 import { API } from '../config/api';
+import { usePushNotifications } from '../hooks/usePushNotifications';
+
+                
 
 // ── Bannière alertes admin ──────────────────
 const AdminAlertBanner = ({ token, isAdmin }) => {
@@ -50,6 +53,8 @@ const AdminAlertBanner = ({ token, isAdmin }) => {
 
 // ── Section partages récents ─────────────────
 const RecentSharesSection = ({ token, musiques, setCurrentSong, setIsPlaying, currentSong }) => {
+
+
   const [shares, setShares] = useState([]);
 
   useEffect(() => {
@@ -202,11 +207,34 @@ const HomeView = ({
     />
   );
 
+const { subscribed, subscribe, unsubscribe, loading } = usePushNotifications(token);
+// console.log('subscribed:', subscribed); // ← ajoute ça
+
+
+
+
   return (
     <div className="flex flex-col gap-10 md:gap-14">
 
       {/* ══ ALERTES ADMIN ══ */}
       {isAdmin && <AdminAlertBanner token={token} isAdmin={isAdmin} />}
+      {isLoggedIn && !subscribed && (
+
+        <button
+          onClick={subscribed ? unsubscribe : subscribe}
+          disabled={loading}
+          className={`relative flex items-center gap-3 px-4 py-2 rounded-xl border transition-all duration-200 text-sm font-medium ${
+            subscribed
+              ? 'bg-violet-600/20 border-violet-500/40 text-violet-300'
+              : 'bg-white/5 border-white/10 text-white/60 hover:text-white/80 hover:border-white/20'
+          } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          <div className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${subscribed ? 'bg-violet-500' : 'bg-white/20'}`}>
+            <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${subscribed ? 'translate-x-4' : 'translate-x-0'}`} />
+          </div>
+          Notifications
+        </button>
+      )}
 
       {/* ══ HERO WELCOME ══ */}
       {isLoggedIn && (
