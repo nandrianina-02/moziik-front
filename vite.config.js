@@ -11,9 +11,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'logo.png', 'icon-192.png', 'icon-512.png'],
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.js',
+      strategies: 'generateSW',
+      // strategies: 'injectManifest', // ou 'generateSW'
 
       // ── Service Worker / Cache Workbox ──────────
       workbox: {
@@ -118,14 +117,6 @@ export default defineConfig({
       compress: {
         drop_console: true,
         drop_debugger: true,
-      },
-    },
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          lucide: ['lucide-react'],
-        },
       },
     },
   },

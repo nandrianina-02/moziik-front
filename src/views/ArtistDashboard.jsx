@@ -2,11 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Send, Users, CheckCircle, Star, Link2, Calendar, Music,
   Plus, Trash2, Edit2, Save, Loader2, Check, AlertCircle, X, Eye, Clock,
-  Bell, BarChart2, ExternalLink
+  Bell, BarChart2, ExternalLink, DollarSign
 } from 'lucide-react';
 import { API } from '../config/api';
 import ConfirmDialog, { useConfirm } from '../components/ui/ConfirmDialog';
 import { FaInstagram, FaYoutube, FaXTwitter, FaFacebook, FaTiktok } from 'react-icons/fa6';
+import { RoyaltiesDashboard } from '../components/RevenueComponents';
+import { TipButton } from '../components/MonetisationComponents';
+import ArtistAnalyticsView from './ArtistAnalyticsView';
 
 const Section = ({ icon, title, children }) => (
   <div className="bg-zinc-900/60 border border-zinc-800/50 rounded-2xl overflow-hidden">
@@ -30,6 +33,7 @@ const ArtistDashboard = ({ token, userArtistId, userNom }) => {
   const [success, setSuccess]     = useState('');
   const [error, setError]         = useState('');
   const { confirmDialog, ask, close } = useConfirm();
+  
 
   // Newsletter form
   const [subject, setSubject]   = useState('');
@@ -113,6 +117,8 @@ const ArtistDashboard = ({ token, userArtistId, userNom }) => {
     { k: 'smartlink',  icon: <Link2 size={14}/>,   label: 'Smart Link' },
     { k: 'schedule',   icon: <Calendar size={14}/>,label: 'Planning' },
     { k: 'cert',       icon: <CheckCircle size={14}/>, label: 'Certification' },
+    { k: 'revenus', icon: <DollarSign size={14}/>, label: 'Revenus' },
+    { k: 'analytics', icon: <BarChart2 size={14}/>, label: 'Analytics' }
   ];
 
   return (
@@ -137,6 +143,10 @@ const ArtistDashboard = ({ token, userArtistId, userNom }) => {
           </button>
         ))}
       </div>
+
+      {tab === 'analytics' && (
+        <ArtistAnalyticsView token={token} artistId={userArtistId} />
+      )}
 
       {(success || error) && (
         <div className={`px-4 py-3 rounded-xl text-xs font-bold flex items-center gap-2 ${success ? 'bg-green-500/10 border border-green-500/20 text-green-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}>
@@ -165,6 +175,9 @@ const ArtistDashboard = ({ token, userArtistId, userNom }) => {
                   {followers.count > 10 && <p className="text-[10px] text-zinc-600 text-center">+{followers.count - 10} autres</p>}
                 </div>
             }
+            {tab === 'revenus' && (
+                <RoyaltiesDashboard token={token} artistId={userArtistId} />
+            )}
           </Section>
 
           <Section icon={<Send size={15}/>} title="Envoyer une newsletter">

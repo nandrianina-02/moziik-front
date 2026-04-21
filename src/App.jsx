@@ -5,7 +5,7 @@ import {
   Trash2, ListPlus, Search, Music, Heart, ListOrdered, Sliders,
   LogIn, LogOut, Repeat, Repeat1, Timer, Gauge, BarChart2,
   Users, Mic2, X, Disc3, Globe, Lock, ChevronDown, Settings,
-  Maximize2, Eye, TrendingUp, Flame, Sparkles, Dices, History, Bell, WifiOff
+  Maximize2, Eye, TrendingUp, Flame, Sparkles, Dices, History, Bell, WifiOff, CheckCircle ,Star ,Crown, Ticket, ShoppingCart, DollarSign
 } from 'lucide-react';
 
 import { API } from './config/api';
@@ -49,19 +49,35 @@ import AdminCertificationsView from './views/AdminCertificationsView';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import { useI18n } from './hooks/useI18n';
 
+import SubscriptionView      from './views/SubscriptionView';
+import { EventsView }        from './components/MonetisationComponents.jsx';
+import { AdminMonetisationView } from './components/RevenueComponents.jsx';
+import { AudioAdPlayer }     from './components/MonetisationComponents.jsx';
+import useSubscription       from './hooks/useSubscription';
+
+import { NotificationsPanel, HistoryView, RecommendationsView, SharePageView } from './components/social/SocialFeatures';
+
+import { TrendingView }        from './components/SocialComponents';
+import { StoriesBar }          from './components/SocialComponents';
+import { ListenPartyModal }    from './components/SocialComponents';
+import { LoyaltyWidget }       from './components/SocialComponents';
+import ArtistAnalyticsView     from './views/ArtistAnalyticsView.jsx';
+
+
 
 // ── Lazy loading ───────────────────────────────────────────────────────────────
 const DashboardView     = lazy(() => import('./views/EnhancedDashboardView'));
 const PublicProfileView = lazy(() => import('./views/PublicProfileView'));
 
 // ── Social ─────────────────────────────────────────────────────────────────────
-import { NotificationsPanel, HistoryView, RecommendationsView, SharePageView } from './components/social/SocialFeatures';
 
 // ── Fallback Suspense ──────────────────────────────────────────────────────────
 const ViewLoader = () => <div className="p-6"><SongListSkeleton count={6} /></div>;
 
 // ══════════════════════════════════════════════════════════════════════════════
 const MoozikWeb = () => {
+
+  // const token = localStorage.getItem('token');
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const [musiques, setMusiques]               = useState([]);
@@ -148,6 +164,8 @@ const MoozikWeb = () => {
   const eqFiltersRef = useRef([]);
 
   const { lang, setLang, t } = useI18n();
+  const { isPremium, subscription } = useSubscription(token);
+
 
 
   // ── Favicon + titre dynamique ────────────────────────────────────────────────
@@ -499,6 +517,11 @@ const chargerMusiques = async () => {
       { to: '/account', icon: <Settings size={17} />, label: 'Mon compte' },
       { to: '/settings', icon: <Sliders size={17} />, label: 'Paramètres' },
     ] : []),
+    { to: '/premium', icon: <Crown size={17}/>, label: isPremium ? '✨ Premium' : 'Passer Premium' },
+    { to: '/events',  icon: <Ticket size={17}/>, label: 'Événements' },
+    // Admin :
+    { to: '/admin-monetisation', icon: <DollarSign size={17}/>, label: 'Monétisation' },
+    { to: '/trending', icon: <Flame size={17}/>, label: 'Trending' },
   ];
 
   const songProps = {
@@ -846,6 +869,23 @@ const chargerMusiques = async () => {
               isAdmin
                 ? <AdminCertificationsView token={token} />
                 : <div className="p-8 text-zinc-600">Accès refusé</div>
+            } />
+
+            <Route path="/premium" element={
+              <SubscriptionView token={token} isLoggedIn={isLoggedIn} />
+            } />
+            <Route path="/events" element={
+              <EventsView token={token} isLoggedIn={isLoggedIn}
+                setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}
+                currentSong={currentSong} />
+            } />
+            <Route path="/admin-monetisation" element={
+              isAdmin ? <AdminMonetisationView token={token} /> : <div className="p-8 text-zinc-600">Accès refusé</div>
+            } />
+            
+            <Route path="/trending" element={
+              <TrendingView setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}
+                currentSong={currentSong} isPlaying={isPlaying} token={token} />
             } />
           </Routes>
         </main>

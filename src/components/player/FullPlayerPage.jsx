@@ -3,9 +3,13 @@ import {
   ChevronDown, Play, Pause, SkipBack, SkipForward,
   Shuffle, Repeat, Repeat1, Heart, Volume2,
   ListMusic, Sliders, X, Gauge, Timer,
-  GripVertical, RotateCcw
+  GripVertical, RotateCcw, Radio
 } from 'lucide-react';
 import { LyricsDisplay, LyricsEditor } from '../music/LyricsDisplay';
+
+import { ListenPartyModal } from '../SocialComponents';
+import { data } from 'react-router-dom';
+
 
 
 // ─── 10 bandes EQ ─────────────────────────────────────────────
@@ -37,19 +41,27 @@ const EQ_PRESETS = {
 
 
 const FullPlayerPage = ({
+  
   currentSong, isPlaying, setIsPlaying, currentTime, duration,
   handleNext, handlePrev, isShuffle, setIsShuffle, repeatMode, setRepeatMode,
   toggleLike, volume, setVolume, queue, setQueue, musiques,
   audioRef, initAudioEngine, audioContextRef,
   eqGains, setEqGains, eqFiltersRef,
   playbackRate, setPlaybackRate, sleepTimer, setSleepTimer, sleepRemaining,
-  formatTime, onClose, canvasRef,
+  formatTime, onClose, canvasRef
 }) => {
   const [activeTab, setActiveTab] = useState('player');
   const [activePreset, setActivePreset] = useState('Flat');
   const dragIdx = useRef(null);
   const [dragOver, setDragOver] = useState(null);
   const prog = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const [showParty, setShowParty] = useState(false);
+
+  const isLoggedIn = !!localStorage.getItem('moozik_token');
+  const setCurrentSong = (songId) => {
+    // Implementation for setting current song
+  };
+
 
   // ── Auto-queue à la première lecture ──
   useEffect(() => {
@@ -76,6 +88,12 @@ const FullPlayerPage = ({
   };
 
   const resetEQ = () => applyPreset('Flat');
+
+  const token = localStorage.getItem('moozik_token');
+  const role = localStorage.getItem('moozik_role');
+  const isAdmin = role === 'admin';
+  const isArtist = role === 'artist';
+  const userArtistId = localStorage.getItem('moozik_artisteId');
 
   // ── Drag queue ──
   const onDragStart = (i) => { dragIdx.current = i; };
@@ -124,10 +142,20 @@ const FullPlayerPage = ({
           <div className="absolute left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-white/80 bg-zinc-900 z-20 shadow transition-all duration-150"
             style={{ top: `calc(50% - ${(value/12)*50}% - 7px)` }} />
           {/* Input vertical invisible */}
-          <input type="range" min="-12" max="12" step="1" value={value}
+          <input 
+            type="range" 
+            min="-12" 
+            max="12" 
+            step="1" 
+            value={value}
             onChange={e => setEqBand(idx, parseInt(e.target.value))}
             className="absolute inset-0 opacity-0 cursor-pointer"
-            style={{ writingMode: 'vertical-lr', direction: 'rtl', WebkitAppearance: 'slider-vertical', width: '100%', height: '100%' }}
+            style={{ 
+              writingMode: 'vertical-lr', 
+              direction: 'rtl', 
+              width: '100%', 
+              height: '100%' 
+            }}
           />
         </div>
       </div>
@@ -245,15 +273,35 @@ const FullPlayerPage = ({
     </div>
   );
 
+  const API = import.meta.env.VITE_API_URL;
+
+  // Ref pour suivre les buckets déjà envoyés
+  const sentBuckets = useRef(new Set());
+
+  useEffect(() => {
+    if (!currentSong || !duration) return;
+    const bucketIndex = Math.floor((currentTime / duration) * 20); // 0-19
+    if (bucketIndex >= 0 && bucketIndex < 20 && !sentBuckets.current.has(bucketIndex)) {
+      sentBuckets.current.add(bucketIndex);
+      fetch(`${API}/songs/${currentSong._id}/retention`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bucket: bucketIndex,
+          totalTime: Math.round(currentTime),
+          completed: currentTime / duration > 0.9,
+          deviceId: localStorage.getItem('moozik_device_id') || '',
+        }),
+      }).catch(() => {});
+    }
+  }, [Math.floor(currentTime / 5)]); // vérifier toutes les 5 secondes
+
+  // Reset quand la chanson change
+  useEffect(() => { sentBuckets.current.clear(); }, [currentSong?._id]);
+
+
   return (
     <div className="fixed inset-0 z-200 flex flex-col md:flex-row overflow-hidden select-none">
-      <LyricsDisplay songId={currentSong._id} currentTime={currentTime} isPlaying={isPlaying} />
-      <LyricsEditor
-        songId={currentSong._id}
-        songTitre={currentSong.titre}
-        token={token}
-        canEdit={isAdmin || (isArtist && currentSong.artisteId === userArtistId)}
-      />
 
       {/* ══ FOND AMBIANT ══ */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -350,6 +398,17 @@ const FullPlayerPage = ({
 
               {/* Contrôles */}
               <div className="flex items-center justify-between px-6 py-2 shrink-0">
+                <button onClick={() => setShowParty(true)} className="...">
+                  <Radio size={15} /> Party
+                </button>
+                {showParty && (
+                  <ListenPartyModal
+                    token={token} isLoggedIn={isLoggedIn}
+                    currentSong={currentSong} setCurrentSong={setCurrentSong}
+                    setIsPlaying={setIsPlaying} isPlaying={isPlaying}
+                    onClose={() => setShowParty(false)}
+                  />
+                )}
                 <button onClick={() => setIsShuffle(!isShuffle)}
                   className={`p-2.5 rounded-full transition active:scale-90
                     ${isShuffle?'bg-blue-500/20 text-blue-400':'text-white/35 hover:text-white'}`}>
@@ -392,14 +451,28 @@ const FullPlayerPage = ({
                 </div>
                 <span className="text-[10px] text-white/25 w-7 text-right tabular-nums">{volume}%</span>
               </div>
+
+
+              
             </div>
           )}
+          <div className="px-4 pb-4">
+            <LyricsDisplay songId={currentSong._id} currentTime={currentTime} isPlaying={isPlaying} />
+            <LyricsEditor
+              songId={currentSong._id}
+              songTitre={currentSong.titre}
+              token={token}
+              canEdit={isAdmin || (isArtist && String(currentSong.artisteId?._id || currentSong.artisteId) === String(userArtistId))}
+            />
+          </div>
 
           {/* ── VUE EQ mobile ── */}
           {activeTab === 'eq' && <EQContent/>}
 
           {/* ── VUE QUEUE mobile ── */}
           {activeTab === 'queue' && <QueueContent/>}
+
+          
         </div>
       </div>
 

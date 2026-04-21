@@ -9,6 +9,7 @@ import { FaInstagram, FaYoutube, FaTwitter } from 'react-icons/fa'
 
 import { API } from '../config/api';
 import SongRow from '../components/music/SongRow';
+import { TipButton } from '../components/MonetisationComponents';
 
 // ── Badge certifié ─────────────────────────────
 const CertBadge = ({ level }) => {
@@ -155,16 +156,25 @@ const ArtistView = ({
           <div className="flex items-center gap-2 flex-wrap">
             {/* Suivre */}
             {isLoggedIn && !isOwnProfile && (
-              <button onClick={handleFollow} disabled={followLoading}
-                className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl transition active:scale-95 ${
-                  followInfo.following
-                    ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
-                    : 'bg-red-600 hover:bg-red-500 text-white'
-                }`}>
-                {followLoading ? <Loader2 size={13} className="animate-spin"/>
-                  : followInfo.following ? <><UserCheck size={13}/> Abonné</> : <><UserPlus size={13}/> S'abonner</>
-                }
-              </button>
+              < >
+                <button onClick={handleFollow} disabled={followLoading}
+                  className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl transition active:scale-95 ${
+                    followInfo.following
+                      ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+                      : 'bg-red-600 hover:bg-red-500 text-white'
+                  }`}>
+                  {followLoading ? <Loader2 size={13} className="animate-spin"/>
+                    : followInfo.following ? <><UserCheck size={13}/> Abonné</> : <><UserPlus size={13}/> S'abonner</>
+                  }
+                </button>
+
+                <TipButton
+                  artistId={id}
+                  artistNom={artist.nom}
+                  token={token}
+                  isLoggedIn={isLoggedIn}
+                />
+              </>
             )}
 
             {/* Smart link */}

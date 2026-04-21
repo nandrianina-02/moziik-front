@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Flame, Sparkles, Heart, Compass, Music, Plus, TrendingUp,
   Play, Pause, Disc3, ChevronRight, Download, Check,
@@ -8,6 +8,8 @@ import SongRow from '../components/music/SongRow';
 import GlobalSearchView from './GlobalSearchView';
 import { API } from '../config/api';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import useSubscription from '../hooks/useSubscription';
+import { StoriesBar } from '../components/SocialComponents';
 
                 
 
@@ -195,6 +197,8 @@ const HomeView = ({
     onDeleted, onRefresh, onTogglePlaylistVisibility,
   };
 
+  const { isPremium, subscription } = useSubscription(token);
+
   // ── Recherche globale ──────────────────────
   if (searchTerm) return (
     <GlobalSearchView
@@ -210,7 +214,19 @@ const HomeView = ({
 const { subscribed, subscribe, unsubscribe, loading } = usePushNotifications(token);
 // console.log('subscribed:', subscribed); // ← ajoute ça
 
+const [showAd, setShowAd] = useState(false);
+const [adCount, setAdCount] = useState(0);
 
+// Déclencher une pub toutes les 3 musiques pour les utilisateurs free
+const handleNext = useCallback(() => {
+  // ... logique handleNext existante ...
+  if (!isPremium) {
+    setAdCount(prev => {
+      if (prev >= 2) { setShowAd(true); return 0; }
+      return prev + 1;
+    });
+  }
+}, [isPremium]);
 
 
   return (
@@ -236,6 +252,8 @@ const { subscribed, subscribe, unsubscribe, loading } = usePushNotifications(tok
         </button>
       )}
 
+
+
       {/* ══ HERO WELCOME ══ */}
       {isLoggedIn && (
         <section className="bg-gradient-to-br from-red-900/30 via-zinc-900/20 to-zinc-900/0 rounded-3xl p-5 md:p-7 border border-red-900/20">
@@ -260,6 +278,8 @@ const { subscribed, subscribe, unsubscribe, loading } = usePushNotifications(tok
         </section>
       )}
 
+
+
       {/* ══ TOP ÉCOUTES ══ */}
       <section>
         <SectionHeader icon={<Flame size={18} className="text-orange-500"/>} title="Top écoutes" />
@@ -269,6 +289,9 @@ const { subscribed, subscribe, unsubscribe, loading } = usePushNotifications(tok
               isActive={currentSong?._id === song._id} isPlaying={isPlaying}
               onClick={() => { setCurrentSong(song); setIsPlaying(true); }}/>
           ))}
+        </div>
+        <div className="flex flex-col gap-6">
+          <StoriesBar token={token} isLoggedIn={isLoggedIn} />
         </div>
       </section>
 
@@ -283,7 +306,16 @@ const { subscribed, subscribe, unsubscribe, loading } = usePushNotifications(tok
               badge="NEW" badgeColor="bg-blue-500"/>
           ))}
         </div>
+        {showAd && (
+          <AudioAdPlayer
+            isPremium={isPremium}
+            token={token}
+            onAdEnd={() => { setShowAd(false); /* reprendre la lecture */ }}
+          />
+        )}
       </section>
+
+
 
       {/* ══ DÉCOUVERTE DU JOUR ══ */}
       <section>

@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Save, User, Mail, Key, Loader2, CheckCircle, ShieldCheck, Mic2, UserCircle, Trash2, Music, Heart, ListOrdered, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { API } from '../config/api';
+import { LoyaltyWidget } from '../components/SocialComponents';
 
-const AccountView = ({ token, userNom, userEmail, userRole, userId: userIdProp, userArtistId: userArtistIdProp, isAdmin, isArtist, isUser, musiques, userPlaylists, onUpdateProfile }) => {
+
+const AccountView = ({ token, userNom, userEmail, userRole, userId: userIdProp, userArtistId: userArtistIdProp, isAdmin, isArtist, isUser, musiques, userPlaylists, onUpdateProfile, isLoggedIn }) => {
   // Fallback localStorage si les props arrivent vides (refresh avant verify)
   const userId      = userIdProp      || localStorage.getItem('moozik_userId')   || '';
   const userArtistId = userArtistIdProp || localStorage.getItem('moozik_artisteId') || '';
@@ -170,6 +172,10 @@ const AccountView = ({ token, userNom, userEmail, userRole, userId: userIdProp, 
             ))}
           </div>
         )}
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-center justify-center">
+        <LoyaltyWidget token={token} isLoggedIn={isLoggedIn} />
       </div>
 
       {/* Profile form */}

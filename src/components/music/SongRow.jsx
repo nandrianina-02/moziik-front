@@ -2,18 +2,23 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Heart, ListPlus, Eye, MoreHorizontal, Trash2, Edit2,
   Plus, Check, X, Play, Pause, Globe, Lock, Camera,
-  Loader2, Image as ImageIcon, Mic2, Disc3, AlertCircle
+  Loader2, Image as ImageIcon, Mic2, Disc3, AlertCircle, ShoppingCart 
 } from 'lucide-react';
 import ReactionsBar from './ReactionsBar.jsx';
 import CommentsSection from './CommentsSection.jsx';
 import { API } from '../../config/api.js';
 import { ShareButton } from '../social/SocialFeatures.jsx';
 import ConfirmDialog, { useConfirm } from '../ui/ConfirmDialog.jsx';
+import { SongPriceModal } from '../RevenueComponents';
 
 // ════════════════════════════════════════════
 // MODAL ÉDITION COMPLÈTE (Admin)
 // titre, artiste (recherche), album, photo
 // ════════════════════════════════════════════
+
+
+// const [showPriceModal, setShowPriceModal] = useState(false);
+
 const EditSongModal = ({ song, token, onClose, onSaved }) => {
   const [titre, setTitre]       = useState(song.titre || '');
   const [artiste, setArtiste]   = useState(song.artiste || '');
@@ -55,6 +60,7 @@ const EditSongModal = ({ song, token, onClose, onSaved }) => {
     setArtistSearch('');
     setAlbumId('');
   };
+
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -266,6 +272,9 @@ const SongRow = ({
   const adminPlaylists = isAdmin ? (playlists || []) : [];
   const allMyPlaylists = [...myPlaylists, ...adminPlaylists];
 
+  const [showPriceModal, setShowPriceModal] = useState(false);
+
+
   return (
     <>
       <ConfirmDialog config={confirmDialog} onClose={closeConfirm} />
@@ -357,6 +366,15 @@ const SongRow = ({
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-white transition">
                         <Plus size={13} /> Ajouter à une playlist
                       </button>
+                      {canManage && (
+                        <button onClick={() => setShowPriceModal(true)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-white transition">
+                          <ShoppingCart size={13}/> Gérer la vente
+                        </button>
+                      )}
+                      {showPriceModal && (
+                        <SongPriceModal song={song} token={token} onClose={() => setShowPriceModal(false)} onSaved={() => {}} />
+                      )}
 
                       {showPlaylistPicker && (
                         <div className="border-t border-zinc-800 py-1 max-h-48 overflow-y-auto">
