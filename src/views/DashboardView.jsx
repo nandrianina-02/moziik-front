@@ -76,7 +76,7 @@ const DashboardView = ({ token }) => {
         fetch(`${API}/plans`).then(r => r.ok ? r.json() : []),
         fetch(`${API}/admin/ads`, { headers: h }).then(r => r.ok ? r.json() : []),
         fetch(`${API}/challenges`).then(r => r.ok ? r.json() : []),
-        fetch(`${API}/songs?limit=50`).then(r => r.ok ? r.json() : { songs: [] }),
+        fetch(`${API}/songs?limit=500`).then(r => r.ok ? r.json() : { songs: [] }),
       ]);
       if (statsD)    setStats(statsD);
       if (royD)      setRoyalties(royD);
@@ -84,7 +84,7 @@ const DashboardView = ({ token }) => {
       if (plansD)    setPlans(Array.isArray(plansD) ? plansD : []);
       if (adsD)      setAds(Array.isArray(adsD) ? adsD : []);
       if (challengesD) setChallenges(Array.isArray(challengesD) ? challengesD : []);
-      if (songsD?.songs) setSongs(songsD.songs);
+      if (songsD) setSongs(Array.isArray(songsD) ? songsD : (songsD.songs || []));
     } catch {}
     setLoading(false);
   };
@@ -184,9 +184,9 @@ const DashboardView = ({ token }) => {
   };
 
   const TABS = [
-    { k: 'overview',      label: '📊 Vue d\'ensemble' },
-    { k: 'monetisation',  label: '💰 Monétisation'    },
-    { k: 'challenges',    label: '🏆 Challenges'       },
+    { k: 'overview',      label: 'Vue d\'ensemble',  Icon: BarChart2  },
+    { k: 'monetisation',  label: 'Monétisation',       Icon: DollarSign },
+    { k: 'challenges',    label: 'Challenges',          Icon: Trophy     },
   ];
 
   const premiumCount = subs.subs?.filter(s => s.planName === 'premium' && s.status === 'active').length || 0;
@@ -214,10 +214,10 @@ const DashboardView = ({ token }) => {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-zinc-900/40 border border-zinc-800/50 rounded-xl p-1">
-        {TABS.map(t => (
-          <button key={t.k} onClick={() => setActiveTab(t.k)}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${activeTab === t.k ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-white'}`}>
-            {t.label}
+        {TABS.map(({ k, label, Icon }) => (
+          <button key={k} onClick={() => setActiveTab(k)}
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${activeTab === k ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-white'}`}>
+            <Icon size={12}/> {label}
           </button>
         ))}
       </div>
@@ -465,7 +465,7 @@ const DashboardView = ({ token }) => {
                   <label className="text-[10px] text-zinc-600 uppercase block mb-1">Fichier audio * (MP3)</label>
                   <div onClick={() => document.getElementById('adAudioInput').click()}
                     className={`border-2 border-dashed rounded-xl px-4 py-3 text-center cursor-pointer transition ${adFile ? 'border-green-500/40 bg-green-500/5' : 'border-zinc-700 hover:border-zinc-500'}`}>
-                    <p className="text-xs text-zinc-500">{adFile ? `✓ ${adFile.name}` : 'Cliquer pour choisir un MP3'}</p>
+                    <p className="text-xs text-zinc-500 flex items-center justify-center gap-1.5">{adFile ? <><Check size={10} className="text-green-400"/> {adFile.name}</> : 'Cliquer pour choisir un MP3'}</p>
                     <input id="adAudioInput" type="file" accept="audio/*" className="hidden" onChange={e => setAdFile(e.target.files[0])}/>
                   </div>
                 </div>
@@ -607,7 +607,7 @@ const DashboardView = ({ token }) => {
                         <div className="flex items-center gap-3 text-[10px] text-zinc-500 flex-wrap">
                           <span className="flex items-center gap-1"><Users size={9}/> {ch.entries || 0} participants</span>
                           <span className="flex items-center gap-1"><Calendar size={9}/> {new Date(ch.startsAt).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} → {new Date(ch.endsAt).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</span>
-                          {ch.prize && <span className="text-yellow-400">🏆 {ch.prize}</span>}
+                          {ch.prize && <span className="text-yellow-400 flex items-center gap-1"><Trophy size={9}/> {ch.prize}</span>}
                         </div>
                         {ch.songId && (
                           <div className="flex items-center gap-2 bg-zinc-800/60 rounded-xl px-3 py-1.5">

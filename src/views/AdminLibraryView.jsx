@@ -115,7 +115,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
             <StatusBadge song={{ ...song, artiste: artiste || song.artiste, artisteId: artisteId || song.artisteId, albumId }} />
             {(!artiste && !artisteId) && (
               <span className="text-[10px] text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded-full animate-pulse">
-                ⚠️ Artiste manquant — notification admin active
+                Artiste manquant — notification admin active
               </span>
             )}
           </div>
@@ -137,7 +137,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
           <div className="relative">
             <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
               <Mic2 size={9}/> Artiste
-              {(!artiste && !artisteId) && <span className="text-orange-400 ml-1">⚠️ requis</span>}
+              {(!artiste && !artisteId) && <span className="text-orange-400 ml-1 flex items-center gap-0.5"><AlertCircle size={9}/> requis</span>}
             </label>
             {artisteId ? (
               <div className="flex items-center gap-2 bg-purple-600/10 border border-purple-600/30 rounded-xl px-3 py-2.5">
@@ -326,13 +326,30 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [songsData, artistsData, albumsData] = await Promise.all([
-        fetch(`${API}/songs?limit=5000`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+      const [artistsData, albumsData] = await Promise.all([
         fetch(`${API}/artists`).then(r => r.json()),
         fetch(`${API}/albums`).then(r => r.json()),
       ]);
-      const rawSongs = Array.isArray(songsData) ? songsData : (songsData.songs || []);
-      setSongs(rawSongs);
+
+      // Charger TOUTES les chansons page par page pour dépasser la limite du serveur
+      let allSongs = [];
+      let page = 1;
+      let totalPages = 1;
+      do {
+        const res = await fetch(`${API}/songs?page=${page}&limit=100`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) break;
+        const data = await res.json();
+        const batch = Array.isArray(data) ? data : (data.songs || []);
+        allSongs = [...allSongs, ...batch];
+        totalPages = data.pagination?.pages || 1;
+        // Si réponse directe (tableau), pas de pagination
+        if (Array.isArray(data)) break;
+        page++;
+      } while (page <= totalPages);
+
+      setSongs(allSongs);
       setArtists(Array.isArray(artistsData) ? artistsData : []);
       setAlbums(Array.isArray(albumsData) ? albumsData : []);
     } catch {}
@@ -463,8 +480,8 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
         <div className="flex rounded-xl border border-zinc-800 overflow-hidden bg-zinc-900 shrink-0">
           {[
             { key: 'all',        label: 'Tous' },
-            { key: 'incomplete', label: `⚠️ Incomplets ${incompleteCount > 0 ? `(${incompleteCount})` : ''}` },
-            { key: 'complete',   label: '✓ Complets' },
+            { key: 'incomplete', label: `Incomplets ${incompleteCount > 0 ? `(${incompleteCount})` : ''}` },
+            { key: 'complete',   label: 'Complets' },
           ].map(f => (
             <button key={f.key} onClick={() => { setFilter(f.key); setPage(1); }}
               className={`px-3 py-2 text-[11px] font-bold transition whitespace-nowrap ${

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
-  Flame, Sparkles, Heart, Compass, TrendingUp,
+  Flame, Sparkles, Heart, Compass, TrendingUp, X,
   Play, Pause, Disc3, ChevronRight, Check,
   Users, AlertTriangle, Share2, Clock, WifiOff,
   Star, Radio, Gem, Trophy, Zap, Sun, Bell,
@@ -115,7 +115,7 @@ const AdminAlertBanner = ({ token, isAdmin }) => {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-orange-300">Alertes administration</p>
         <div className="flex flex-wrap gap-3 mt-1.5">
-          {unassigned > 0 && <a href="/admin-library" className="text-[11px] text-orange-400 bg-orange-500/10 px-2.5 py-1 rounded-full hover:bg-orange-500/20 transition cursor-pointer">⚠️ {unassigned} musique{unassigned > 1 ? 's' : ''} sans artiste — Cliquer pour corriger</a>}
+          {unassigned > 0 && <a href="/admin-library" className="text-[11px] text-orange-400 bg-orange-500/10 px-2.5 py-1 rounded-full hover:bg-orange-500/20 transition cursor-pointer">{unassigned} musique{unassigned > 1 ? 's' : ''} sans artiste — Cliquer pour corriger</a>}
           {activeUsers > 0 && <span className="text-[11px] text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full flex items-center gap-1"><span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"/>{activeUsers} actif{activeUsers > 1 ? 's' : ''}</span>}
         </div>
       </div>
@@ -333,9 +333,33 @@ const HomeView = ({
   [songs]);
 
   // Filtre par mood
+  // Mots-clés associés à chaque mood pour le filtrage par champs texte
+  const MOOD_KEYWORDS = {
+    'Chill':     ['chill','calme','doux','relax','slow','lounge','ambient','soir'],
+    'Énergie':   ['énergie','energie','energy','fast','rapide','power','boost','dance','danse'],
+    'Focus':     ['focus','concentration','study','travail','work','deep','instrumental'],
+    'Fête':      ['fête','fete','party','club','festif','nuit','afrobeats','dancehall'],
+    'Nostalgie': ['nostalgie','nostalgia','retro','oldschool','old','classic','souvenir'],
+    'Romance':   ['romance','amour','love','romantique','tendresse','coeur'],
+    'Motivant':  ['motivant','motivation','inspire','gospel','victoire','triumph','champion'],
+    'Gospel':    ['gospel','dieu','jesus','christ','praise','worship','gloire','seigneur'],
+  };
+
   const moodFiltered = useMemo(() => {
     if (!selectedMood) return songs;
-    return songs.filter(s => s.moods?.includes(selectedMood));
+    // 1. Chercher d'abord dans le champ moods si disponible
+    const hasMoodsField = songs.some(s => Array.isArray(s.moods) && s.moods.length > 0);
+    if (hasMoodsField) {
+      const tagged = songs.filter(s => s.moods?.includes(selectedMood));
+      if (tagged.length > 0) return tagged;
+    }
+    // 2. Fallback: filtrage par mots-clés dans titre/artiste/genre/description
+    const keywords = MOOD_KEYWORDS[selectedMood] || [selectedMood.toLowerCase()];
+    return songs.filter(s => {
+      const text = [s.titre, s.artiste, s.genre, s.description, s.album]
+        .filter(Boolean).join(' ').toLowerCase();
+      return keywords.some(kw => text.includes(kw));
+    });
   }, [songs, selectedMood]);
 
   const favorites = useMemo(() => songs.filter(s => s.liked).slice(0, 5), [songs]);
@@ -356,14 +380,14 @@ const HomeView = ({
   };
 
   const MOODS = [
-    { label: 'Chill',      icon: '🌊' },
-    { label: 'Énergie',    icon: '⚡' },
-    { label: 'Focus',      icon: '🎯' },
-    { label: 'Fête',       icon: '🎉' },
-    { label: 'Nostalgie',  icon: '🌅' },
-    { label: 'Romance',    icon: '💕' },
-    { label: 'Motivant',   icon: '🔥' },
-    { label: 'Gospel',     icon: '✝️' },
+    { label: 'Chill',     color: 'bg-sky-500/20 border-sky-500/30 text-sky-300',         activeColor: 'bg-sky-500/30 border-sky-400 text-sky-200'     },
+    { label: 'Énergie',   color: 'bg-yellow-500/20 border-yellow-500/30 text-yellow-300', activeColor: 'bg-yellow-500/30 border-yellow-400 text-yellow-200' },
+    { label: 'Focus',     color: 'bg-violet-500/20 border-violet-500/30 text-violet-300', activeColor: 'bg-violet-500/30 border-violet-400 text-violet-200' },
+    { label: 'Fête',      color: 'bg-pink-500/20 border-pink-500/30 text-pink-300',       activeColor: 'bg-pink-500/30 border-pink-400 text-pink-200'     },
+    { label: 'Nostalgie', color: 'bg-amber-500/20 border-amber-500/30 text-amber-300',    activeColor: 'bg-amber-500/30 border-amber-400 text-amber-200'   },
+    { label: 'Romance',   color: 'bg-rose-500/20 border-rose-500/30 text-rose-300',       activeColor: 'bg-rose-500/30 border-rose-400 text-rose-200'     },
+    { label: 'Motivant',  color: 'bg-orange-500/20 border-orange-500/30 text-orange-300', activeColor: 'bg-orange-500/30 border-orange-400 text-orange-200' },
+    { label: 'Gospel',    color: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300', activeColor: 'bg-emerald-500/30 border-emerald-400 text-emerald-200' },
   ];
 
   // ── Recherche globale — return ici mais hooks déjà déclarés au-dessus ──
@@ -429,7 +453,7 @@ const HomeView = ({
           <h1 className='text-2xl font-bold text-white p-2' >Stories</h1>
 
         </div>
-          <StoriesBar token={token} isLoggedIn={isLoggedIn} />
+        <StoriesBar token={token} isLoggedIn={isLoggedIn} />
       </section>
 
       {/* ══ 2. REPRENDRE OÙ VOUS EN ÉTIEZ ══ */}
@@ -478,18 +502,16 @@ const HomeView = ({
           {MOODS.map(m => (
             <button key={m.label}
               onClick={() => setSelectedMood(selectedMood === m.label ? null : m.label)}
-              className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition border ${
-                selectedMood === m.label
-                  ? 'bg-red-600/20 border-red-500/50 text-white'
-                  : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-600'
+              className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold transition border ${
+                selectedMood === m.label ? m.activeColor : m.color
               }`}>
-              <span>{m.icon}</span> {m.label}
+              {m.label}
             </button>
           ))}
           {selectedMood && (
             <button onClick={() => setSelectedMood(null)}
-              className="shrink-0 px-3 py-2 rounded-full text-xs font-bold bg-zinc-800 text-zinc-400 hover:text-white transition border border-zinc-700">
-              ✕ Tout
+              className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-full text-xs font-bold bg-zinc-800 text-zinc-400 hover:text-white transition border border-zinc-700">
+              <X size={10}/> Tout
             </button>
           )}
         </div>
@@ -530,7 +552,7 @@ const HomeView = ({
             <div className="relative flex items-center gap-4 p-5">
               <img src={discoveryToday.image} className="w-16 h-16 rounded-2xl object-cover shadow-lg shrink-0" alt="" />
               <div className="flex-1 min-w-0">
-                <span className="text-[9px] font-black bg-violet-500/20 text-violet-400 px-2 py-0.5 rounded-full">🔮 DÉCOUVERTE</span>
+                <span className="text-[9px] font-black bg-violet-500/20 text-violet-400 px-2 py-0.5 rounded-full">Découverte</span>
                 <p className="text-base font-black text-white truncate mt-1">{discoveryToday.titre}</p>
                 <p className="text-[11px] text-zinc-400 uppercase truncate">{discoveryToday.artiste}</p>
                 <p className="text-[9px] text-zinc-600 mt-0.5">{discoveryToday.plays || 0} écoutes · talents émergents</p>
@@ -573,7 +595,7 @@ const HomeView = ({
                   {song?.image ? <img src={song.image} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-xl font-black text-zinc-600">{nom[0]}</div>}
                 </div>
                 <p className="text-xs font-bold truncate text-zinc-300">{nom}</p>
-                <p className="text-[10px] text-zinc-600">{plays.toLocaleString()} 🎧</p>
+                <p className="text-[10px] text-zinc-600">{plays.toLocaleString()} écoutes</p>
               </div>
             ))}
           </div>
