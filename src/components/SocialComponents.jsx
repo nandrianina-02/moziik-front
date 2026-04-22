@@ -225,14 +225,14 @@ export const StoriesBar = ({ token, isLoggedIn, onArtistClick }) => {
           const hasUnviewed = entry.stories.some(s => !s.viewed);
           return (
             <button key={entry.artist._id} onClick={() => openStory(entry)} className="shrink-0 flex flex-col items-center gap-1.5">
-              <div className={`w-14 h-14 rounded-full p-0.5 ${hasUnviewed ? 'bg-gradient-to-tr from-red-500 via-orange-500 to-yellow-500' : 'bg-zinc-700'}`}>
+              <div className={`w-30 h-30 rounded-full p-0.5 ${hasUnviewed ? 'bg-gradient-to-tr from-red-500 via-orange-500 to-yellow-500' : 'bg-zinc-700'}`}>
                 <div className="w-full h-full rounded-full overflow-hidden bg-zinc-900 border-2 border-zinc-900">
                   {entry.artist.image
                     ? <img src={entry.artist.image} className="w-full h-full object-cover" alt="" />
                     : <div className="w-full h-full flex items-center justify-center text-lg font-black text-zinc-500">{entry.artist.nom[0]}</div>}
                 </div>
               </div>
-              <p className="text-[10px] text-zinc-400 truncate w-14 text-center">{entry.artist.nom.split(' ')[0]}</p>
+              <p className="text-[15px] text-zinc-400 truncate w-14 text-center">{entry.artist.nom.split(' ')[0]}</p>
             </button>
           );
         })}

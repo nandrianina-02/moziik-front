@@ -3,7 +3,8 @@ import {
   Flame, Sparkles, Heart, Compass, TrendingUp,
   Play, Pause, Disc3, ChevronRight, Check,
   Users, AlertTriangle, Share2, Clock, WifiOff,
-  Star, Radio, Gem, Trophy, Zap, Sun, Bell
+  Star, Radio, Gem, Trophy, Zap, Sun, Bell,
+  Section, Plus
 } from 'lucide-react';
 import SongRow from '../components/music/SongRow';
 import GlobalSearchView from './GlobalSearchView';
@@ -420,7 +421,16 @@ const HomeView = ({
       )}
 
       {/* ══ STORIES ══ */}
-      <StoriesBar token={token} isLoggedIn={isLoggedIn} />
+      <section className="pt-2"> 
+        <div className='flex items-center gap-2 mb-4'>
+          <div className="w-10 h-10 rounded-full border-2 border-pink-500 flex items-center justify-center">
+            <Plus />
+          </div>
+          <h1 className='text-2xl font-bold text-white p-2' >Stories</h1>
+
+        </div>
+          <StoriesBar token={token} isLoggedIn={isLoggedIn} />
+      </section>
 
       {/* ══ 2. REPRENDRE OÙ VOUS EN ÉTIEZ ══ */}
       {isLoggedIn && lastPlayed && currentSong?._id !== lastPlayed.song._id && (
