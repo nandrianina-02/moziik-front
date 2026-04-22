@@ -327,7 +327,7 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
     setLoading(true);
     try {
       const [songsData, artistsData, albumsData] = await Promise.all([
-        fetch(`${API}/songs?limit=500`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+        fetch(`${API}/songs?limit=5000`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
         fetch(`${API}/artists`).then(r => r.json()),
         fetch(`${API}/albums`).then(r => r.json()),
       ]);
