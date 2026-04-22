@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Heart, ListPlus, Eye, MoreHorizontal, Trash2, Edit2,
   Plus, Check, X, Play, Pause, Globe, Lock, Camera,
-  Loader2, Image as ImageIcon, Mic2, Disc3, AlertCircle, ShoppingCart 
+  Loader2, Image as ImageIcon, Mic2, Disc3, AlertCircle, ShoppingCart,
+  Tag, Radio
 } from 'lucide-react';
 import ReactionsBar from './ReactionsBar.jsx';
 import CommentsSection from './CommentsSection.jsx';
@@ -13,12 +14,7 @@ import { SongPriceModal } from '../RevenueComponents';
 
 // ════════════════════════════════════════════
 // MODAL ÉDITION COMPLÈTE (Admin)
-// titre, artiste (recherche), album, photo
 // ════════════════════════════════════════════
-
-
-// const [showPriceModal, setShowPriceModal] = useState(false);
-
 const EditSongModal = ({ song, token, onClose, onSaved }) => {
   const [titre, setTitre]       = useState(song.titre || '');
   const [artiste, setArtiste]   = useState(song.artiste || '');
@@ -31,9 +27,12 @@ const EditSongModal = ({ song, token, onClose, onSaved }) => {
   const [imgPrev, setImgPrev]   = useState(song.image || '');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
+  // Moods / tags
+  const [selectedMoods, setSelectedMoods] = useState(song.moods || []);
   const fileRef = useRef();
 
-  // Charger artistes et albums filtrés
+  const MOOD_OPTIONS = ['Chill','Énergie','Focus','Fête','Nostalgie','Romance','Triste','Motivant','Afrobeat','Gospel','Rap','RnB'];
+
   useEffect(() => {
     fetch(`${API}/artists`).then(r => r.json()).then(d => setArtists(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
@@ -55,12 +54,12 @@ const EditSongModal = ({ song, token, onClose, onSaved }) => {
   };
 
   const handleSelectArtist = (a) => {
-    setArtisteId(a._id);
-    setArtiste(a.nom);
-    setArtistSearch('');
-    setAlbumId('');
+    setArtisteId(a._id); setArtiste(a.nom); setArtistSearch(''); setAlbumId('');
   };
 
+  const toggleMood = (mood) => {
+    setSelectedMoods(prev => prev.includes(mood) ? prev.filter(m => m !== mood) : [...prev, mood]);
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -69,39 +68,29 @@ const EditSongModal = ({ song, token, onClose, onSaved }) => {
       const fd = new FormData();
       fd.append('titre', titre.trim());
       fd.append('artiste', artiste.trim());
-      if (artisteId) fd.append('artisteId', artisteId);
-      else fd.append('artisteId', '');
-      if (albumId) fd.append('albumId', albumId);
-      else fd.append('albumId', '');
+      fd.append('artisteId', artisteId || '');
+      fd.append('albumId', albumId || '');
+      fd.append('moods', JSON.stringify(selectedMoods));
       if (imgFile) fd.append('image', imgFile);
-
       const res = await fetch(`${API}/songs/${song._id}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
+        method: 'PUT', headers: { Authorization: `Bearer ${token}` }, body: fd,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || `Erreur ${res.status}`);
-      onSaved(data);
-      onClose();
+      onSaved(data); onClose();
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[350] flex items-center justify-center p-4"
-      onClick={onClose}>
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto"
-        onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[350] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
 
-        {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-zinc-800">
           <h4 className="font-black text-sm flex items-center gap-2">
             <Edit2 size={15} className="text-red-400" /> Modifier la musique
           </h4>
-          <button onClick={onClose} className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition">
-            <X size={15} />
-          </button>
+          <button onClick={onClose} className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition"><X size={15} /></button>
         </div>
 
         <form onSubmit={handleSave} className="p-5 space-y-4">
@@ -110,9 +99,7 @@ const EditSongModal = ({ song, token, onClose, onSaved }) => {
           <div className="flex items-center gap-4">
             <div className="relative shrink-0">
               <div className="w-20 h-20 rounded-xl overflow-hidden bg-zinc-800 border border-zinc-700">
-                {imgPrev
-                  ? <img src={imgPrev} className="w-full h-full object-cover" alt="" />
-                  : <ImageIcon size={24} className="text-zinc-600 m-auto mt-6" />}
+                {imgPrev ? <img src={imgPrev} className="w-full h-full object-cover" alt="" /> : <ImageIcon size={24} className="text-zinc-600 m-auto mt-6" />}
               </div>
               <button type="button" onClick={() => fileRef.current?.click()}
                 className="absolute -bottom-1.5 -right-1.5 w-7 h-7 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center shadow-lg transition">
@@ -134,25 +121,18 @@ const EditSongModal = ({ song, token, onClose, onSaved }) => {
               className="w-full bg-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white" />
           </div>
 
-          {/* Artiste avec recherche */}
+          {/* Artiste */}
           <div>
             <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
               <Mic2 size={9} /> Artiste
             </label>
-            {/* Artiste sélectionné */}
             {artisteId && (
               <div className="flex items-center gap-2 mb-2 bg-purple-600/10 border border-purple-600/20 rounded-xl px-3 py-2">
-                <div className="w-6 h-6 rounded-full bg-purple-600/30 flex items-center justify-center text-[10px] font-black text-purple-300">
-                  {artiste[0]}
-                </div>
+                <div className="w-6 h-6 rounded-full bg-purple-600/30 flex items-center justify-center text-[10px] font-black text-purple-300">{artiste[0]}</div>
                 <span className="text-sm font-bold text-purple-300 flex-1">{artiste}</span>
-                <button type="button" onClick={() => { setArtisteId(''); setArtiste(''); setAlbums([]); setAlbumId(''); }}
-                  className="text-zinc-500 hover:text-white">
-                  <X size={13} />
-                </button>
+                <button type="button" onClick={() => { setArtisteId(''); setArtiste(''); setAlbums([]); setAlbumId(''); }} className="text-zinc-500 hover:text-white"><X size={13} /></button>
               </div>
             )}
-            {/* Recherche */}
             {!artisteId && (
               <>
                 <input value={artistSearch} onChange={e => setArtistSearch(e.target.value)}
@@ -173,7 +153,6 @@ const EditSongModal = ({ song, token, onClose, onSaved }) => {
                       ))}
                   </div>
                 )}
-                {/* Saisie manuelle si pas de résultat */}
                 <input value={artiste} onChange={e => setArtiste(e.target.value)}
                   placeholder="Ou saisir le nom de l'artiste manuellement"
                   className="w-full bg-zinc-800/50 rounded-xl px-4 py-2 text-sm outline-none focus:ring-1 ring-zinc-600 text-zinc-400 placeholder-zinc-700 mt-1" />
@@ -181,7 +160,7 @@ const EditSongModal = ({ song, token, onClose, onSaved }) => {
             )}
           </div>
 
-          {/* Album (filtré selon artiste) */}
+          {/* Album */}
           <div>
             <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
               <Disc3 size={9} /> Album (optionnel)
@@ -193,6 +172,25 @@ const EditSongModal = ({ song, token, onClose, onSaved }) => {
               {albums.map(a => <option key={a._id} value={a._id}>{a.titre} ({a.annee})</option>)}
             </select>
             {!artisteId && <p className="text-[10px] text-zinc-600 mt-1">Sélectionnez d'abord un artiste</p>}
+          </div>
+
+          {/* Moods / Tags */}
+          <div>
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2 flex items-center gap-1">
+              <Tag size={9} /> Ambiance / Mood
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {MOOD_OPTIONS.map(mood => (
+                <button key={mood} type="button" onClick={() => toggleMood(mood)}
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition border ${
+                    selectedMoods.includes(mood)
+                      ? 'bg-red-600/20 border-red-500/50 text-red-300'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-white'
+                  }`}>
+                  {mood}
+                </button>
+              ))}
+            </div>
           </div>
 
           {error && (
@@ -225,11 +223,17 @@ const SongRow = ({
   addToQueue, token, isLoggedIn, userNom, isAdmin, isArtist, userArtistId,
   userId, playlists, userPlaylists, onAddToUserPlaylist, ajouterAPlaylist,
   onDeleted, onRefresh, isPlaying, onTogglePlaylistVisibility,
+  // Radio infinie
+  onInfiniteRadio,
 }) => {
+  // ── Tous les états en haut — AVANT tout return conditionnel ──
   const [menuOpen, setMenuOpen]             = useState(false);
   const [showEditModal, setShowEditModal]   = useState(false);
   const [showPlaylistPicker, setShowPlaylistPicker] = useState(false);
-  const menuRef = useRef();
+  // FIX: showPriceModal était déclaré ligne 275 (après utilisation ligne 370) → remonté ici
+  const [showPriceModal, setShowPriceModal] = useState(false);
+
+  const menuRef  = useRef();
   const isActive = currentSong?._id === song._id;
   const canManage = isAdmin || (isArtist && String(song.artisteId?._id || song.artisteId) === String(userArtistId));
   const { confirmDialog, ask, close: closeConfirm } = useConfirm();
@@ -249,8 +253,7 @@ const SongRow = ({
       variant: 'danger',
       onConfirm: async () => {
         await fetch(`${API}/songs/${song._id}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` }
+          method: 'DELETE', headers: { Authorization: `Bearer ${token}` }
         });
         if (onDeleted) onDeleted(song._id);
       }
@@ -272,17 +275,31 @@ const SongRow = ({
   const adminPlaylists = isAdmin ? (playlists || []) : [];
   const allMyPlaylists = [...myPlaylists, ...adminPlaylists];
 
-  const [showPriceModal, setShowPriceModal] = useState(false);
-
+  const MOOD_COLORS = {
+    'Chill': 'bg-blue-500/15 text-blue-400',
+    'Énergie': 'bg-orange-500/15 text-orange-400',
+    'Focus': 'bg-green-500/15 text-green-400',
+    'Fête': 'bg-purple-500/15 text-purple-400',
+    'Nostalgie': 'bg-amber-500/15 text-amber-400',
+    'Romance': 'bg-pink-500/15 text-pink-400',
+    'Triste': 'bg-indigo-500/15 text-indigo-400',
+    'Motivant': 'bg-yellow-500/15 text-yellow-400',
+  };
 
   return (
     <>
       <ConfirmDialog config={confirmDialog} onClose={closeConfirm} />
+
+      {/* FIX: SongPriceModal sorti du menu déroulant (évite le portail imbriqué) */}
+      {showPriceModal && (
+        <SongPriceModal song={song} token={token} onClose={() => setShowPriceModal(false)} onSaved={() => {}} />
+      )}
+
       {showEditModal && (
         <EditSongModal
           song={song} token={token}
           onClose={() => setShowEditModal(false)}
-          onSaved={(updated) => { if (onRefresh) onRefresh(); setShowEditModal(false); }}
+          onSaved={() => { if (onRefresh) onRefresh(); setShowEditModal(false); }}
         />
       )}
 
@@ -291,7 +308,7 @@ const SongRow = ({
       }`}>
         <div className="flex items-center gap-3">
 
-          {/* Index / Play */}
+          {/* Index / Play indicator */}
           <div className="w-5 shrink-0 flex items-center justify-center">
             {isActive && isPlaying
               ? <div className="flex gap-0.5 items-end h-4">
@@ -319,10 +336,18 @@ const SongRow = ({
             )}
           </div>
 
-          {/* Info */}
+          {/* Info + mood tags */}
           <div className="flex-1 min-w-0 cursor-pointer" onClick={() => { setCurrentSong(song); setIsPlaying(true); }}>
             <p className={`text-sm font-bold truncate ${isActive ? 'text-red-400' : ''}`}>{song.titre}</p>
-            <p className="text-[10px] text-zinc-500 truncate uppercase">{song.artiste}</p>
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+              <p className="text-[10px] text-zinc-500 uppercase truncate">{song.artiste}</p>
+              {/* Mood tags */}
+              {song.moods?.slice(0, 2).map(mood => (
+                <span key={mood} className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${MOOD_COLORS[mood] || 'bg-zinc-700 text-zinc-400'}`}>
+                  {mood}
+                </span>
+              ))}
+            </div>
           </div>
 
           {/* Actions */}
@@ -336,6 +361,14 @@ const SongRow = ({
               className="p-1.5 hover:bg-white/10 rounded-lg transition">
               <ListPlus size={14} className="text-zinc-400 hover:text-white" />
             </button>
+            {/* Radio infinie */}
+            {onInfiniteRadio && (
+              <button onClick={e => { e.stopPropagation(); onInfiniteRadio(song); }}
+                title="Radio infinie à partir de ce titre"
+                className="p-1.5 hover:bg-white/10 rounded-lg transition">
+                <Radio size={14} className="text-zinc-400 hover:text-violet-400" />
+              </button>
+            )}
             <div onClick={e => e.stopPropagation()}
               className="p-1.5 hover:bg-white/10 rounded-lg transition flex items-center justify-center">
               <ShareButton song={song} size={14} />
@@ -366,14 +399,21 @@ const SongRow = ({
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-white transition">
                         <Plus size={13} /> Ajouter à une playlist
                       </button>
+
+                      {/* FIX: SongPriceModal trigger (le modal lui-même est hors du menu, plus haut) */}
                       {canManage && (
-                        <button onClick={() => setShowPriceModal(true)}
+                        <button onClick={e => { e.stopPropagation(); setMenuOpen(false); setShowPriceModal(true); }}
                           className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-white transition">
                           <ShoppingCart size={13}/> Gérer la vente
                         </button>
                       )}
-                      {showPriceModal && (
-                        <SongPriceModal song={song} token={token} onClose={() => setShowPriceModal(false)} onSaved={() => {}} />
+
+                      {/* Radio infinie dans le menu */}
+                      {onInfiniteRadio && (
+                        <button onClick={e => { e.stopPropagation(); setMenuOpen(false); onInfiniteRadio(song); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-white transition">
+                          <Radio size={13}/> Radio infinie
+                        </button>
                       )}
 
                       {showPlaylistPicker && (
