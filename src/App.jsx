@@ -62,6 +62,7 @@ import { StoriesBar }          from './components/SocialComponents';
 import { ListenPartyModal }    from './components/SocialComponents';
 import { LoyaltyWidget }       from './components/SocialComponents';
 import ArtistAnalyticsView     from './views/ArtistAnalyticsView.jsx';
+import AdminLibraryView        from './views/AdminLibraryView';
 
 
 
@@ -493,35 +494,48 @@ const chargerMusiques = async () => {
   // ═══════════════════════════════════════════════════════════════════════════
   // NAV + PROPS
   // ═══════════════════════════════════════════════════════════════════════════
+  // ─── Liens communs (tous les visiteurs) ─────────────────────────────────────
+  const navLinksCommon = [
+    { to: '/',                 icon: <Home size={17} />,    label: 'Accueil' },
+    { to: '/favorites',        icon: <Heart size={17} className={musiques.some(s => s.liked) ? 'text-red-500' : ''} fill={musiques.some(s => s.liked) ? 'red' : 'none'} />, label: 'Favoris' },
+    { to: '/public-playlists', icon: <Globe size={17} />,   label: 'Playlists' },
+    { to: '/artists-list',     icon: <Mic2 size={17} />,    label: 'Artistes' },
+    { to: '/trending',         icon: <Flame size={17} />,   label: 'Trending' },
+    { to: '/events',           icon: <Ticket size={17} />,  label: 'Événements' },
+    { to: '/premium',          icon: <Crown size={17}/>,    label: isPremium ? '✨ Premium' : 'Passer Premium' },
+  ];
+
+  // ─── Liens utilisateur connecté ─────────────────────────────────────────────
+  const navLinksUser = isLoggedIn ? [
+    { to: '/history',         icon: <History size={17} />,  label: 'Historique' },
+    { to: '/recommendations', icon: <Sparkles size={17} />, label: 'Pour vous' },
+    { to: '/notifications',   icon: <Bell size={17} />,     label: 'Notifications' },
+    { to: '/account',         icon: <Settings size={17} />, label: 'Mon compte' },
+    { to: '/settings',        icon: <Sliders size={17} />,  label: 'Paramètres' },
+  ] : [];
+
+  // ─── Liens artiste uniquement ───────────────────────────────────────────────
+  const navLinksArtist = isArtist ? [
+    { to: '/my-albums',        icon: <Disc3 size={17} />,   label: 'Mes Albums' },
+    { to: '/artist-dashboard', icon: <Star size={17}/>,     label: 'Espace Artiste' },
+  ] : [];
+
+  // ─── Liens admin uniquement ─────────────────────────────────────────────────
+  const navLinksAdmin = isAdmin ? [
+    { to: '/dashboard',            icon: <BarChart2 size={17} />,  label: 'Dashboard' },
+    { to: '/admin-library',        icon: <Music size={17} />,      label: 'Bibliothèque' },
+    { to: '/admin-artists',        icon: <Mic2 size={17} />,       label: 'Gérer artistes' },
+    { to: '/admin-users',          icon: <Users size={17} />,      label: 'Utilisateurs' },
+    { to: '/admin-certifications', icon: <CheckCircle size={17}/>, label: 'Certifications' },
+    { to: '/admin-monetisation',   icon: <DollarSign size={17}/>,  label: 'Monétisation' },
+  ] : [];
+
+  // ─── navLinks complet sidebar desktop ───────────────────────────────────────
   const navLinks = [
-    { to: '/',               icon: <Home size={17} />,     label: 'Accueil' },
-    { to: '/favorites',      icon: <Heart size={17} className={musiques.some(s => s.liked) ? 'text-red-500' : ''} fill={musiques.some(s => s.liked) ? 'red' : 'none'} />, label: 'Favoris' },
-    { to: '/public-playlists', icon: <Globe size={17} />, label: 'Playlists' },
-    { to: '/artists-list',   icon: <Mic2 size={17} />,     label: 'Artistes' },
-    ...(isLoggedIn ? [
-      { to: '/history',         icon: <History size={17} />,  label: 'Historique' },
-      { to: '/recommendations', icon: <Sparkles size={17} />, label: 'Pour vous' },
-      { to: '/notifications',   icon: <Bell size={17} />,     label: 'Notifications' },
-    ] : []),
-    ...(isArtist ? [
-      { to: '/my-albums', icon: <Disc3 size={17} />, label: 'Mes Albums'},
-      { to: '/artist-dashboard', icon: <Star size={17}/>, label: 'Espace Artiste' },
-    ] : []),
-    ...(isAdmin ? [
-      { to: '/dashboard',     icon: <BarChart2 size={17} />, label: 'Dashboard' },
-      { to: '/admin-artists', icon: <Mic2 size={17} />,      label: 'Gérer artistes' },
-      { to: '/admin-users',   icon: <Users size={17} />,     label: 'Utilisateurs' },
-      { to: '/admin-certifications', icon: <CheckCircle size={17}/>, label: 'Certifications' },
-    ] : []),
-    ...(isLoggedIn ? [
-      { to: '/account', icon: <Settings size={17} />, label: 'Mon compte' },
-      { to: '/settings', icon: <Sliders size={17} />, label: 'Paramètres' },
-    ] : []),
-    { to: '/premium', icon: <Crown size={17}/>, label: isPremium ? '✨ Premium' : 'Passer Premium' },
-    { to: '/events',  icon: <Ticket size={17}/>, label: 'Événements' },
-    // Admin :
-    { to: '/admin-monetisation', icon: <DollarSign size={17}/>, label: 'Monétisation' },
-    { to: '/trending', icon: <Flame size={17}/>, label: 'Trending' },
+    ...navLinksCommon,
+    ...navLinksUser,
+    ...navLinksArtist,
+    ...navLinksAdmin,
   ];
 
   const songProps = {
@@ -589,12 +603,45 @@ const chargerMusiques = async () => {
 
           {/* Nav links */}
           <div className="flex flex-col gap-0.5">
-            {navLinks.map(link => (
+            {navLinksCommon.map(link => (
               <Link key={link.to} to={link.to}
                 className="flex items-center gap-3 text-zinc-400 hover:text-white transition px-3 py-2 rounded-xl hover:bg-zinc-900/80 text-sm active:scale-[0.98]">
                 {link.icon} {link.label}
               </Link>
             ))}
+            {isLoggedIn && navLinksUser.length > 0 && (
+              <>
+                <p className="text-[9px] font-bold text-zinc-700 uppercase tracking-widest px-3 pt-3 pb-0.5">Mon espace</p>
+                {navLinksUser.map(link => (
+                  <Link key={link.to} to={link.to}
+                    className="flex items-center gap-3 text-zinc-400 hover:text-white transition px-3 py-2 rounded-xl hover:bg-zinc-900/80 text-sm active:scale-[0.98]">
+                    {link.icon} {link.label}
+                  </Link>
+                ))}
+              </>
+            )}
+            {isArtist && navLinksArtist.length > 0 && (
+              <>
+                <p className="text-[9px] font-bold text-purple-700 uppercase tracking-widest px-3 pt-3 pb-0.5">Espace Artiste</p>
+                {navLinksArtist.map(link => (
+                  <Link key={link.to} to={link.to}
+                    className="flex items-center gap-3 text-purple-400 hover:text-white transition px-3 py-2 rounded-xl hover:bg-zinc-900/80 text-sm active:scale-[0.98]">
+                    {link.icon} {link.label}
+                  </Link>
+                ))}
+              </>
+            )}
+            {isAdmin && navLinksAdmin.length > 0 && (
+              <>
+                <p className="text-[9px] font-bold text-red-700 uppercase tracking-widest px-3 pt-3 pb-0.5">Administration</p>
+                {navLinksAdmin.map(link => (
+                  <Link key={link.to} to={link.to}
+                    className="flex items-center gap-3 text-red-400 hover:text-white transition px-3 py-2 rounded-xl hover:bg-zinc-900/80 text-sm active:scale-[0.98]">
+                    {link.icon} {link.label}
+                  </Link>
+                ))}
+              </>
+            )}
             {canUpload && (
               <button onClick={() => setShowUpload(true)}
                 className="flex items-center gap-3 text-zinc-500 hover:text-red-400 transition px-3 py-2 border border-dashed border-zinc-800 rounded-xl hover:border-red-900/60 mt-1 text-sm">
@@ -690,12 +737,11 @@ const chargerMusiques = async () => {
             </div>
             <div className="flex items-center gap-1 shrink-0">
               {isLoggedIn && (
-                < >
+                <>
                   <div className="flex items-center gap-3 px-2 py-1 rounded-full bg-zinc-900/80">
                     <Link to="/notifications"><Bell size={17} /></Link>
                     <Link to="/settings"><Sliders size={17} /></Link>
                   </div>
-                  
                 </>
               )}
               {isLoggedIn ? (
@@ -714,20 +760,32 @@ const chargerMusiques = async () => {
               )}
             </div>
           </div>
-          {/* Nav tabs */}
+          {/* Nav tabs mobile — filtrés par rôle */}
           <div className="flex gap-0.5 px-2 pb-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
             {[
-              { to: '/', label: 'Accueil' },
-              { to: '/favorites', label: 'Favoris' },
+              { to: '/',                 label: 'Accueil' },
+              { to: '/favorites',        label: 'Favoris' },
               { to: '/public-playlists', label: 'Playlists' },
-              { to: '/artists-list', label: 'Artistes' },
-              ...(isArtist ? [{ to: '/my-albums', label: 'Albums' }] : []),
-              ...(isAdmin ? [{ to: '/dashboard', label: 'Stats' }, { to: '/admin-users', label: 'Users' }] : []),
+              { to: '/artists-list',     label: 'Artistes' },
+              { to: '/trending',         label: 'Trending' },
+              { to: '/events',           label: 'Événements' },
+              // Connecté (tous rôles)
               ...(isLoggedIn ? [
-                { to: '/history', label: 'Historique' },
+                { to: '/history',         label: 'Historique' },
                 { to: '/recommendations', label: 'Pour vous' },
-                { to: '/notifications', label: 'Notifs' },
-                { to: '/account', label: 'Compte' },
+                { to: '/account',         label: 'Compte' },
+              ] : []),
+              // Artiste uniquement
+              ...(isArtist ? [
+                { to: '/my-albums',        label: 'Mes Albums' },
+                { to: '/artist-dashboard', label: 'Espace Artiste' },
+              ] : []),
+              // Admin uniquement
+              ...(isAdmin ? [
+                { to: '/dashboard',          label: 'Stats' },
+                { to: '/admin-users',        label: 'Users' },
+                { to: '/admin-artists',      label: 'Artistes ⚙' },
+                { to: '/admin-monetisation', label: 'Monétisation' },
               ] : []),
             ].map(item => (
               <Link key={item.to} to={item.to} onClick={() => setShowMobileMenu(false)}
@@ -760,6 +818,42 @@ const chargerMusiques = async () => {
                   className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition border-b border-zinc-800">
                   <Plus size={15} className="text-red-500" /> Ajouter une musique
                 </button>
+              )}
+              {isArtist && (
+                <div className="border-b border-zinc-800">
+                  <Link to="/artist-dashboard" onClick={() => setShowMobileMenu(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-sm text-purple-400 hover:text-white hover:bg-zinc-800 transition">
+                    <Star size={15} className="text-purple-400" /> Espace Artiste
+                  </Link>
+                  <Link to="/my-albums" onClick={() => setShowMobileMenu(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition">
+                    <Disc3 size={15} className="text-purple-400" /> Mes Albums
+                  </Link>
+                </div>
+              )}
+              {isAdmin && (
+                <div className="border-b border-zinc-800">
+                  <Link to="/dashboard" onClick={() => setShowMobileMenu(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:text-white hover:bg-zinc-800 transition">
+                    <BarChart2 size={15} className="text-red-400" /> Dashboard
+                  </Link>
+                  <Link to="/admin-library" onClick={() => setShowMobileMenu(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition">
+                    <Music size={15} className="text-red-400" /> Bibliothèque
+                  </Link>
+                  <Link to="/admin-artists" onClick={() => setShowMobileMenu(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition">
+                    <Mic2 size={15} /> Gérer artistes
+                  </Link>
+                  <Link to="/admin-users" onClick={() => setShowMobileMenu(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition">
+                    <Users size={15} /> Utilisateurs
+                  </Link>
+                  <Link to="/admin-monetisation" onClick={() => setShowMobileMenu(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition">
+                    <DollarSign size={15} /> Monétisation
+                  </Link>
+                </div>
               )}
               {isUser && userPlaylists.length > 0 && (
                 <div className="border-b border-zinc-800">
@@ -878,6 +972,11 @@ const chargerMusiques = async () => {
               <EventsView token={token} isLoggedIn={isLoggedIn}
                 setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}
                 currentSong={currentSong} />
+            } />
+            <Route path="/admin-library" element={
+              isAdmin
+                ? <AdminLibraryView token={token} currentSong={currentSong} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} isPlaying={isPlaying} />
+                : <div className="p-8 text-zinc-600">Accès refusé</div>
             } />
             <Route path="/admin-monetisation" element={
               isAdmin ? <AdminMonetisationView token={token} /> : <div className="p-8 text-zinc-600">Accès refusé</div>

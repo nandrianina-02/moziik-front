@@ -50,17 +50,22 @@ const extractID3 = async (file) => {
 };
 
 // ── Extraction IA du nom de fichier ──────────────
+// ── Config Anthropic depuis variables d'environnement ────────────
+const ANTHROPIC_API_KEY = import.meta.env.ANTHROPIC_API_KEY || '';
+const ANTHROPIC_VERSION  = '2023-06-01';
+
 const extractFromFilenameAI = async (filename) => {
+  if (!ANTHROPIC_API_KEY) return {}; // ✅ Skip silencieusement si clé absente
   try {
     const clean = filename.replace(/\.(mp3|m4a|ogg|wav|flac)$/i,'').replace(/[_-]/g,' ').trim();
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_CONFIG.API_KEY,
-        'anthropic-version': ANTHROPIC_CONFIG.VERSION,
-        'dangerously-allow-browser': 'true'
-       },
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': ANTHROPIC_VERSION,
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 150,
@@ -72,7 +77,7 @@ const extractFromFilenameAI = async (filename) => {
     });
     const data = await res.json();
     const text = data.content?.[0]?.text || '{}';
-    const json = JSON.parse(text.replace(/```json|```/g,'').trim());
+    const json = JSON.parse(text.replace(/\`\`\`json|\`\`\`/g,'').trim());
     return json;
   } catch { return {}; }
 };

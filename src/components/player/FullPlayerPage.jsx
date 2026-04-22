@@ -8,7 +8,7 @@ import {
 import { LyricsDisplay, LyricsEditor } from '../music/LyricsDisplay';
 
 import { ListenPartyModal } from '../SocialComponents';
-import { data } from 'react-router-dom';
+// (react-router-dom data import supprimé — non utilisé)
 
 
 
@@ -58,9 +58,7 @@ const FullPlayerPage = ({
   const [showParty, setShowParty] = useState(false);
 
   const isLoggedIn = !!localStorage.getItem('moozik_token');
-  const setCurrentSong = (songId) => {
-    // Implementation for setting current song
-  };
+  // setCurrentSong est passé en prop depuis App.jsx si besoin
 
 
   // ── Auto-queue à la première lecture ──
@@ -301,7 +299,7 @@ const FullPlayerPage = ({
 
 
   return (
-    <div className="fixed inset-0 z-200 flex flex-col md:flex-row overflow-hidden select-none">
+    <div className="fixed inset-0 z-[200] flex flex-col md:flex-row overflow-hidden select-none">
 
       {/* ══ FOND AMBIANT ══ */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -398,8 +396,9 @@ const FullPlayerPage = ({
 
               {/* Contrôles */}
               <div className="flex items-center justify-between px-6 py-2 shrink-0">
-                <button onClick={() => setShowParty(true)} className="...">
-                  <Radio size={15} /> Party
+                <button onClick={() => setShowParty(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/8 hover:bg-white/15 text-white/50 hover:text-white text-[11px] font-bold transition active:scale-90">
+                  <Radio size={14} /> Party
                 </button>
                 {showParty && (
                   <ListenPartyModal
@@ -456,15 +455,17 @@ const FullPlayerPage = ({
               
             </div>
           )}
-          <div className="px-4 pb-4">
-            <LyricsDisplay songId={currentSong._id} currentTime={currentTime} isPlaying={isPlaying} />
-            <LyricsEditor
-              songId={currentSong._id}
-              songTitre={currentSong.titre}
-              token={token}
-              canEdit={isAdmin || (isArtist && String(currentSong.artisteId?._id || currentSong.artisteId) === String(userArtistId))}
-            />
-          </div>
+          {currentSong && activeTab === 'player' && (
+            <div className="px-4 pb-4">
+              <LyricsDisplay songId={currentSong._id} currentTime={currentTime} isPlaying={isPlaying} />
+              <LyricsEditor
+                songId={currentSong._id}
+                songTitre={currentSong.titre}
+                token={token}
+                canEdit={isAdmin || (isArtist && String(currentSong.artisteId?._id || currentSong.artisteId) === String(userArtistId))}
+              />
+            </div>
+          )}
 
           {/* ── VUE EQ mobile ── */}
           {activeTab === 'eq' && <EQContent/>}

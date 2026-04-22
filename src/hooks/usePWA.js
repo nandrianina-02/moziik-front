@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 // ════════════════════════════════════════════
 // HOOK: Media Session API
@@ -180,6 +180,3 @@ export const useAudioCache = () => {
 
   return { cacheAudio, removeCached, isAudioCached, cachedIds };
 };
-
-// Fix manquant — useState import
-import { useState } from 'react';

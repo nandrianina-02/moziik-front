@@ -1,5 +1,5 @@
 export const API = 'https://moozik-gft1.onrender.com';
-const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
+const API_KEY = import.meta.env.ANTHROPIC_API_KEY;
 export const ANTHROPIC_CONFIG = {
   API_KEY: API_KEY,
   VERSION: '2023-06-01',

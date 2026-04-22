@@ -1,10 +1,9 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
-  Flame, Sparkles, Heart, Compass, Music, Plus, TrendingUp,
-  Play, Pause, Disc3, ChevronRight, Download, Check,
-  Users, AlertTriangle, Share2, Clock, WifiOff, Crown,
-  Star, Radio, Gem, Trophy, Zap, Sun, Moon, Coffee,
-  PartyPopper, ChevronLeft, Bell
+  Flame, Sparkles, Heart, Compass, TrendingUp,
+  Play, Pause, Disc3, ChevronRight, Check,
+  Users, AlertTriangle, Share2, Clock, WifiOff,
+  Star, Radio, Gem, Trophy, Zap, Sun, Bell
 } from 'lucide-react';
 import SongRow from '../components/music/SongRow';
 import GlobalSearchView from './GlobalSearchView';
@@ -115,7 +114,7 @@ const AdminAlertBanner = ({ token, isAdmin }) => {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-orange-300">Alertes administration</p>
         <div className="flex flex-wrap gap-3 mt-1.5">
-          {unassigned > 0 && <span className="text-[11px] text-orange-400 bg-orange-500/10 px-2.5 py-1 rounded-full">⚠️ {unassigned} musique{unassigned > 1 ? 's' : ''} sans artiste</span>}
+          {unassigned > 0 && <a href="/admin-library" className="text-[11px] text-orange-400 bg-orange-500/10 px-2.5 py-1 rounded-full hover:bg-orange-500/20 transition cursor-pointer">⚠️ {unassigned} musique{unassigned > 1 ? 's' : ''} sans artiste — Cliquer pour corriger</a>}
           {activeUsers > 0 && <span className="text-[11px] text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full flex items-center gap-1"><span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"/>{activeUsers} actif{activeUsers > 1 ? 's' : ''}</span>}
         </div>
       </div>
@@ -640,31 +639,6 @@ const HomeView = ({
       {isLoggedIn && (
         <RecentSharesSection token={token} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} currentSong={currentSong}/>
       )}
-
-      {/* ══ BIBLIOTHÈQUE (filtrée par mood ou complète) ══ */}
-      <section>
-        <div className="flex justify-between items-center mb-4">
-          <SectionHeader icon={<Music size={18} className="text-zinc-400"/>} title={selectedMood ? `${selectedMood} — Bibliothèque` : 'Bibliothèque'} subtitle={`${selectedMood ? moodFiltered.length : songs.length} titres`} noMargin/>
-          {canUpload && (
-            <button onClick={() => setShowUpload(true)}
-              className="flex items-center gap-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full transition active:scale-95 shadow-sm shadow-red-900/40">
-              <Plus size={13}/> Ajouter
-            </button>
-          )}
-        </div>
-        <div className="flex flex-col gap-1">
-          {(selectedMood ? moodFiltered : songs).map((song, i) => (
-            <div key={song._id}
-              draggable={isAdmin}
-              onDragStart={isAdmin ? e => handleDragStart(e, song._id) : undefined}
-              onDragOver={isAdmin ? e => handleDragOver(e, song._id) : undefined}
-              onDrop={isAdmin ? e => handleDrop(e, song._id) : undefined}
-              className={dragOverId === song._id ? 'ring-1 ring-red-500 rounded-xl' : ''}>
-              <SongRow song={song} index={i} {...songRowProps}/>
-            </div>
-          ))}
-        </div>
-      </section>
 
     </div>
   );
