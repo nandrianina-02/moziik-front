@@ -6,7 +6,8 @@ import {
   ExternalLink, Crown, Clock, Users, AlertTriangle
 } from 'lucide-react';
 
-const API = import.meta.env.VITE_API_URL || 'https://moozik-gft1.onrender.com';
+// const API = import.meta.env.VITE_API_URL || 'https://moozik-gft1.onrender.com';
+import { API } from '../config/api';
 const toEuros = (c) => (c / 100).toFixed(2);
 
 // ════════════════════════════════════════════

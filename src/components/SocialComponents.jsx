@@ -6,7 +6,8 @@ import {
   Music, Eye, Radio, Volume2
 } from 'lucide-react';
 
-const API = import.meta.env.VITE_API_URL || 'https://moozik-gft1.onrender.com';
+// const API = import.meta.env.VITE_API_URL || 'https://moozik-gft1.onrender.com';
+import { API } from '../config/api';
 
 // ════════════════════════════════════════════
 // TrendingView — Classement en temps réel
