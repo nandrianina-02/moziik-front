@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-
+import logo from '../assets/logo.png';
 
 const FloatingInstallButton = () => {
   const [promptInstall, setPromptInstall] = useState(null);
@@ -33,9 +33,11 @@ const FloatingInstallButton = () => {
   return (
     <div style={styles.container} className='z-50'>
       <div style={styles.content}>
-        <span style={styles.icon}>📱</span>
+        <span style={styles.icon}>
+          {<img src={logo} alt="Moziik" style={{ width: '24px', height: '24px' }} /> }
+        </span>
         <div style={styles.textContainer}>
-          <p style={styles.title}>Installer l'application</p>
+          <p style={styles.title}>Installer Moziik</p>
           <p style={styles.subtitle}>Accédez plus vite à vos contenus !</p>
         </div>
         <button onClick={handleInstallClick} style={styles.button}>
