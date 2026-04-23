@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { LyricsDisplay, LyricsEditor } from '../music/LyricsDisplay';
 
-import { ListenPartyModal } from '../SocialComponents';
+// ListenPartyModal géré dans App.jsx via onOpenListenParty
 // (react-router-dom data import supprimé — non utilisé)
 
 
@@ -41,24 +41,27 @@ const EQ_PRESETS = {
 
 
 const FullPlayerPage = ({
-  
-  currentSong, isPlaying, setIsPlaying, currentTime, duration,
+  currentSong, isPlaying, setIsPlaying, setCurrentSong, currentTime, duration,
   handleNext, handlePrev, isShuffle, setIsShuffle, repeatMode, setRepeatMode,
   toggleLike, volume, setVolume, queue, setQueue, musiques,
   audioRef, initAudioEngine, audioContextRef,
   eqGains, setEqGains, eqFiltersRef,
   playbackRate, setPlaybackRate, sleepTimer, setSleepTimer, sleepRemaining,
-  formatTime, onClose, canvasRef
+  formatTime, onClose, canvasRef,
+  token, isLoggedIn,
+  onOpenListenParty,
 }) => {
   const [activeTab, setActiveTab] = useState('player');
   const [activePreset, setActivePreset] = useState('Flat');
   const dragIdx = useRef(null);
   const [dragOver, setDragOver] = useState(null);
   const prog = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const [showParty, setShowParty] = useState(false);
+  // showParty retiré — géré via onOpenListenParty dans App.jsx
 
-  const isLoggedIn = !!localStorage.getItem('moozik_token');
+  // const isLoggedIn = !!localStorage.getItem('moozik_token');
   // setCurrentSong est passé en prop depuis App.jsx si besoin
+
+  
 
 
   // ── Auto-queue à la première lecture ──
@@ -87,7 +90,7 @@ const FullPlayerPage = ({
 
   const resetEQ = () => applyPreset('Flat');
 
-  const token = localStorage.getItem('moozik_token');
+  // const token = localStorage.getItem('moozik_token');
   const role = localStorage.getItem('moozik_role');
   const isAdmin = role === 'admin';
   const isArtist = role === 'artist';
@@ -396,18 +399,11 @@ const FullPlayerPage = ({
 
               {/* Contrôles */}
               <div className="flex items-center justify-between px-6 py-2 shrink-0">
-                <button onClick={() => setShowParty(true)}
+                <button
+                  onClick={() => onOpenListenParty ? onOpenListenParty() : null}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/8 hover:bg-white/15 text-white/50 hover:text-white text-[11px] font-bold transition active:scale-90">
                   <Radio size={14} /> Party
                 </button>
-                {showParty && (
-                  <ListenPartyModal
-                    token={token} isLoggedIn={isLoggedIn}
-                    currentSong={currentSong} setCurrentSong={setCurrentSong}
-                    setIsPlaying={setIsPlaying} isPlaying={isPlaying}
-                    onClose={() => setShowParty(false)}
-                  />
-                )}
                 <button onClick={() => setIsShuffle(!isShuffle)}
                   className={`p-2.5 rounded-full transition active:scale-90
                     ${isShuffle?'bg-blue-500/20 text-blue-400':'text-white/35 hover:text-white'}`}>

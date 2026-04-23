@@ -299,25 +299,63 @@ export const StoriesBar = ({ token, isLoggedIn, onArtistClick }) => {
 
 // ════════════════════════════════════════════
 // ListenPartyModal — Écoute collaborative
+// Liste des parties, création avec nom + code auto, rejoindre
 // ════════════════════════════════════════════
 export const ListenPartyModal = ({ token, isLoggedIn, currentSong, setCurrentSong, setIsPlaying, isPlaying, onClose }) => {
-  const [mode, setMode]       = useState('menu'); // menu | create | join | party
-  const [code, setCode]       = useState('');
-  const [party, setParty]     = useState(null);
+  const [mode, setMode]         = useState('menu');  // menu | list | create | join | party
+  const [partyName, setPartyName] = useState('');
+  const [code, setCode]         = useState('');
+  const [party, setParty]       = useState(null);
+  const [parties, setParties]   = useState([]);
   const [messages, setMessages] = useState([]);
-  const [newMsg, setNewMsg]   = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
-  const [copied, setCopied]   = useState(false);
+  const [newMsg, setNewMsg]     = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [listLoading, setListLoading] = useState(false);
+  const [error, setError]       = useState('');
+  const [copied, setCopied]     = useState(false);
   const pollRef = useRef(null);
-  const isHost  = party && token && party.hostId?._id && String(party.hostId._id) === String(party.hostId._id); // simplifié
+  const chatEndRef = useRef(null);
 
   const h = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
+  // Générer un code aléatoire lisible (6 chars alphanum maj)
+  const genCode = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  };
+
+  // Charger la liste des parties publiques actives
+  const loadParties = async () => {
+    setListLoading(true);
+    try {
+      const res = await fetch(`${API}/listen-party`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (res.ok) {
+        const data = await res.json();
+        setParties(Array.isArray(data) ? data : (data.parties || []));
+      }
+    } catch {}
+    setListLoading(false);
+  };
+
+  // Scroll chat vers le bas
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Créer une party avec nom + code auto
   const createParty = async () => {
+    if (!partyName.trim()) return setError('Entrez un nom pour la party');
     setLoading(true); setError('');
     try {
-      const res = await fetch(`${API}/listen-party`, { method: 'POST', headers: h, body: JSON.stringify({ songId: currentSong?._id }) });
+      const autoCode = genCode();
+      const res = await fetch(`${API}/listen-party`, {
+        method: 'POST', headers: h,
+        body: JSON.stringify({
+          name: partyName.trim(),
+          code: autoCode,
+          songId: currentSong?._id,
+        }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setParty(data); setMessages(data.messages || []); setMode('party');
@@ -325,41 +363,66 @@ export const ListenPartyModal = ({ token, isLoggedIn, currentSong, setCurrentSon
     setLoading(false);
   };
 
-  const joinParty = async () => {
+  // Rejoindre par code saisi
+  const joinByCode = async () => {
     setLoading(true); setError('');
     try {
       const joinRes = await fetch(`${API}/listen-party/${code.toUpperCase()}/join`, { method: 'POST', headers: h });
       if (!joinRes.ok) { const d = await joinRes.json(); throw new Error(d.message); }
-      const getRes  = await fetch(`${API}/listen-party/${code.toUpperCase()}`);
+      const getRes  = await fetch(`${API}/listen-party/${code.toUpperCase()}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       const data    = await getRes.json();
       setParty(data); setMessages(data.messages || []);
-      if (data.songId) { setCurrentSong(data.songId); setIsPlaying(data.isPlaying); }
+      if (data.songId) { setCurrentSong?.(data.songId); setIsPlaying?.(data.isPlaying ?? true); }
       setMode('party');
     } catch (e) { setError(e.message); }
     setLoading(false);
   };
 
-  // Polling toutes les 3s pour les messages et la synchro
+  // Rejoindre depuis la liste
+  const joinFromList = async (p) => {
+    setLoading(true); setError('');
+    try {
+      const joinRes = await fetch(`${API}/listen-party/${p.code}/join`, { method: 'POST', headers: h });
+      if (!joinRes.ok) { const d = await joinRes.json(); throw new Error(d.message); }
+      setParty(p); setMessages(p.messages || []);
+      if (p.songId) { setCurrentSong?.(p.songId); setIsPlaying?.(true); }
+      setMode('party');
+    } catch (e) { setError(e.message); }
+    setLoading(false);
+  };
+
+  // Polling toutes les 3s
   useEffect(() => {
     if (mode !== 'party' || !party?.code) return;
     pollRef.current = setInterval(async () => {
       try {
-        const res  = await fetch(`${API}/listen-party/${party.code}`);
+        const res  = await fetch(`${API}/listen-party/${party.code}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        if (!res.ok) return;
         const data = await res.json();
-        if (data.messages) setMessages(data.messages.slice(-50));
-        if (data.songId && String(data.songId._id || data.songId) !== String(currentSong?._id)) {
-          setCurrentSong(data.songId); setIsPlaying(data.isPlaying);
+        if (data.messages) setMessages(data.messages.slice(-80));
+        if (data.participants) setParty(prev => ({ ...prev, participants: data.participants }));
+        if (data.songId && setCurrentSong) {
+          const incomingId = String(data.songId._id || data.songId);
+          if (incomingId !== String(currentSong?._id)) {
+            setCurrentSong(data.songId);
+            setIsPlaying?.(data.isPlaying ?? true);
+          }
         }
       } catch {}
     }, 3000);
     return () => clearInterval(pollRef.current);
-  }, [mode, party?.code]);
+  }, [mode, party?.code, token]);
 
   const sendMessage = async (e) => {
     e.preventDefault();
-    if (!newMsg.trim()) return;
-    await fetch(`${API}/listen-party/${party.code}/message`, { method: 'POST', headers: h, body: JSON.stringify({ text: newMsg }) });
+    if (!newMsg.trim() || !party?.code) return;
+    const nom = localStorage.getItem('moozik_email') || 'Moi';
+    const optimistic = { nom, text: newMsg, ts: Date.now() };
+    setMessages(prev => [...prev, optimistic]);
     setNewMsg('');
+    await fetch(`${API}/listen-party/${party.code}/message`, {
+      method: 'POST', headers: h, body: JSON.stringify({ text: optimistic.text })
+    }).catch(() => {});
   };
 
   const copyCode = () => {
@@ -368,96 +431,259 @@ export const ListenPartyModal = ({ token, isLoggedIn, currentSong, setCurrentSon
   };
 
   const leaveParty = async () => {
-    await fetch(`${API}/listen-party/${party.code}`, { method: 'DELETE', headers: h });
+    if (party?.code) await fetch(`${API}/listen-party/${party.code}`, { method: 'DELETE', headers: h }).catch(() => {});
+    clearInterval(pollRef.current);
     setParty(null); setMode('menu');
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[400] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md shadow-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+  const myUserId = localStorage.getItem('moozik_userId');
+  const isHost = party && myUserId && (
+    String(party.hostId?._id || party.hostId) === String(myUserId)
+  );
 
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800">
+  return (
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[400] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md shadow-2xl max-h-[88vh] flex flex-col" onClick={e => e.stopPropagation()}>
+
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-blue-600/20 rounded-xl flex items-center justify-center">
-              <Radio size={15} className="text-blue-400" />
+            {mode !== 'menu' && mode !== 'party' && (
+              <button onClick={() => { setMode('menu'); setError(''); }}
+                className="p-1 text-zinc-500 hover:text-white transition mr-1">
+                <ChevronRight size={15} className="rotate-180"/>
+              </button>
+            )}
+            <div className="w-8 h-8 bg-blue-600/20 rounded-xl flex items-center justify-center shrink-0">
+              <Radio size={15} className="text-blue-400"/>
             </div>
-            <h3 className="font-black text-sm">Listen Party</h3>
+            <div>
+              <h3 className="font-black text-sm leading-tight">
+                {mode === 'menu'   && 'Listen Party'}
+                {mode === 'list'   && 'Parties en cours'}
+                {mode === 'create' && 'Créer une party'}
+                {mode === 'join'   && 'Rejoindre'}
+                {mode === 'party'  && (party?.name || 'Party en direct')}
+              </h3>
+              {mode === 'party' && party && (
+                <p className="text-[10px] text-zinc-500 leading-none mt-0.5">
+                  {party.participants?.length || 1} auditeur{(party.participants?.length || 1) > 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
           </div>
           <button onClick={onClose} className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition">
-            <X size={15} />
+            <X size={15}/>
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5">
-          {/* Menu */}
+        {/* ── Contenu ── */}
+        <div className="flex-1 overflow-y-auto">
+
+          {/* ── MENU PRINCIPAL ── */}
           {mode === 'menu' && (
-            <div className="space-y-3">
-              <p className="text-sm text-zinc-400 text-center mb-4">Écoutez en même temps que vos amis avec chat en direct</p>
-              {!isLoggedIn && <p className="text-xs text-orange-400 text-center">Connectez-vous pour créer ou rejoindre une party</p>}
-              <button onClick={() => setMode('create')} disabled={!isLoggedIn}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-40">
-                <Plus size={15} /> Créer une party
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-zinc-400 text-center pb-1">
+                Écoutez en synchronisé avec vos amis
+              </p>
+              {!isLoggedIn && (
+                <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl px-4 py-3 text-xs text-orange-400 text-center">
+                  Connectez-vous pour créer ou rejoindre une party
+                </div>
+              )}
+              <button
+                onClick={() => { setMode('list'); loadParties(); }}
+                className="w-full flex items-center gap-3 bg-zinc-800/60 hover:bg-zinc-800 border border-zinc-700/50 text-zinc-200 font-bold py-3.5 px-4 rounded-xl text-sm transition">
+                <div className="w-7 h-7 bg-blue-500/20 rounded-lg flex items-center justify-center shrink-0">
+                  <Users size={14} className="text-blue-400"/>
+                </div>
+                <div className="text-left flex-1">
+                  <p className="font-bold text-sm">Voir les parties en cours</p>
+                  <p className="text-[10px] text-zinc-500 font-normal">Rejoindre une session existante</p>
+                </div>
+                <ChevronRight size={14} className="text-zinc-600"/>
               </button>
-              <button onClick={() => setMode('join')} disabled={!isLoggedIn}
-                className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold py-3 rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-40">
-                <Users size={15} /> Rejoindre avec un code
+              <button
+                onClick={() => setMode('create')} disabled={!isLoggedIn}
+                className="w-full flex items-center gap-3 bg-blue-600/15 hover:bg-blue-600/25 border border-blue-600/30 text-blue-300 font-bold py-3.5 px-4 rounded-xl text-sm transition disabled:opacity-40">
+                <div className="w-7 h-7 bg-blue-600/20 rounded-lg flex items-center justify-center shrink-0">
+                  <Plus size={14} className="text-blue-400"/>
+                </div>
+                <div className="text-left flex-1">
+                  <p className="font-bold text-sm">Créer une party</p>
+                  <p className="text-[10px] text-blue-400/70 font-normal">Code généré automatiquement</p>
+                </div>
+                <ChevronRight size={14} className="text-blue-600/60"/>
+              </button>
+              <button
+                onClick={() => setMode('join')} disabled={!isLoggedIn}
+                className="w-full flex items-center gap-3 bg-zinc-800/40 hover:bg-zinc-800 border border-zinc-700/50 text-zinc-400 font-bold py-3.5 px-4 rounded-xl text-sm transition disabled:opacity-40">
+                <div className="w-7 h-7 bg-zinc-700/50 rounded-lg flex items-center justify-center shrink-0">
+                  <MessageCircle size={14} className="text-zinc-400"/>
+                </div>
+                <div className="text-left flex-1">
+                  <p className="font-bold text-sm text-zinc-300">Rejoindre par code</p>
+                  <p className="text-[10px] text-zinc-600 font-normal">Entrer un code de 6 caractères</p>
+                </div>
+                <ChevronRight size={14} className="text-zinc-600"/>
               </button>
             </div>
           )}
 
-          {/* Créer */}
+          {/* ── LISTE DES PARTIES ── */}
+          {mode === 'list' && (
+            <div className="p-5 space-y-3">
+              {listLoading ? (
+                <div className="flex items-center justify-center py-10 text-zinc-600">
+                  <Loader2 size={20} className="animate-spin mr-2"/> Chargement...
+                </div>
+              ) : parties.length === 0 ? (
+                <div className="flex flex-col items-center py-10 text-zinc-600 gap-2">
+                  <Radio size={28} className="opacity-20"/>
+                  <p className="text-sm">Aucune party en cours</p>
+                  <button onClick={() => setMode('create')} disabled={!isLoggedIn}
+                    className="mt-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition disabled:opacity-40">
+                    Créer la première party
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold px-1">
+                    {parties.length} party{parties.length > 1 ? 's' : ''} active{parties.length > 1 ? 's' : ''}
+                  </p>
+                  {parties.map(p => {
+                    const song = p.songId;
+                    return (
+                      <div key={p._id || p.code}
+                        className="bg-zinc-800/40 hover:bg-zinc-800/70 border border-zinc-700/40 rounded-xl p-3.5 transition group">
+                        <div className="flex items-center gap-3">
+                          {song?.image ? (
+                            <img src={song.image} className="w-10 h-10 rounded-lg object-cover shrink-0" alt=""/>
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-zinc-700 flex items-center justify-center shrink-0">
+                              <Music size={16} className="text-zinc-500"/>
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-black truncate text-white">{p.name || `Party #${p.code}`}</p>
+                            {song && (
+                              <p className="text-[10px] text-zinc-400 truncate mt-0.5">
+                                {song.titre} — {song.artiste}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="flex items-center gap-1 text-[9px] text-zinc-500">
+                                <Users size={8}/> {p.participants?.length || 1} auditeur{(p.participants?.length || 1) > 1 ? 's' : ''}
+                              </span>
+                              <span className="text-[9px] font-mono text-zinc-600">{p.code}</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => isLoggedIn ? joinFromList(p) : null}
+                            disabled={!isLoggedIn || loading}
+                            className="shrink-0 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-40 flex items-center gap-1">
+                            {loading ? <Loader2 size={11} className="animate-spin"/> : <Play size={11} fill="white"/>}
+                            Rejoindre
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {error && <p className="text-xs text-red-400 text-center">{error}</p>}
+              <button onClick={() => loadParties()}
+                className="w-full text-xs text-zinc-500 hover:text-white py-2 flex items-center justify-center gap-1.5 transition">
+                <Eye size={11}/> Actualiser
+              </button>
+            </div>
+          )}
+
+          {/* ── CRÉER UNE PARTY ── */}
           {mode === 'create' && (
-            <div className="space-y-4">
+            <div className="p-5 space-y-4">
+              {/* Chanson en cours */}
               {currentSong && (
-                <div className="flex items-center gap-3 bg-zinc-800/40 rounded-xl p-3">
-                  <img src={currentSong.image} className="w-10 h-10 rounded-lg object-cover shrink-0" alt="" />
+                <div className="flex items-center gap-3 bg-blue-600/10 border border-blue-600/20 rounded-xl p-3">
+                  <img src={currentSong.image} className="w-10 h-10 rounded-lg object-cover shrink-0" alt=""/>
                   <div className="min-w-0">
+                    <p className="text-xs text-zinc-500 mb-0.5">Musique en cours</p>
                     <p className="text-sm font-bold truncate">{currentSong.titre}</p>
                     <p className="text-[10px] text-zinc-500">{currentSong.artiste}</p>
                   </div>
                 </div>
               )}
-              <p className="text-xs text-zinc-500 text-center">Une party expire automatiquement après 4 heures</p>
-              {error && <p className="text-xs text-red-400">{error}</p>}
-              <button onClick={createParty} disabled={loading}
+              {/* Nom de la party */}
+              <div>
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">
+                  Nom de la party *
+                </label>
+                <input
+                  value={partyName}
+                  onChange={e => setPartyName(e.target.value)}
+                  placeholder="Ex: Soirée entre amis, Stream live..."
+                  maxLength={40}
+                  className="w-full bg-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-blue-600 text-white placeholder-zinc-600"
+                />
+              </div>
+              <div className="bg-zinc-800/40 rounded-xl px-4 py-3 flex items-center gap-2">
+                <div className="w-5 h-5 bg-blue-500/20 rounded-md flex items-center justify-center shrink-0">
+                  <Check size={11} className="text-blue-400"/>
+                </div>
+                <p className="text-xs text-zinc-400">
+                  Le code de 6 caractères sera <span className="text-white font-bold">généré automatiquement</span> et partageable
+                </p>
+              </div>
+              <p className="text-[10px] text-zinc-600 text-center">Expire automatiquement après 4 heures d'inactivité</p>
+              {error && <p className="text-xs text-red-400 bg-red-500/10 px-3 py-2 rounded-xl">{error}</p>}
+              <button onClick={createParty} disabled={loading || !partyName.trim()}
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-50">
                 {loading ? <Loader2 size={14} className="animate-spin"/> : <Radio size={14}/>}
                 Lancer la party
               </button>
-              <button onClick={() => setMode('menu')} className="w-full text-zinc-500 text-sm py-2">← Retour</button>
             </div>
           )}
 
-          {/* Rejoindre */}
+          {/* ── REJOINDRE PAR CODE ── */}
           {mode === 'join' && (
-            <div className="space-y-4">
-              <input value={code} onChange={e => setCode(e.target.value.toUpperCase())}
-                placeholder="Code de la party (ex: A3F9B2)"
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-zinc-400 text-center">Entrez le code de 6 caractères partagé par l'hôte</p>
+              <input
+                value={code}
+                onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                placeholder="ex: A3F9B2"
                 maxLength={6}
-                className="w-full bg-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-blue-600 text-white placeholder-zinc-600 text-center font-mono text-lg tracking-widest" />
-              {error && <p className="text-xs text-red-400 text-center">{error}</p>}
-              <button onClick={joinParty} disabled={loading || code.length < 6}
+                className="w-full bg-zinc-800 rounded-xl px-4 py-4 text-2xl font-mono font-black tracking-[0.4em] outline-none focus:ring-1 ring-blue-600 text-white placeholder-zinc-700 text-center"
+              />
+              {error && <p className="text-xs text-red-400 text-center bg-red-500/10 py-2 rounded-xl">{error}</p>}
+              <button onClick={joinByCode} disabled={loading || code.length < 6}
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-50">
                 {loading ? <Loader2 size={14} className="animate-spin"/> : <Users size={14}/>}
                 Rejoindre
               </button>
-              <button onClick={() => setMode('menu')} className="w-full text-zinc-500 text-sm py-2">← Retour</button>
+              <button onClick={() => { setMode('list'); loadParties(); }}
+                className="w-full text-zinc-500 hover:text-zinc-300 text-xs py-2 flex items-center justify-center gap-1.5 transition">
+                <Users size={11}/> Voir les parties disponibles
+              </button>
             </div>
           )}
 
-          {/* Party active */}
+          {/* ── PARTY ACTIVE ── */}
           {mode === 'party' && party && (
-            <div className="flex flex-col h-full space-y-3">
-              {/* Code + participants */}
-              <div className="bg-zinc-800/40 rounded-xl p-3 flex items-center justify-between">
+            <div className="flex flex-col" style={{ minHeight: 400 }}>
+              {/* Infos party */}
+              <div className="px-4 py-3 bg-zinc-800/40 border-b border-zinc-800/60 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
-                  <Users size={13} className="text-blue-400" />
-                  <span className="text-xs text-zinc-400">{party.participants?.length || 1} participant{(party.participants?.length || 1) > 1 ? 's' : ''}</span>
+                  <Users size={13} className="text-blue-400"/>
+                  <span className="text-xs text-zinc-400 font-bold">
+                    {party.participants?.length || 1} auditeur{(party.participants?.length || 1) > 1 ? 's' : ''}
+                  </span>
                 </div>
-                <button onClick={copyCode} className="flex items-center gap-1.5 bg-zinc-700 hover:bg-zinc-600 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition">
-                  {copied ? <Check size={11}/> : <Copy size={11}/>}
-                  Code : <span className="font-mono">{party.code}</span>
+                <button onClick={copyCode}
+                  className="flex items-center gap-1.5 bg-zinc-700 hover:bg-zinc-600 px-3 py-1.5 rounded-lg text-xs font-bold transition">
+                  {copied ? <Check size={11} className="text-green-400"/> : <Copy size={11}/>}
+                  <span className="font-mono text-blue-300">{party.code}</span>
+                  {copied && <span className="text-green-400 text-[9px]">Copié</span>}
                 </button>
               </div>
 
@@ -465,50 +691,65 @@ export const ListenPartyModal = ({ token, isLoggedIn, currentSong, setCurrentSon
               {(party.songId || currentSong) && (() => {
                 const s = party.songId || currentSong;
                 return (
-                  <div className="flex items-center gap-3 bg-blue-600/10 border border-blue-600/20 rounded-xl p-3">
-                    <img src={s.image} className="w-10 h-10 rounded-lg object-cover shrink-0" alt="" />
+                  <div className="flex items-center gap-3 mx-4 mt-3 bg-blue-600/10 border border-blue-600/20 rounded-xl p-3 shrink-0">
+                    {s.image && <img src={s.image} className="w-10 h-10 rounded-lg object-cover shrink-0" alt=""/>}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold truncate">{s.titre}</p>
                       <p className="text-[10px] text-zinc-500">{s.artiste}</p>
                     </div>
                     <div className="flex gap-0.5 items-end h-4 shrink-0">
-                      {isPlaying && [1,2,3].map(i => <div key={i} className="w-0.5 bg-blue-400 rounded-full animate-bounce" style={{height:`${(i%3+1)*4}px`,animationDelay:`${i*0.15}s`}}/>)}
+                      {isPlaying && [1,2,3].map(i => (
+                        <div key={i} className="w-0.5 bg-blue-400 rounded-full animate-bounce"
+                          style={{ height: `${(i%3+1)*4}px`, animationDelay: `${i*0.15}s` }}/>
+                      ))}
                     </div>
                   </div>
                 );
               })()}
 
               {/* Chat */}
-              <div className="flex-1 bg-zinc-800/20 rounded-xl p-3 max-h-48 overflow-y-auto space-y-2">
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2" style={{ minHeight: 160, maxHeight: 260 }}>
                 {messages.length === 0 ? (
-                  <p className="text-xs text-zinc-600 text-center py-4">Soyez le premier à écrire...</p>
-                ) : messages.map((m, i) => (
-                  <div key={i} className="flex items-start gap-2">
-                    <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center text-[9px] font-black shrink-0">
-                      {m.nom?.[0]?.toUpperCase() || '?'}
+                  <p className="text-xs text-zinc-600 text-center py-6">Soyez le premier à écrire quelque chose...</p>
+                ) : messages.map((m, i) => {
+                  const isMe = m.nom === localStorage.getItem('moozik_email');
+                  return (
+                    <div key={i} className={`flex items-start gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
+                      <div className="w-6 h-6 rounded-full bg-zinc-700 border border-zinc-600 flex items-center justify-center text-[9px] font-black shrink-0">
+                        {m.nom?.[0]?.toUpperCase() || '?'}
+                      </div>
+                      <div className={`min-w-0 max-w-[75%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+                        {!isMe && <span className="text-[9px] font-bold text-zinc-500 mb-0.5 px-1">{m.nom}</span>}
+                        <div className={`px-3 py-1.5 rounded-2xl text-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-zinc-800 text-zinc-200 rounded-tl-sm'}`}>
+                          {m.text}
+                        </div>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-bold text-zinc-400">{m.nom} </span>
-                      <span className="text-sm text-white">{m.text}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
+                <div ref={chatEndRef}/>
               </div>
 
               {/* Input message */}
-              <form onSubmit={sendMessage} className="flex gap-2">
-                <input value={newMsg} onChange={e => setNewMsg(e.target.value)}
-                  placeholder="Votre message..."
-                  className="flex-1 bg-zinc-800 rounded-xl px-3 py-2 text-sm outline-none focus:ring-1 ring-blue-600 text-white placeholder-zinc-600" />
-                <button type="submit" disabled={!newMsg.trim()}
-                  className="p-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-white transition disabled:opacity-40">
-                  <Send size={14} />
+              <div className="px-4 pb-4 pt-2 border-t border-zinc-800/60 shrink-0">
+                <form onSubmit={sendMessage} className="flex gap-2">
+                  <input
+                    value={newMsg} onChange={e => setNewMsg(e.target.value)}
+                    placeholder="Message..."
+                    disabled={!isLoggedIn}
+                    className="flex-1 bg-zinc-800 border border-zinc-700/50 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-1 ring-blue-600 text-white placeholder-zinc-600 disabled:opacity-40"
+                  />
+                  <button type="submit" disabled={!newMsg.trim() || !isLoggedIn}
+                    className="p-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-white transition disabled:opacity-40 shrink-0">
+                    <Send size={14}/>
+                  </button>
+                </form>
+                <button onClick={leaveParty}
+                  className="w-full text-[11px] text-red-400/70 hover:text-red-400 py-2 mt-1 transition flex items-center justify-center gap-1">
+                  <X size={10}/>
+                  {isHost ? 'Fermer et supprimer la party' : 'Quitter la party'}
                 </button>
-              </form>
-
-              <button onClick={leaveParty} className="w-full text-xs text-red-400 hover:text-red-300 py-2 transition">
-                {isHost ? 'Fermer la party' : 'Quitter la party'}
-              </button>
+              </div>
             </div>
           )}
         </div>
