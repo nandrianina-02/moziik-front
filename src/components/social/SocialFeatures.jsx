@@ -44,20 +44,45 @@ export const NotificationsPanel = ({ token, onPlaySong, onUnreadCount, isPage = 
   try { navigate = useNavigate(); } catch {}
 
   // Badge polling toutes les 30s
-  useEffect(() => {
-    if (!token) return;
-    const poll = () =>
-      fetch(`${API}/notifications/unread-count`, { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.json())
-        .then(d => {
-          setUnread(d.count || 0);
-          if (onUnreadCount) onUnreadCount(d.count || 0);
-        })
-        .catch(() => {});
-    poll();
-    const id = setInterval(poll, 30_000);
-    return () => clearInterval(id);
-  }, [token]);
+useEffect(() => {
+  if (!token) return;
+
+  const controller = new AbortController();
+  
+  const poll = async () => {
+    try {
+      const response = await fetch(`${API}/notifications/unread-count`, { 
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal // Links fetch to the cleanup function
+      });
+
+      if (response.status === 401) {
+        console.error("Auth error: Token expired or invalid.");
+        // Optional: Trigger logout or token refresh flow here
+        return; 
+      }
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const d = await response.json();
+      setUnread(d.count || 0);
+      if (onUnreadCount) onUnreadCount(d.count || 0);
+      
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error("Polling error:", err);
+      }
+    }
+  };
+
+  poll();
+  const id = setInterval(poll, 30_000);
+
+  return () => {
+    controller.abort(); // Cancels the pending fetch if the component unmounts
+    clearInterval(id);
+  };
+}, [token, API]); // Added API to dependencies
 
   // Charger auto si mode page
   useEffect(() => {

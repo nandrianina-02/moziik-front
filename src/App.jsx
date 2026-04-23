@@ -132,6 +132,8 @@ const AppInner = () => {
   const [eqGains, setEqGains] = useState([0,0,0,0,0,0,0,0,0,0]);
   const eqFiltersRef = useRef([]);
 
+  const tokenRef = useRef(token);
+  useEffect(() => { tokenRef.current = token; }, [token]);
   useEffect(() => { queueRef.current = queue; }, [queue]);
 
   // ── Hooks avancés ─────────────────────────────────────────────
@@ -158,7 +160,7 @@ const AppInner = () => {
   // ── FIX: Titre dynamique ──────────────────────────────────────
   useEffect(() => {
     if (!currentSong) { document.title = 'MooZik'; return; }
-    document.title = `${isPlaying ? '▶' : '⏸'} ${currentSong.titre} — ${currentSong.artiste}`;
+    document.title = `${currentSong.titre} — ${currentSong.artiste}`;
     let link = document.querySelector("link[rel~='icon']");
     if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
     link.href = currentSong.image; link.type = 'image/jpeg';
@@ -451,10 +453,41 @@ const AppInner = () => {
     else audio.pause();
   }, [isPlaying]);
 
+
   useEffect(() => {
     if (currentTime > 30 && !playCountedRef.current && currentSong) {
       playCountedRef.current = true;
-      fetch(`${API}/songs/${currentSong._id}/play`, { method: 'PUT', headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => {});
+
+    const reportPlay = async () => {
+      // Check if currentSong exists and has an _id
+      if (!currentSong || !currentSong._id) {
+        console.warn('Report play skipped: currentSong is not defined');
+        return;
+      }
+
+      try {
+        const headers = { 
+          'Content-Type': 'application/json', 
+          ...(tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {}) 
+        };
+        
+        const res = await fetch(`${API}/songs/${currentSong._id}/play`, { 
+          method: 'PUT', 
+          headers 
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          console.error('Report play failed', { status: res.status, body: text });
+        } else {
+          console.debug('Report play succeeded');
+        }
+      } catch (err) {
+        console.error('Report play error', err);
+      }
+    };
+
+      reportPlay();
     }
   }, [currentTime, currentSong]);
 

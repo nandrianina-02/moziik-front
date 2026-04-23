@@ -437,6 +437,7 @@ export const ListenPartyModal = ({ token, isLoggedIn, currentSong, setCurrentSon
   };
 
   const myUserId = localStorage.getItem('moozik_userId');
+  const myEmail = localStorage.getItem('moozik_email');
   const isHost = party && myUserId && (
     String(party.hostId?._id || party.hostId) === String(myUserId)
   );
@@ -712,7 +713,10 @@ export const ListenPartyModal = ({ token, isLoggedIn, currentSong, setCurrentSon
                 {messages.length === 0 ? (
                   <p className="text-xs text-zinc-600 text-center py-6">Soyez le premier à écrire quelque chose...</p>
                 ) : messages.map((m, i) => {
-                  const isMe = m.nom === localStorage.getItem('moozik_email');
+                  // changed: detect "me" by userId OR by stored email as fallback
+                  const msgUserId = m.userId ? String(m.userId._id || m.userId) : null;
+                  const isMe = (msgUserId && myUserId && String(msgUserId) === String(myUserId))
+                            || (myEmail && m.nom === myEmail);
                   return (
                     <div key={i} className={`flex items-start gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
                       <div className="w-6 h-6 rounded-full bg-zinc-700 border border-zinc-600 flex items-center justify-center text-[9px] font-black shrink-0">
