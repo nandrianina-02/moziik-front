@@ -83,7 +83,7 @@ const EditSongModal = ({ song, token, onClose, onSaved }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[350] flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-350 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
 
         <div className="flex items-center justify-between p-5 border-b border-zinc-800">
@@ -123,7 +123,7 @@ const EditSongModal = ({ song, token, onClose, onSaved }) => {
 
           {/* Artiste */}
           <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
               <Mic2 size={9} /> Artiste
             </label>
             {artisteId && (
@@ -162,7 +162,7 @@ const EditSongModal = ({ song, token, onClose, onSaved }) => {
 
           {/* Album */}
           <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
               <Disc3 size={9} /> Album (optionnel)
             </label>
             <select value={albumId} onChange={e => setAlbumId(e.target.value)}
@@ -176,7 +176,7 @@ const EditSongModal = ({ song, token, onClose, onSaved }) => {
 
           {/* Moods / Tags */}
           <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2 flex items-center gap-1">
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-1">
               <Tag size={9} /> Ambiance / Mood
             </label>
             <div className="flex flex-wrap gap-1.5">
@@ -391,7 +391,7 @@ const SongRow = ({
               </button>
 
               {menuOpen && (
-                <div className="absolute right-0 top-8 z-[100] bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl py-1 min-w-[200px] overflow-hidden">
+                <div className="absolute right-0 top-8 z-100 bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl py-1 min-w-50 overflow-hidden">
 
                   {isLoggedIn && (
                     <>

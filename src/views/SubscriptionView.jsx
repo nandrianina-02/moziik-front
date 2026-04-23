@@ -51,7 +51,7 @@ const SubscriptionView = ({ token, isLoggedIn }) => {
 
       {/* Hero */}
       <div className="text-center">
-        <div className="w-14 h-14 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg shadow-yellow-500/30">
+        <div className="w-14 h-14 bg-linear-to-br from-yellow-500 to-orange-500 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg shadow-yellow-500/30">
           <Crown size={26} className="text-white" />
         </div>
         <h1 className="text-3xl font-black mb-2">Choisissez votre plan</h1>
@@ -60,7 +60,7 @@ const SubscriptionView = ({ token, isLoggedIn }) => {
 
       {/* Abonnement actif */}
       {isPremium && (
-        <div className="bg-gradient-to-r from-yellow-900/30 to-orange-900/20 border border-yellow-600/30 rounded-2xl p-5">
+        <div className="bg-linear-to-r from-yellow-900/30 to-orange-900/20 border border-yellow-600/30 rounded-2xl p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Crown size={20} className="text-yellow-400" />
@@ -130,7 +130,7 @@ const SubscriptionView = ({ token, isLoggedIn }) => {
         </div>
 
         {/* Premium */}
-        <div className="relative bg-gradient-to-br from-yellow-900/30 via-zinc-900/80 to-zinc-900/80 border border-yellow-600/40 rounded-2xl p-6 space-y-4 overflow-hidden">
+        <div className="relative bg-linear-to-br from-yellow-900/30 via-zinc-900/80 to-zinc-900/80 border border-yellow-600/40 rounded-2xl p-6 space-y-4 overflow-hidden">
           {/* Badge populaire */}
           <div className="absolute top-4 right-4 bg-yellow-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
             Populaire
@@ -161,7 +161,7 @@ const SubscriptionView = ({ token, isLoggedIn }) => {
             <button
               onClick={() => handleSubscribe(premiumPlan._id)}
               disabled={processing || loading}
-              className="w-full py-3 rounded-xl text-sm font-black text-white bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 transition active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-yellow-600/20">
+              className="w-full py-3 rounded-xl text-sm font-black text-white bg-linear-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 transition active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-yellow-600/20">
               {processing ? <Loader2 size={16} className="animate-spin"/> : <Crown size={16}/>}
               {processing ? 'Redirection...' : 'Passer Premium'}
             </button>
@@ -171,7 +171,7 @@ const SubscriptionView = ({ token, isLoggedIn }) => {
 
       {/* Modal annulation */}
       {showCancel && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[400] flex items-center justify-center p-4" onClick={() => setShowCancel(false)}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-400 flex items-center justify-center p-4" onClick={() => setShowCancel(false)}>
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="font-black text-base mb-2">Annuler l'abonnement ?</h3>
             <p className="text-sm text-zinc-400 mb-6">Vous conservez l'accès Premium jusqu'au {endDate}. Après cette date, votre compte repassera en gratuit.</p>

@@ -163,7 +163,7 @@ const CommentsSection = ({ songId, token, userNom, isLoggedIn, theme = 'dark' })
                       </div>
                       <div className="min-w-0">
                         <p className={`text-[10px] font-bold ${t.textBold}`}>{c.auteur}</p>
-                        <p className={`text-xs mt-0.5 break-words ${t.text}`}>{c.texte}</p>
+                        <p className={`text-xs mt-0.5 wrap-break-word ${t.text}`}>{c.texte}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -193,7 +193,7 @@ const CommentsSection = ({ songId, token, userNom, isLoggedIn, theme = 'dark' })
                           </div>
                           <div className="min-w-0">
                             <p className={`text-[10px] font-bold ${t.textMuted}`}>{r.auteur}</p>
-                            <p className={`text-[11px] break-words ${t.text}`}>{r.texte}</p>
+                            <p className={`text-[11px] wrap-break-word ${t.text}`}>{r.texte}</p>
                           </div>
                         </div>
                       ))}

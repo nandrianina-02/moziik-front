@@ -204,7 +204,7 @@ const UploadModal = ({ token, artists = [], albums = [], onClose, onSuccess, use
   };
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-300 flex items-center justify-center p-4">
       <div className="bg-zinc-900 border border-zinc-800 p-5 md:p-7 rounded-3xl w-full max-w-md shadow-2xl max-h-[92vh] overflow-y-auto">
 
         <div className="flex justify-between items-center mb-5">
@@ -267,7 +267,7 @@ const UploadModal = ({ token, artists = [], albums = [], onClose, onSuccess, use
 
           {/* Titre */}
           <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex mb-1.5 items-center gap-1">
               <Tag size={9} /> Titre
             </label>
             <input value={titre} onChange={e => setTitre(e.target.value)} placeholder="Nom de la musique"
@@ -277,7 +277,7 @@ const UploadModal = ({ token, artists = [], albums = [], onClose, onSuccess, use
           {/* Artiste (admin: recherche avec dropdown) */}
           {userRole === 'admin' && (
             <div className="relative">
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex mb-1.5 items-center gap-1">
                 <Mic2 size={9} /> Artiste
               </label>
 
@@ -342,7 +342,7 @@ const UploadModal = ({ token, artists = [], albums = [], onClose, onSuccess, use
           {/* Album (filtré selon artiste sélectionné) */}
           {(userRole === 'admin' ? artistAlbums.length > 0 : albums.filter(a => String(a.artisteId) === String(userArtistId)).length > 0) && (
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5 items-center gap-1">
                 <Disc3 size={9} /> Album (optionnel)
               </label>
               <select value={albumId} onChange={e => setAlbumId(e.target.value)}
@@ -362,7 +362,7 @@ const UploadModal = ({ token, artists = [], albums = [], onClose, onSuccess, use
                 <span className="text-red-400">{progress}%</span>
               </div>
               <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-red-600 to-red-400 rounded-full transition-all duration-300"
+                <div className="h-full bg-linear-to-r from-red-600 to-red-400 rounded-full transition-all duration-300"
                   style={{ width: `${progress}%` }} />
               </div>
             </div>

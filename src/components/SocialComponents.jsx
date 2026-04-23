@@ -75,7 +75,7 @@ export const TrendingView = ({ setCurrentSong, setIsPlaying, currentSong, isPlay
       {challenges.length > 0 && (
         <div className="space-y-2">
           {challenges.map(ch => (
-            <div key={ch._id} className="bg-gradient-to-r from-purple-900/30 to-zinc-900/40 border border-purple-500/20 rounded-2xl p-4">
+            <div key={ch._id} className="bg-linear-to-r from-purple-900/30 to-zinc-900/40 border border-purple-500/20 rounded-2xl p-4">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 bg-purple-600/20 rounded-xl flex items-center justify-center shrink-0">
                   <Trophy size={16} className="text-purple-400" />
@@ -226,7 +226,7 @@ export const StoriesBar = ({ token, isLoggedIn, onArtistClick }) => {
           const hasUnviewed = entry.stories.some(s => !s.viewed);
           return (
             <button key={entry.artist._id} onClick={() => openStory(entry)} className="shrink-0 flex flex-col items-center gap-1.5">
-              <div className={`w-30 h-30 rounded-full p-0.5 ${hasUnviewed ? 'bg-gradient-to-tr from-red-500 via-orange-500 to-yellow-500' : 'bg-zinc-700'}`}>
+              <div className={`w-30 h-30 rounded-full p-0.5 ${hasUnviewed ? 'bg-linear-to-tr from-red-500 via-orange-500 to-yellow-500' : 'bg-zinc-700'}`}>
                 <div className="w-full h-full rounded-full overflow-hidden bg-zinc-900 border-2 border-zinc-900">
                   {entry.artist.image
                     ? <img src={entry.artist.image} className="w-full h-full object-cover" alt="" />
@@ -241,7 +241,7 @@ export const StoriesBar = ({ token, isLoggedIn, onArtistClick }) => {
 
       {/* Visionneuse plein écran */}
       {active && currentStory && (
-        <div className="fixed inset-0 bg-black z-[500] flex items-center justify-center" onClick={nextStory}>
+        <div className="fixed inset-0 bg-black z-500 flex items-center justify-center" onClick={nextStory}>
           {/* Barres de progression */}
           <div className="absolute top-4 left-4 right-4 flex gap-1 z-10">
             {active.artistEntry.stories.map((_, i) => (
@@ -280,7 +280,7 @@ export const StoriesBar = ({ token, isLoggedIn, onArtistClick }) => {
               </div>
             )}
             {currentStory.type === 'text' && (
-              <div className="bg-gradient-to-br from-red-900/50 to-zinc-900 rounded-2xl p-8 text-center">
+              <div className="bg-linear-to-br from-red-900/50 to-zinc-900 rounded-2xl p-8 text-center">
                 <p className="text-xl font-black text-white">{currentStory.caption}</p>
               </div>
             )}
@@ -444,7 +444,7 @@ export const ListenPartyModal = ({ token, isLoggedIn, currentSong, setCurrentSon
   );
 
   return (
-    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[400] flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-400 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md shadow-2xl max-h-[88vh] flex flex-col" onClick={e => e.stopPropagation()}>
 
         {/* ── Header ── */}

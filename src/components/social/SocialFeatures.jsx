@@ -164,7 +164,7 @@ useEffect(() => {
             const cfg = NOTIF_CFG[notif.type] || NOTIF_CFG.new_song;
             return (
               <div key={notif._id} onClick={() => handleClick(notif)}
-                className={`flex gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 transition border-b border-zinc-800/40 ${!notif.lu ? 'bg-white/[0.02]' : ''}`}>
+                className={`flex gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 transition border-b border-zinc-800/40 ${!notif.lu ? 'bg-white/2' : ''}`}>
                 <div className={`w-9 h-9 rounded-xl ${cfg.bg} flex items-center justify-center shrink-0 overflow-hidden`}>
                   {notif.songId?.image
                     ? <img src={notif.songId.image} className="w-full h-full object-cover" alt="" />
@@ -233,7 +233,7 @@ useEffect(() => {
         className="relative p-2 text-zinc-400 hover:text-white transition rounded-xl hover:bg-zinc-800">
         <Bell size={20} />
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1 animate-pulse">
+          <span className="absolute -top-0.5 -right-0.5 min-w-4.5 h-4.5 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1 animate-pulse">
             {unread > 99 ? '99+' : unread}
           </span>
         )}
@@ -241,7 +241,7 @@ useEffect(() => {
 
       {/* Popover */}
       {open && (
-        <div className="absolute z-[200] right-0 top-10 w-80 md:w-96 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden">
+        <div className="absolute z-200 right-0 top-10 w-80 md:w-96 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
             <div className="flex items-center gap-2">
               <Bell size={15} className="text-red-500" />
@@ -506,7 +506,7 @@ export const ShareButton = ({ song, size = 15 }) => {
       </button>
 
       {showPop && shareUrl && (
-        <div className="absolute bottom-9 right-0 w-72 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl z-[100] p-4" onClick={e => e.stopPropagation()}>
+        <div className="absolute bottom-9 right-0 w-72 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl z-100 p-4" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-2 mb-3">
             <img src={song.image} className="w-8 h-8 rounded-lg object-cover shrink-0" alt="" />
             <div className="min-w-0">
@@ -588,7 +588,7 @@ export const SharePageView = ({ setCurrentSong, setIsPlaying }) => {
         {/* Cover */}
         <div className="relative">
           <img src={song.image} className="w-full aspect-square object-cover" alt="" />
-          <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-t from-zinc-900 via-transparent to-transparent" />
         </div>
         {/* Info */}
         <div className="p-6">
@@ -649,7 +649,7 @@ export const RecommendationsView = ({ token, currentSong, setCurrentSong, setIsP
     <div className="animate-in fade-in duration-500">
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl flex items-center justify-center">
+          <div className="w-10 h-10 bg-linear-to-br from-purple-600 to-pink-600 rounded-2xl flex items-center justify-center">
             <Sparkles size={19} className="text-white" />
           </div>
           <div>

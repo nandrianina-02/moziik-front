@@ -34,7 +34,7 @@ export const ScheduledReleaseModal = ({ songId, songTitre, token, onClose, onSav
   const minDate = new Date(Date.now() + 3600000).toISOString().slice(0, 16);
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[400] flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-400 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b border-zinc-800">
           <h3 className="font-black text-sm flex items-center gap-2">

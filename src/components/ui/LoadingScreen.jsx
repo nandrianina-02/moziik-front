@@ -16,7 +16,7 @@ const LoadingScreen = ({ message = 'Chargement...' }) => {
   }, []);
 
   return (
-    <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-[500]">
+    <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-500">
       {/* Background ambient */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-red-600/5 rounded-full blur-3xl animate-pulse" />
@@ -58,7 +58,7 @@ const LoadingScreen = ({ message = 'Chargement...' }) => {
         {/* Progress bar */}
         <div className="w-48 h-0.5 bg-zinc-800 rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-red-700 to-red-400 rounded-full transition-all duration-300 ease-out"
+            className="h-full bg-linear-to-r from-red-700 to-red-400 rounded-full transition-all duration-300 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>

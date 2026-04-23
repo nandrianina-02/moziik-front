@@ -795,8 +795,8 @@ const AppInner = () => {
       {/* Mobile menu dropdown */}
       {showMobileMenu && isLoggedIn && (
         <>
-          <div className="fixed inset-0 z-[35]" onClick={() => setShowMobileMenu(false)}/>
-          <div className="md:hidden fixed top-[88px] right-0 left-0 z-[36] bg-zinc-950 border-b border-zinc-800 shadow-2xl max-h-[70vh] overflow-y-auto">
+          <div className="fixed inset-0 z-35" onClick={() => setShowMobileMenu(false)}/>
+          <div className="md:hidden fixed top-22 right-0 left-0 z-36 bg-zinc-950 border-b border-zinc-800 shadow-2xl max-h-[70vh] overflow-y-auto">
             {navLinksUser.map(link => (
               <Link key={link.to} to={link.to} onClick={() => setShowMobileMenu(false)}
                 className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition">
@@ -846,7 +846,7 @@ const AppInner = () => {
           MAIN
       ════════════════════════════════════════════ */}
       <main
-        className={`flex-1 overflow-y-auto bg-gradient-to-b from-zinc-900 to-black p-4 md:p-7 pb-40 pt-28 md:pt-7 lg:pb-40 md:pb-40 transition-all ${showQueue ? 'md:mr-72' : ''}`}
+        className={`flex-1 overflow-y-auto bg-linear-to-b from-zinc-900 to-black p-4 md:p-7 pb-40 pt-28 md:pt-7 lg:pb-40 md:pb-40 transition-all ${showQueue ? 'md:mr-72' : ''}`}
         onClick={() => setActiveMenu(null)}
       >
         <Routes>
@@ -898,7 +898,7 @@ const AppInner = () => {
 
       {/* EQ Modal */}
       {showEQ && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-150 flex items-center justify-center p-4">
           <div className="bg-zinc-900 border border-zinc-800 p-6 md:p-8 rounded-3xl w-full max-w-md shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-black italic flex items-center gap-2"><Sliders className="text-red-600"/> ÉGALISEUR</h3>
@@ -942,7 +942,7 @@ const AppInner = () => {
           FIX: FILE D'ATTENTE — overflow-y-auto + scroll stable
       ════════════════════════════════════════════ */}
       {showQueue && (
-        <aside className="w-72 bg-zinc-950 border-l border-zinc-800/50 p-5 fixed right-0 top-0 bottom-0 z-[60] flex flex-col">
+        <aside className="w-72 bg-zinc-950 border-l border-zinc-800/50 p-5 fixed right-0 top-0 bottom-0 z-60 flex flex-col">
           <div className="flex justify-between items-center mb-4 shrink-0">
             <h2 className="font-bold text-sm text-zinc-300">File d'attente ({queue.length})</h2>
             <div className="flex items-center gap-2">
@@ -981,7 +981,7 @@ const AppInner = () => {
           PLAYER BAR DESKTOP
       ════════════════════════════════════════════ */}
       {currentSong && (
-        <footer className="hidden md:flex fixed bottom-0 left-0 right-0 md:bottom-3 md:left-[calc(256px+12px)] md:right-3 md:rounded-2xl bg-zinc-950/98 border-t border-zinc-800/60 md:border md:border-zinc-800/60 h-20 md:h-24 px-3 md:px-5 items-center justify-between backdrop-blur-xl shadow-2xl z-50" >
+        <footer className="hidden md:flex fixed bottom-0 left-0 right-0 md:bottom-3 md:left-67 md:right-3 md:rounded-2xl bg-zinc-950/98 border-t border-zinc-800/60 md:border md:border-zinc-800/60 h-20 md:h-24 px-3 md:px-5 items-center justify-between backdrop-blur-xl shadow-2xl z-50" >
           <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-0.5 opacity-70 pointer-events-none" width="1000" height="4"/>
           <button onClick={() => setShowFullPlayer(true)} className="flex items-center gap-3 w-1/3 min-w-0 hover:opacity-80 transition text-left">
             <div className="relative shrink-0">

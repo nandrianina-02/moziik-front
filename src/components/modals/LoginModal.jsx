@@ -47,7 +47,7 @@ const LoginModal = ({ onLogin, onClose }) => {
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-300 flex items-center justify-center p-4">
       <div className="bg-zinc-900 border border-zinc-800 p-6 md:p-8 rounded-3xl w-full max-w-sm shadow-2xl">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-black italic flex items-center gap-2">

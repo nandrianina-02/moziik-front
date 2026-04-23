@@ -64,7 +64,7 @@ export const TipButton = ({ artistId, artistNom, token, isLoggedIn }) => {
   return (
     <div className="space-y-3">
       <button onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 bg-gradient-to-r from-pink-600/20 to-red-600/20 border border-pink-500/30 hover:border-pink-500/60 text-pink-300 font-bold text-sm px-5 py-2.5 rounded-xl transition active:scale-95">
+        className="flex items-center gap-2 bg-linear-to-r from-pink-600/20 to-red-600/20 border border-pink-500/30 hover:border-pink-500/60 text-pink-300 font-bold text-sm px-5 py-2.5 rounded-xl transition active:scale-95">
         <Gift size={15}/> Soutenir {artistNom}
         <ChevronRight size={13} className={`transition ${open ? 'rotate-90' : ''}`}/>
       </button>
@@ -120,7 +120,7 @@ export const TipButton = ({ artistId, artistNom, token, isLoggedIn }) => {
           {error && <p className="text-xs text-red-400">{error}</p>}
 
           <button onClick={handleTip} disabled={loading || !finalAmount}
-            className="w-full bg-gradient-to-r from-pink-600 to-red-600 hover:from-pink-500 hover:to-red-500 text-white font-black py-3 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]">
+            className="w-full bg-linear-to-r from-pink-600 to-red-600 hover:from-pink-500 hover:to-red-500 text-white font-black py-3 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]">
             {loading ? <Loader2 size={15} className="animate-spin"/> : <Heart size={15}/>}
             {loading ? 'Traitement...' : `Envoyer ${finalAmount} €`}
           </button>
@@ -202,7 +202,7 @@ export const AudioAdPlayer = ({ onAdEnd, isPremium, token }) => {
   const progress = ad.duration > 0 ? (elapsed / ad.duration) * 100 : 0;
 
   return (
-    <div className="fixed bottom-24 md:bottom-28 left-0 right-0 md:left-[268px] md:right-3 z-40">
+    <div className="fixed bottom-24 md:bottom-28 left-0 right-0 md:left-67 md:right-3 z-40">
       <div className="bg-zinc-950/98 border border-zinc-800 rounded-2xl p-4 mx-3 md:mx-0 shadow-2xl">
         {/* Barre de progression */}
         <div className="h-0.5 bg-zinc-800 rounded-full mb-3 overflow-hidden">

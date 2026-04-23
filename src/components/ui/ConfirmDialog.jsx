@@ -38,7 +38,7 @@ const ConfirmDialog = ({ config, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[500] flex items-center justify-center p-4"
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-500 flex items-center justify-center p-4"
       onClick={onClose}>
       <div
         className={`bg-zinc-900 border ${s.ring} rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden`}
