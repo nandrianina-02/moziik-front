@@ -361,6 +361,11 @@ const AppInner = () => {
     draw();
   };
 
+  useEffect(() => {
+    console.log(currentSong);
+  
+  }, [currentSong]);
+    
   // ── FIX: handleNext — file d'attente + shuffle + auto-queue ──
   const musiquesRef = useRef(musiques);
   const currentSongRef = useRef(currentSong);
@@ -452,7 +457,6 @@ const AppInner = () => {
     if (isPlaying) { audioContextRef.current?.ctx?.resume(); audio.play().catch(() => {}); }
     else audio.pause();
   }, [isPlaying]);
-
 
   useEffect(() => {
     if (currentTime > 30 && !playCountedRef.current && currentSong) {
@@ -977,7 +981,7 @@ const AppInner = () => {
           PLAYER BAR DESKTOP
       ════════════════════════════════════════════ */}
       {currentSong && (
-        <footer className="hidden md:flex fixed bottom-0 left-0 right-0 md:bottom-3 md:left-[calc(256px+12px)] md:right-3 md:rounded-2xl bg-zinc-950/98 border-t border-zinc-800/60 md:border md:border-zinc-800/60 h-20 md:h-24 px-3 md:px-5 items-center justify-between backdrop-blur-xl shadow-2xl z-50">
+        <footer className="hidden md:flex fixed bottom-0 left-0 right-0 md:bottom-3 md:left-[calc(256px+12px)] md:right-3 md:rounded-2xl bg-zinc-950/98 border-t border-zinc-800/60 md:border md:border-zinc-800/60 h-20 md:h-24 px-3 md:px-5 items-center justify-between backdrop-blur-xl shadow-2xl z-50" >
           <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-0.5 opacity-70 pointer-events-none" width="1000" height="4"/>
           <button onClick={() => setShowFullPlayer(true)} className="flex items-center gap-3 w-1/3 min-w-0 hover:opacity-80 transition text-left">
             <div className="relative shrink-0">
@@ -990,6 +994,7 @@ const AppInner = () => {
             </div>
           </button>
           <div className="flex flex-col items-center w-1/3 gap-1.5">
+
             <div className="flex items-center gap-3 md:gap-5">
               <Shuffle onClick={() => setIsShuffle(!isShuffle)} size={15} className={`cursor-pointer transition ${isShuffle ? 'text-red-500' : 'text-zinc-600 hover:text-white'}`}/>
               <SkipBack onClick={handlePrev} size={19} className="text-zinc-400 cursor-pointer hover:text-white transition"/>
@@ -1010,24 +1015,33 @@ const AppInner = () => {
               <span className="text-[9px] text-zinc-600 w-7 shrink-0">{formatTime(duration)}</span>
             </div>
           </div>
-          <div className="flex items-center justify-end gap-2 md:gap-3 w-1/3">
+          <div className="items-center justify-end gap-2 md:gap-3 lg:block w-1/3 ">
             {listeners.length > 0 && <div className="hidden lg:block"><ListenersWidget listeners={listeners} connected={connected}/></div>}
-            <button onClick={() => toggleLike(currentSong._id)} className="hidden sm:block">
-              <Heart size={15} fill={currentSong.liked ? '#ef4444' : 'none'} className={currentSong.liked ? 'text-red-500' : 'text-zinc-600 hover:text-white transition'}/>
-            </button>
-            <CacheButton song={currentSong} cacheAudio={cacheAudio} removeCached={removeCached} isAudioCached={isAudioCached}/>
-            {/* FIX: Bouton Listen Party dans le player */}
-            <button onClick={() => setShowListenParty(true)} className="hidden sm:block p-1.5 hover:bg-zinc-800 rounded-lg transition text-zinc-600 hover:text-blue-400" title="Listen Party">
-              <Radio size={15}/>
-            </button>
-            <button onClick={() => { initAudioEngine(); setShowFullPlayer(true); }} className="hidden sm:block p-1.5 hover:bg-zinc-800 rounded-lg transition text-zinc-600 hover:text-white">
-              <Maximize2 size={15}/>
-            </button>
-            <Sliders onClick={() => { initAudioEngine(); setShowEQ(true); }} size={15} className="cursor-pointer hidden sm:block transition text-zinc-600 hover:text-red-500"/>
-            <ListOrdered onClick={() => setShowQueue(!showQueue)} size={15} className={`cursor-pointer hidden sm:block transition ${showQueue ? 'text-red-500' : 'text-zinc-600 hover:text-white'}`}/>
-            <Volume2 size={15} className="text-zinc-600 hidden md:block"/>
-            <input type="range" value={volume} className="w-14 md:w-18 accent-red-600 h-0.5 cursor-pointer bg-zinc-800 rounded-lg appearance-none hidden md:block"
-              onChange={e => setVolume(parseInt(e.target.value))}/>
+            <div className="xl:flex lg:block items-center gap-2 lg:pt-1">
+              <div className="flex items-center justify-left md:justify-end md:pb-1 gap-1">
+                <button onClick={() => toggleLike(currentSong._id)} className="hidden sm:block">
+                  <Heart size={15} fill={currentSong.liked ? '#ef4444' : 'none'} className={currentSong.liked ? 'text-red-500' : 'text-zinc-600 hover:text-white transition'}/>
+                </button>
+                <CacheButton song={currentSong} cacheAudio={cacheAudio} removeCached={removeCached} isAudioCached={isAudioCached}/>
+                {/* FIX: Bouton Listen Party dans le player */}
+                <button onClick={() => setShowListenParty(true)} className="hidden sm:block p-1.5 hover:bg-zinc-800 rounded-lg transition text-zinc-600 hover:text-blue-400" title="Listen Party">
+                  <Radio size={15}/>
+                </button>
+                <button onClick={() => { initAudioEngine(); setShowFullPlayer(true); }} className="hidden sm:block p-1.5 hover:bg-zinc-800 rounded-lg transition text-zinc-600 hover:text-white">
+                  <Maximize2 size={15}/>
+                </button>
+              </div>
+              <div className="flex items-center gap-2 md:pt-1 md:justify-end">
+                <Sliders onClick={() => { initAudioEngine(); setShowEQ(true); }} size={15} className="cursor-pointer hidden sm:block transition text-zinc-600 hover:text-red-500"/>
+                <ListOrdered onClick={() => setShowQueue(!showQueue)} size={15} className={`cursor-pointer hidden sm:block transition ${showQueue ? 'text-red-500' : 'text-zinc-600 hover:text-white'}`}/>
+                <Volume2 size={15} className="text-zinc-600 hidden md:block"/>
+                <input type="range" value={volume} className="w-14 md:w-18 accent-red-600 h-0.5 cursor-pointer bg-zinc-800 rounded-lg appearance-none hidden md:block"
+                  onChange={e => setVolume(parseInt(e.target.value))}/>
+              </div>
+              
+
+              
+            </div>
           </div>
         </footer>
       )}

@@ -6,6 +6,8 @@ import {
   GripVertical, RotateCcw, Radio
 } from 'lucide-react';
 import { LyricsDisplay, LyricsEditor } from '../music/LyricsDisplay';
+import { API } from '../../config/api';
+
 
 // ListenPartyModal géré dans App.jsx via onOpenListenParty
 // (react-router-dom data import supprimé — non utilisé)
@@ -274,7 +276,8 @@ const FullPlayerPage = ({
     </div>
   );
 
-  const API = import.meta.env.VITE_API_URL;
+  // const API = import.meta.env.API_URL;
+  
 
   // Ref pour suivre les buckets déjà envoyés
   const sentBuckets = useRef(new Set());
@@ -302,7 +305,7 @@ const FullPlayerPage = ({
 
 
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col md:flex-row overflow-hidden select-none">
+    <div className="fixed inset-0 z-200 flex flex-col md:flex-row overflow-hidden select-none">
 
       {/* ══ FOND AMBIANT ══ */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -355,14 +358,14 @@ const FullPlayerPage = ({
             <div className="flex flex-col flex-1">
               {/* Cover */}
               <div className="flex items-center justify-center px-8 py-20 shrink-0">
-                <div className="relative w-full max-w-60 md:max-w-70 aspect-square">
+                <div className="relative w-full max-w-55 md:max-w-70 aspect-square">
                   {currentSong?.image && (
                     <div className="absolute inset-3 rounded-3xl blur-2xl opacity-55 scale-95"
                       style={{ backgroundImage: `url(${currentSong.image})`, backgroundSize: 'cover' }}/>
                   )}
                   <img src={currentSong?.image} alt={currentSong?.titre}
                     className={`relative w-full h-full rounded-3xl object-cover shadow-2xl transition-all duration-700
-                      ${isPlaying ? 'scale-100' : 'scale-88 opacity-70'}`}/>
+                      ${isPlaying ? 'scale-100' : 'scale-95 opacity-70'}`}/>
                   {isPlaying && (
                     <div className="absolute inset-0 rounded-3xl ring-1 ring-white/15 animate-pulse pointer-events-none"/>
                   )}
@@ -414,12 +417,12 @@ const FullPlayerPage = ({
                 </button>
                 {/* Play/Pause — anneau gradient animé */}
                 <button onClick={() => { initAudioEngine(); setIsPlaying(p => !p); }}
-                  className="relative flex items-center justify-center w-17 h-17 active:scale-95 transition" style={{ width: 68, height: 68 }}>
+                  className="relative flex items-center justify-center w-16 h-16 md:w-17 md:h-17 active:scale-95 transition">
                   <div className="absolute inset-0 rounded-full"
                     style={{ background: 'conic-gradient(from 0deg, #6366f1, #8b5cf6, #ec4899, #3b82f6, #6366f1)', padding: '2.5px' }}>
                     <div className="w-full h-full rounded-full bg-zinc-950"/>
                   </div>
-                  <div className="relative z-10 flex items-center justify-center w-11 h-11 rounded-full bg-white/10">
+                  <div className="relative z-10 flex items-center justify-center w-10 h-10 md:w-11 md:h-11 rounded-full bg-white/10">
                     {isPlaying ? <Pause fill="white" size={21}/> : <Play fill="white" size={21} className="ml-0.5"/>}
                   </div>
                 </button>
@@ -474,7 +477,7 @@ const FullPlayerPage = ({
       </div>
 
       {/* ══ COLONNE DROITE desktop ══ */}
-      <div className="relative hidden md:flex w-85 lg:w-100 flex-col border-l border-white/8 overflow-hidden">
+  <div className="relative hidden md:flex w-85 lg:w-100 flex-col border-l border-white/8 overflow-hidden">
         <div className="absolute inset-0 bg-black/30 backdrop-blur-sm"/>
         <div className="relative flex flex-col h-full">
           <div className="flex border-b border-white/8 shrink-0">
