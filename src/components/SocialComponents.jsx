@@ -177,136 +177,287 @@ export const TrendingView = ({ setCurrentSong, setIsPlaying, currentSong, isPlay
 // StoriesBar — Barre de stories (style Instagram)
 // ════════════════════════════════════════════
 export const StoriesBar = ({ token, isLoggedIn, onArtistClick }) => {
-  const [feed, setFeed]       = useState([]);
-  const [active, setActive]   = useState(null); // { artistEntry, storyIndex }
+  const [feed, setFeed]         = useState([]);
+  const [active, setActive]     = useState(null);
   const [progress, setProgress] = useState(0);
   const timerRef = useRef(null);
 
   useEffect(() => {
-    fetch(`${API}/stories/feed`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
-      .then(r => r.ok ? r.json() : []).then(d => setFeed(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch(`${API}/stories/feed`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setFeed(Array.isArray(d) ? d : []))
+      .catch(() => {});
   }, [token]);
 
-  const openStory = (artistEntry, storyIndex = 0) => {
-    setActive({ artistEntry, storyIndex });
-    setProgress(0);
-  };
-
-  const closeStory = () => {
-    clearInterval(timerRef.current);
-    setActive(null); setProgress(0);
-  };
+  const openStory  = (entry, idx = 0) => { setActive({ entry, idx }); setProgress(0); };
+  const closeStory = () => { clearInterval(timerRef.current); setActive(null); setProgress(0); };
 
   const nextStory = useCallback(() => {
     if (!active) return;
-    const { artistEntry, storyIndex } = active;
-    if (storyIndex < artistEntry.stories.length - 1) {
-      setActive({ artistEntry, storyIndex: storyIndex + 1 });
-      setProgress(0);
+    const { entry, idx } = active;
+    if (idx < entry.stories.length - 1) {
+      setActive({ entry, idx: idx + 1 }); setProgress(0);
     } else {
-      // Artiste suivant
-      const nextArtistIdx = feed.findIndex(f => f.artist._id === artistEntry.artist._id) + 1;
-      if (nextArtistIdx < feed.length) openStory(feed[nextArtistIdx], 0);
+      const ni = feed.findIndex(f => f.artist._id === entry.artist._id) + 1;
+      if (ni < feed.length) openStory(feed[ni], 0);
       else closeStory();
     }
   }, [active, feed]);
 
-  // Timer progression story
+  const prevStory = useCallback(() => {
+    if (!active) return;
+    const { entry, idx } = active;
+    if (idx > 0) { setActive({ entry, idx: idx - 1 }); setProgress(0); }
+  }, [active]);
+
   useEffect(() => {
     if (!active) return;
-    const story = active.artistEntry.stories[active.storyIndex];
-    const dur   = (story?.duration || 5) * 1000;
-    const step  = 100;
+    const story = active.entry.stories[active.idx];
+    const dur   = (story?.duration || 6) * 1000;
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
-      setProgress(p => {
-        if (p >= 100) { nextStory(); return 0; }
-        return p + (step / dur) * 100;
-      });
-    }, step);
-    // Marquer comme vue
-    if (story?._id) fetch(`${API}/stories/${story._id}/view`, { method: 'PUT', headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => {});
+      setProgress(p => { if (p >= 100) { nextStory(); return 0; } return p + (100 / dur) * 100; });
+    }, 100);
+    if (story?._id)
+      fetch(`${API}/stories/${story._id}/view`, {
+        method: 'PUT', headers: token ? { Authorization: `Bearer ${token}` } : {}
+      }).catch(() => {});
     return () => clearInterval(timerRef.current);
   }, [active]);
 
   if (!feed.length) return null;
 
-  const currentStory = active ? active.artistEntry.stories[active.storyIndex] : null;
+  // ── Couleurs de fond pour stories texte ────────────────────
+  const TEXT_GRADIENTS = [
+    'from-purple-700 to-pink-600',
+    'from-orange-600 to-yellow-500',
+    'from-blue-700 to-cyan-500',
+    'from-emerald-700 to-teal-500',
+    'from-rose-700 to-orange-500',
+    'from-indigo-700 to-violet-600',
+  ];
+  const getGradient = (id) =>
+    TEXT_GRADIENTS[parseInt(id?.slice(-1) || '0', 16) % TEXT_GRADIENTS.length];
+
+  const currentStory = active ? active.entry.stories[active.idx] : null;
+  const isTextStory  = (s) => s?.type === 'text' || (!s?.mediaUrl && s?.caption);
+
+  // ── Vignette d'une story (mini aperçu) ────────────────────
+  const StoryCard = ({ entry }) => {
+    const first       = entry.stories[0];
+    const hasUnviewed = entry.stories.some(s => !s.viewed);
+    const isText      = isTextStory(first);
+    const grad        = getGradient(entry.artist._id);
+
+    return (
+      <button
+        onClick={() => openStory(entry)}
+        className="shrink-0 flex flex-col items-center gap-1.5 group"
+      >
+        {/* Ring */}
+        <div className={`p-[2.5px] rounded-[20px] ${
+          hasUnviewed
+            ? 'bg-gradient-to-tr from-pink-500 via-orange-400 to-yellow-400'
+            : 'bg-zinc-700'
+        }`}>
+          {/* Vignette 80×100 */}
+          <div className="w-40 h-50 rounded-[17px] overflow-hidden relative border-2 border-zinc-950 bg-zinc-900">
+
+            {/* Contenu selon le type */}
+            {first?.type === 'image' && first?.mediaUrl && (
+              <img src={first.mediaUrl} className="w-full h-full object-cover" alt=""/>
+            )}
+            {(isText || first?.type === 'text') && (
+              <div className={`w-full h-full bg-linear-to-br ${grad} flex items-center justify-center p-2`}>
+                <p className="text-white font-black text-[10px] text-center leading-tight line-clamp-4">
+                  {first?.caption || entry.artist.nom}
+                </p>
+              </div>
+            )}
+            {first?.type === 'audio' && (
+              <>
+                {entry.artist.image
+                  ? <img src={entry.artist.image} className="w-full h-full object-cover opacity-55" alt=""/>
+                  : <div className={`w-full h-full bg-gradient-to-br ${grad}`}/>
+                }
+                <div className="absolute top-1.5 right-1.5 bg-red-500/90 rounded-md px-1 py-0.5 flex items-center gap-0.5">
+                  <Music size={7} className="text-white"/>
+                  <span className="text-[7px] text-white font-bold">AUDIO</span>
+                </div>
+              </>
+            )}
+            {/* Fallback : avatar artiste */}
+            {!first && (
+              entry.artist.image
+                ? <img src={entry.artist.image} className="w-full h-full object-cover" alt=""/>
+                : <div className={`w-full h-full bg-gradient-to-br ${grad} flex items-center justify-center`}>
+                    <span className="text-white text-2xl font-black">{entry.artist.nom[0]}</span>
+                  </div>
+            )}
+
+            {/* Overlay play au hover */}
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 rounded-[17px]">
+              <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                <Play size={12} fill="white" className="text-white ml-0.5"/>
+              </div>
+            </div>
+
+            {/* Mini avatar artiste en bas gauche */}
+            <div className="absolute bottom-1.5 left-1.5 w-[22px] h-[22px] rounded-full border-2 border-zinc-950 overflow-hidden bg-zinc-800 shrink-0 flex items-center justify-center">
+              {entry.artist.image
+                ? <img src={entry.artist.image} className="w-full h-full object-cover" alt=""/>
+                : <span className="text-[9px] font-black text-zinc-300">{entry.artist.nom[0]}</span>
+              }
+            </div>
+
+            {/* Compteur stories */}
+            {entry.stories.length > 1 && (
+              <div className="absolute top-1.5 right-1.5 bg-black/60 rounded-md px-1 py-0.5">
+                <span className="text-[8px] font-bold text-white">{entry.stories.length}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Nom */}
+        <p className={`text-[11px] truncate w-20 text-center leading-tight ${
+          hasUnviewed ? 'font-bold text-zinc-200' : 'text-zinc-500'
+        }`}>
+          {entry.artist.nom.split(' ')[0]}
+        </p>
+      </button>
+    );
+  };
 
   return (
     <>
-      {/* Barre de bulles */}
-      <div className="flex gap-3 overflow-x-auto pb-2 px-1" style={{ scrollbarWidth: 'none' }}>
-        {feed.map(entry => {
-          const hasUnviewed = entry.stories.some(s => !s.viewed);
-          return (
-            <button key={entry.artist._id} onClick={() => openStory(entry)} className="shrink-0 flex flex-col items-center gap-1.5">
-              <div className={`w-30 h-30 rounded-full p-0.5 ${hasUnviewed ? 'bg-linear-to-tr from-red-500 via-orange-500 to-yellow-500' : 'bg-zinc-700'}`}>
-                <div className="w-full h-full rounded-full overflow-hidden bg-zinc-900 border-2 border-zinc-900">
-                  {entry.artist.image
-                    ? <img src={entry.artist.image} className="w-full h-full object-cover" alt="" />
-                    : <div className="w-full h-full flex items-center justify-center text-lg font-black text-zinc-500">{entry.artist.nom[0]}</div>}
-                </div>
-              </div>
-              <p className="text-[15px] text-zinc-400 truncate w-14 text-center">{entry.artist.nom.split(' ')[0]}</p>
-            </button>
-          );
-        })}
+      {/* ── Barre scrollable ── */}
+      <div className="flex gap-2.5 overflow-x-auto pb-2 px-1" style={{ scrollbarWidth: 'none' }}>
+        {feed.map(entry => <StoryCard key={entry.artist._id} entry={entry} />)}
       </div>
 
-      {/* Visionneuse plein écran */}
+      {/* ── Visionneuse plein écran ── */}
       {active && currentStory && (
-        <div className="fixed inset-0 bg-black z-500 flex items-center justify-center" onClick={nextStory}>
-          {/* Barres de progression */}
-          <div className="absolute top-4 left-4 right-4 flex gap-1 z-10">
-            {active.artistEntry.stories.map((_, i) => (
-              <div key={i} className="flex-1 h-0.5 bg-white/30 rounded-full overflow-hidden">
-                <div className="h-full bg-white rounded-full transition-none"
-                  style={{ width: i < active.storyIndex ? '100%' : i === active.storyIndex ? `${progress}%` : '0%' }} />
-              </div>
-            ))}
-          </div>
+        <div className="fixed inset-0 z-[500] bg-black flex items-center justify-center">
 
-          {/* Header artiste */}
-          <div className="absolute top-8 left-4 right-4 flex items-center gap-2 z-10 mt-4">
-            <img src={active.artistEntry.artist.image} className="w-8 h-8 rounded-full object-cover border border-white/20" alt="" />
-            <p className="text-sm font-bold text-white">{active.artistEntry.artist.nom}</p>
-            <p className="text-[10px] text-white/60 ml-auto">
-              {new Date(currentStory.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-            </p>
-            <button onClick={e => { e.stopPropagation(); closeStory(); }} className="ml-2 text-white/70 hover:text-white">
-              <X size={18} />
-            </button>
-          </div>
+          {/* Fond coloré selon type */}
+          <div className={`absolute inset-0 ${
+            isTextStory(currentStory)
+              ? `bg-gradient-to-br ${getGradient(active.entry.artist._id)}`
+              : 'bg-zinc-950'
+          }`}/>
 
-          {/* Contenu */}
-          <div className="w-full max-w-sm mx-auto h-full flex items-center justify-center">
-            {currentStory.type === 'image' && (
-              <img src={currentStory.mediaUrl} className="max-h-[80vh] max-w-full object-contain rounded-xl" alt="" />
-            )}
-            {currentStory.type === 'audio' && (
-              <div className="bg-zinc-900/80 rounded-2xl p-8 text-center space-y-4">
-                <img src={active.artistEntry.artist.image} className="w-24 h-24 rounded-full mx-auto object-cover border-4 border-red-500/40" alt="" />
-                <p className="font-bold">{active.artistEntry.artist.nom}</p>
-                <div className="flex items-center justify-center gap-2 text-zinc-400">
-                  <Volume2 size={16} /> <span className="text-sm">Extrait audio</span>
-                </div>
-                <audio src={currentStory.mediaUrl} autoPlay className="hidden" />
-              </div>
-            )}
-            {currentStory.type === 'text' && (
-              <div className="bg-linear-to-br from-red-900/50 to-zinc-900 rounded-2xl p-8 text-center">
-                <p className="text-xl font-black text-white">{currentStory.caption}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Caption */}
-          {currentStory.caption && currentStory.type !== 'text' && (
-            <div className="absolute bottom-8 left-4 right-4 z-10">
-              <p className="text-sm text-white bg-black/40 backdrop-blur px-3 py-2 rounded-xl">{currentStory.caption}</p>
-            </div>
+          {/* Image de fond pour story image */}
+          {currentStory.type === 'image' && currentStory.mediaUrl && (
+            <>
+              <img src={currentStory.mediaUrl}
+                className="absolute inset-0 w-full h-full object-cover opacity-20 blur-2xl scale-110"
+                alt=""/>
+              <div className="absolute inset-0 bg-black/40"/>
+            </>
           )}
+
+          {/* Conteneur centré style 9:16 sur desktop */}
+          <div className="relative w-full h-full max-w-sm mx-auto flex flex-col">
+
+            {/* Barres progression */}
+            <div className="flex gap-1 px-4 pt-4 pb-0 z-20 relative">
+              {active.entry.stories.map((_, i) => (
+                <div key={i} className="flex-1 h-[3px] bg-white/25 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-white rounded-full"
+                    style={{
+                      width: i < active.idx ? '100%' : i === active.idx ? `${progress}%` : '0%',
+                      transition: 'none'
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Header artiste */}
+            <div className="flex items-center gap-3 px-4 pt-3 pb-2 z-20 relative">
+              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white/30 shrink-0 bg-zinc-800 flex items-center justify-center">
+                {active.entry.artist.image
+                  ? <img src={active.entry.artist.image} className="w-full h-full object-cover" alt=""/>
+                  : <span className="text-sm font-black text-white">{active.entry.artist.nom[0]}</span>
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[15px] font-black text-white leading-none">{active.entry.artist.nom}</p>
+                <p className="text-[11px] text-white/55 mt-0.5">
+                  {new Date(currentStory.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+              <button
+                onClick={closeStory}
+                className="w-9 h-9 rounded-full bg-white/12 flex items-center justify-center text-white hover:bg-white/20 transition shrink-0">
+                <X size={17}/>
+              </button>
+            </div>
+
+            {/* ── Contenu central ── */}
+            <div className="flex-1 flex items-center justify-center px-4 relative z-10">
+
+              {/* TEXTE PUR — grand et lisible */}
+              {isTextStory(currentStory) && (
+                <div className="text-center px-2">
+                  <p className="font-black text-white leading-tight"
+                    style={{ fontSize: 'clamp(28px, 6vw, 44px)', textShadow: '0 2px 20px rgba(0,0,0,0.3)' }}>
+                    {currentStory.caption}
+                  </p>
+                </div>
+              )}
+
+              {/* IMAGE */}
+              {currentStory.type === 'image' && currentStory.mediaUrl && (
+                <img
+                  src={currentStory.mediaUrl}
+                  className="max-h-[72vh] w-full object-contain rounded-2xl shadow-2xl"
+                  alt=""
+                />
+              )}
+
+              {/* AUDIO */}
+              {currentStory.type === 'audio' && (
+                <div className="bg-zinc-900/80 backdrop-blur-sm rounded-3xl p-8 text-center space-y-4 w-full border border-white/10">
+                  <div className="w-28 h-28 rounded-2xl mx-auto overflow-hidden bg-zinc-800 border-4 border-red-500/20">
+                    {active.entry.artist.image
+                      ? <img src={active.entry.artist.image} className="w-full h-full object-cover" alt=""/>
+                      : <div className="w-full h-full flex items-center justify-center text-3xl font-black text-zinc-500">
+                          {active.entry.artist.nom[0]}
+                        </div>
+                    }
+                  </div>
+                  <p className="text-lg font-black text-white">{active.entry.artist.nom}</p>
+                  <div className="flex items-center justify-center gap-2 text-zinc-400">
+                    <Volume2 size={16}/><span className="text-sm">Extrait audio</span>
+                  </div>
+                  {currentStory.caption && (
+                    <p className="text-sm text-zinc-300 italic">"{currentStory.caption}"</p>
+                  )}
+                  <audio src={currentStory.mediaUrl} autoPlay className="hidden"/>
+                </div>
+              )}
+            </div>
+
+            {/* Caption sous image/audio */}
+            {currentStory.caption && !isTextStory(currentStory) && (
+              <div className="px-5 pb-6 z-20 relative">
+                <p className="text-[13px] text-white leading-relaxed bg-black/40 backdrop-blur-sm px-4 py-3 rounded-2xl">
+                  {currentStory.caption}
+                </p>
+              </div>
+            )}
+
+            {/* Zones tap gauche/droite invisibles */}
+            <div className="absolute inset-0 flex z-10 pointer-events-auto" style={{ top: 120 }}>
+              <div className="flex-1" onClick={e => { e.stopPropagation(); prevStory(); }}/>
+              <div className="flex-1" onClick={e => { e.stopPropagation(); nextStory(); }}/>
+            </div>
+          </div>
         </div>
       )}
     </>

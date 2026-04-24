@@ -3,7 +3,7 @@ import {
   Flame, Sparkles, Heart, Compass, TrendingUp, X,
   Play, Pause, Disc3, ChevronRight, Check,
   Users, AlertTriangle, Share2, Clock, WifiOff,
-  Star, Radio, Gem, Trophy, Zap, Sun, Bell,
+  Star, Radio, Gem, Trophy, Zap, Sun, Bell,Ticket,Calendar,MapPin,ChevronLeft,
   Section, Plus
 } from 'lucide-react';
 import SongRow from '../components/music/SongRow';
@@ -158,6 +158,160 @@ const RecentSharesSection = ({ token, setCurrentSong, setIsPlaying, currentSong 
   );
 };
 
+
+// Evènements bannière
+const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
+  const [events, setEvents]     = useState([]);
+  const [current, setCurrent]   = useState(0);
+  const intervalRef = useRef(null);
+ 
+  useEffect(() => {
+    fetch(`${API}/events?limit=5`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setEvents(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
+ 
+  useEffect(() => {
+    if (events.length < 2) return;
+    intervalRef.current = setInterval(() => setCurrent(c => (c + 1) % events.length), 4000);
+    return () => clearInterval(intervalRef.current);
+  }, [events.length]);
+ 
+  const goTo = (i) => {
+    clearInterval(intervalRef.current);
+    setCurrent(i);
+    intervalRef.current = setInterval(() => setCurrent(c => (c + 1) % events.length), 4000);
+  };
+ 
+  if (!events.length) return null;
+ 
+  const ev = events[current];
+  const isPast = new Date(ev.date) < new Date();
+ 
+  return (
+  <section className="space-y-4">
+    <SectionHeader 
+      icon={<Ticket size={18} className="text-purple-400"/>} 
+      title="Événements" subtitle="Concerts et shows à venir"
+    />
+
+    <div className="group relative w-full  mx-auto rounded-2xl overflow-hidden bg-[#1a0a2e] border border-purple-500/30 shadow-2xl shadow-purple-900/20">
+
+      {/* ── Image full-bleed ── */}
+      {ev.image
+        ? <img src={ev.image} alt={ev.title}
+            className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"/>
+        : <div className="absolute inset-0 bg-gradient-to-br from-purple-900/60 to-zinc-950"/>
+      }
+
+      {/* ── Overlay : fort à gauche, transparent à droite ── */}
+      <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/95 via-zinc-950/70 to-zinc-950/15"/>
+      {/* Teinte violette subtile */}
+      <div className="absolute inset-0 bg-purple-900/10"/>
+
+      {/* ── Espace vertical du banner ── */}
+      <div className="pb-[46%] md:pb-[40%]"/>
+
+      {/* ── Pastille billets (coin haut droit) ── */}
+      <div className="absolute top-3 right-3 w-16 h-16 md:w-20 md:h-20 rounded-full bg-purple-700/85 border-2 border-purple-400/60 flex flex-col items-center justify-center text-center gap-0.5 z-10">
+        <Ticket size={14} className="text-white/90"/>
+        <span className="text-white font-black leading-tight" style={{ fontSize: 'clamp(7px,1.4vw,9px)', letterSpacing: '0.02em' }}>
+          BILLETS<br/>DISPO
+        </span>
+      </div>
+
+      {/* ── Contenu superposé ── */}
+      <div className="absolute inset-0 flex flex-col justify-between z-10">
+
+        {/* Haut : badges */}
+        <div className="flex items-center gap-2 px-4 pt-3 flex-wrap">
+          <span className="bg-purple-700/80 border border-purple-400/50 text-white font-black px-2.5 py-1 rounded-md"
+            style={{ fontSize: 'clamp(8px,1.5vw,10px)', letterSpacing: '0.06em' }}>
+            ÉVÉNEMENT LIVE
+          </span>
+          {ev.artistId?.certified && (
+            <span className="bg-blue-600/70 text-white font-bold px-2.5 py-1 rounded-full"
+              style={{ fontSize: 'clamp(7px,1.4vw,9px)' }}>✓ Officiel</span>
+          )}
+          <span className="text-white/50 font-bold tracking-[0.15em] hidden sm:block"
+            style={{ fontSize: 9 }}>LIVE · MUSIC · EMOTIONS</span>
+        </div>
+
+        {/* Milieu : titre + artistes */}
+        <div className="flex-1 flex flex-col justify-center px-4">
+          <h3 className="font-black text-white leading-none tracking-tighter drop-shadow-2xl"
+            style={{ fontSize: 'clamp(24px,5.5vw,50px)' }}>
+            {ev.title.toUpperCase()}
+          </h3>
+          <p className="text-zinc-300 mt-2" style={{ fontSize: 'clamp(9px,1.6vw,12px)' }}>
+            Des artistes. Une ambiance.{' '}
+            <span className="text-purple-400 font-bold">Un moment inoubliable.</span>
+          </p>
+          {/* Artistes lineup */}
+          {ev.lineup?.length > 0 && (
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <span className="bg-purple-700/60 border border-purple-400/40 text-purple-200 font-bold px-2 py-0.5 rounded-full"
+                style={{ fontSize: 9 }}>AVEC</span>
+              <span className="text-white font-black tracking-wide"
+                style={{ fontSize: 'clamp(10px,2vw,14px)' }}>
+                {ev.lineup.join(' · ')}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Bas : bande infos date/lieu/résa */}
+        <div className="flex items-center gap-0 flex-wrap bg-zinc-950/80 backdrop-blur-sm border-t border-purple-500/20 px-4 py-2.5">
+
+          <div className="flex items-center gap-2 pr-3 mr-3 border-r border-white/10">
+            <Calendar size={13} className="text-purple-400 shrink-0"/>
+            <div>
+              <p className="text-white font-black leading-none" style={{ fontSize: 'clamp(10px,2vw,13px)' }}>
+                {new Date(ev.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}
+              </p>
+              <p className="text-zinc-500 uppercase tracking-wide" style={{ fontSize: 9 }}>À PARTIR DE 18H00</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 pr-3 mr-3 border-r border-white/10">
+            <MapPin size={13} className="text-purple-400 shrink-0"/>
+            <div>
+              <p className="text-white font-black leading-none" style={{ fontSize: 'clamp(10px,2vw,13px)' }}>
+                {ev.venue?.toUpperCase()}
+              </p>
+              <p className="text-zinc-500 uppercase tracking-wide" style={{ fontSize: 9 }}>{ev.city}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Ticket size={13} className="text-purple-400 shrink-0"/>
+            <div>
+              <p className="text-white font-black leading-none" style={{ fontSize: 'clamp(10px,2vw,13px)' }}>
+                {(ev.ticketPrice / 100).toLocaleString()} AR
+              </p>
+              <p className="text-zinc-500 uppercase tracking-wide" style={{ fontSize: 9 }}>PAR PERSONNE</p>
+            </div>
+          </div>
+
+          {!isPast && (
+            <div className="flex-1 flex justify-end">
+              <a href={`/events/${ev._id}`}
+                className="inline-flex items-center gap-1.5 bg-purple-700 hover:bg-purple-600 text-white font-black rounded-xl transition-all active:scale-95"
+                style={{ fontSize: 'clamp(9px,1.8vw,11px)', padding: '7px 14px', letterSpacing: '0.04em' }}>
+                RÉSERVER
+                <ChevronRight size={13}/>
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  </section>
+  );
+};
+
+
 // ── Section hors-ligne ───────────────────────
 const OfflineSection = ({ musiques, setCurrentSong, setIsPlaying, currentSong, isPlaying, isAudioCached }) => {
   const cached = useMemo(() => musiques.filter(s => isAudioCached && isAudioCached(s._id)), [musiques, isAudioCached]);
@@ -232,6 +386,10 @@ const HomeView = ({
 
   // Classement amis
   const [friendRanking, setFriendRanking] = useState([]);
+
+  const [downloadingId, setDownloadingId] = useState(null);
+  const [downloadedId, setDownloadedId]   = useState(null);
+
 
   // Charge la dernière écoute depuis localStorage
   useEffect(() => {
@@ -412,6 +570,8 @@ const HomeView = ({
           Activer les notifications
         </button>
       )}
+
+      <EventsBannerSlider setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}/>
 
       {/* ══ 1. HERO "TITRE DU JOUR" ══ */}
       {heroSong && (
