@@ -202,11 +202,11 @@ const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
       {ev.image
         ? <img src={ev.image} alt={ev.title}
             className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"/>
-        : <div className="absolute inset-0 bg-gradient-to-br from-purple-900/60 to-zinc-950"/>
+        : <div className="absolute inset-0 bg-linear-to-br from-purple-900/60 to-zinc-950"/>
       }
 
       {/* ── Overlay : fort à gauche, transparent à droite ── */}
-      <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/95 via-zinc-950/70 to-zinc-950/15"/>
+      <div className="absolute inset-0 bg-linear-to-r from-zinc-950/95 via-zinc-950/70 to-zinc-950/15"/>
       {/* Teinte violette subtile */}
       <div className="absolute inset-0 bg-purple-900/10"/>
 
@@ -605,16 +605,20 @@ const HomeView = ({
       )}
 
       {/* ══ STORIES ══ */}
-      <section className="pt-2"> 
-        <div className='flex items-center gap-2 mb-4'>
-          <div className="w-10 h-10 rounded-full border-2 border-pink-500 flex items-center justify-center">
-            <Plus />
-          </div>
-          <h1 className='text-2xl font-bold text-white p-2' >Stories</h1>
+      { isLoggedIn && (
+        <section className="pt-2"> 
+          <div className='flex items-center gap-2 mb-4'>
+            <div className="w-10 h-10 rounded-full border-2 border-pink-500 flex items-center justify-center">
+              <Plus />
+            </div>
+            <h1 className='text-2xl font-bold text-white p-2' >Stories</h1>
 
-        </div>
-        <StoriesBar token={token} isLoggedIn={isLoggedIn} />
-      </section>
+          </div>
+          <StoriesBar token={token} isLoggedIn={isLoggedIn} />
+        </section>
+      )
+      }
+
 
       {/* ══ 2. REPRENDRE OÙ VOUS EN ÉTIEZ ══ */}
       {isLoggedIn && lastPlayed && currentSong?._id !== lastPlayed.song._id && (

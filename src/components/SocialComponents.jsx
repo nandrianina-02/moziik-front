@@ -259,7 +259,7 @@ export const StoriesBar = ({ token, isLoggedIn, onArtistClick }) => {
         {/* Ring */}
         <div className={`p-[2.5px] rounded-[20px] ${
           hasUnviewed
-            ? 'bg-gradient-to-tr from-pink-500 via-orange-400 to-yellow-400'
+            ? 'bg-linear-to-tr from-pink-500 via-orange-400 to-yellow-400'
             : 'bg-zinc-700'
         }`}>
           {/* Vignette 80×100 */}
@@ -280,7 +280,7 @@ export const StoriesBar = ({ token, isLoggedIn, onArtistClick }) => {
               <>
                 {entry.artist.image
                   ? <img src={entry.artist.image} className="w-full h-full object-cover opacity-55" alt=""/>
-                  : <div className={`w-full h-full bg-gradient-to-br ${grad}`}/>
+                  : <div className={`w-full h-full bg-linear-to-br ${grad}`}/>
                 }
                 <div className="absolute top-1.5 right-1.5 bg-red-500/90 rounded-md px-1 py-0.5 flex items-center gap-0.5">
                   <Music size={7} className="text-white"/>
@@ -292,7 +292,7 @@ export const StoriesBar = ({ token, isLoggedIn, onArtistClick }) => {
             {!first && (
               entry.artist.image
                 ? <img src={entry.artist.image} className="w-full h-full object-cover" alt=""/>
-                : <div className={`w-full h-full bg-gradient-to-br ${grad} flex items-center justify-center`}>
+                : <div className={`w-full h-full bg-linear-to-br ${grad} flex items-center justify-center`}>
                     <span className="text-white text-2xl font-black">{entry.artist.nom[0]}</span>
                   </div>
             )}
@@ -305,7 +305,7 @@ export const StoriesBar = ({ token, isLoggedIn, onArtistClick }) => {
             </div>
 
             {/* Mini avatar artiste en bas gauche */}
-            <div className="absolute bottom-1.5 left-1.5 w-[22px] h-[22px] rounded-full border-2 border-zinc-950 overflow-hidden bg-zinc-800 shrink-0 flex items-center justify-center">
+            <div className="absolute bottom-1.5 left-1.5 w-5.5 h-5.5 rounded-full border-2 border-zinc-950 overflow-hidden bg-zinc-800 shrink-0 flex items-center justify-center">
               {entry.artist.image
                 ? <img src={entry.artist.image} className="w-full h-full object-cover" alt=""/>
                 : <span className="text-[9px] font-black text-zinc-300">{entry.artist.nom[0]}</span>
@@ -340,12 +340,12 @@ export const StoriesBar = ({ token, isLoggedIn, onArtistClick }) => {
 
       {/* ── Visionneuse plein écran ── */}
       {active && currentStory && (
-        <div className="fixed inset-0 z-[500] bg-black flex items-center justify-center">
+        <div className="fixed inset-0 z-500 bg-black flex items-center justify-center">
 
           {/* Fond coloré selon type */}
           <div className={`absolute inset-0 ${
             isTextStory(currentStory)
-              ? `bg-gradient-to-br ${getGradient(active.entry.artist._id)}`
+              ? `bg-linear-to-br ${getGradient(active.entry.artist._id)}`
               : 'bg-zinc-950'
           }`}/>
 
@@ -365,7 +365,7 @@ export const StoriesBar = ({ token, isLoggedIn, onArtistClick }) => {
             {/* Barres progression */}
             <div className="flex gap-1 px-4 pt-4 pb-0 z-20 relative">
               {active.entry.stories.map((_, i) => (
-                <div key={i} className="flex-1 h-[3px] bg-white/25 rounded-full overflow-hidden">
+                <div key={i} className="flex-1 h-0.75 bg-white/25 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-white rounded-full"
                     style={{
