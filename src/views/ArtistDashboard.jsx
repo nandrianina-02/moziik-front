@@ -42,6 +42,7 @@ const ArtistDashboard = ({ token, userArtistId, userNom }) => {
   const [success, setSuccess]     = useState('');
   const [error, setError]         = useState('');
   const { confirmDialog, ask, close } = useConfirm();
+  // const [feedback, setFeedback] = useState(null);
 
   // ── Newsletter ──
   const [subject, setSubject] = useState('');
@@ -197,8 +198,26 @@ const ArtistDashboard = ({ token, userArtistId, userNom }) => {
       confirmLabel: 'Supprimer',
       variant: 'danger',
       onConfirm: async () => {
-        await fetch(`${API}/stories/${storyId}`, { method: 'DELETE', headers: h }).catch(() => {});
-        setStories(prev => prev.filter(s => s._id !== storyId));
+        try {
+          const res = await fetch(`${API}/stories/${storyId}`, { 
+            method: 'DELETE', 
+            headers: h 
+          });
+          
+          const data = await res.json();
+
+          if (!res.ok) throw new Error(data.message);
+
+          // Mise à jour de l'interface
+          setStories(prev => prev.filter(s => s._id !== storyId));
+          
+          // Affichage du succès (comme pour l'upload)
+          showFeedback(data.message || 'Story supprimée !');
+          
+        } catch (err) {
+          // Affichage de l'erreur avec le paramètre true pour le style "danger"
+          showFeedback(err.message, true);
+        }
       }
     });
   };

@@ -3,7 +3,7 @@ import {
   Flame, TrendingUp, Play, Pause, ChevronRight, Trophy,
   Medal, Award, Star, Zap, Plus, Crown, Users, MessageCircle,
   Send, X, Copy, Check, Loader2, Clock, Heart, Share2,
-  Music, Eye, Radio, Volume2
+  Music, Eye, Radio, Volume2, Sparkles, Mic
 } from 'lucide-react';
 
 // const API = import.meta.env.VITE_API_URL || 'https://moozik-gft1.onrender.com';
@@ -46,6 +46,12 @@ export const TrendingView = ({ setCurrentSong, setIsPlaying, currentSong, isPlay
   };
 
   // console.log(entry);
+  const tabs = [
+    { key: "songs", label: "Titres", icon: Flame, color: "text-red-500" },
+    { key: "new", label: "Nouveautés", icon: Sparkles, color: "text-yellow-400" },
+    { key: "artists", label: "Artistes", icon: Mic, color: "text-purple-400" },
+    { key: "viral", label: "Viral", icon: TrendingUp, color: "text-green-400" },
+  ];
   
 
   return (
@@ -62,11 +68,20 @@ export const TrendingView = ({ setCurrentSong, setIsPlaying, currentSong, isPlay
       </div>
 
       {/* Tabs */}
+
       <div className="flex gap-1 bg-zinc-900/40 rounded-xl p-1 border border-zinc-800/50">
-        {[['songs','🔥 Titres'],['new','✨ Nouveautés'],['artists','🎤 Artistes'],['viral','📈 Viral']].map(([k,l]) => (
-          <button key={k} onClick={() => setTab(k)}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${tab===k?'bg-red-600 text-white':'text-zinc-500 hover:text-white'}`}>
-            {l}
+        {tabs.map(({ key, label, icon: Icon, color }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`flex items-center justify-center gap-1 flex-1 py-2 rounded-lg text-xs font-bold transition ${
+              tab === key
+                ? "bg-red-600 text-white"
+                : "text-zinc-500 hover:text-white"
+            }`}
+          >
+            <Icon size={14} className={color} />
+            {label}
           </button>
         ))}
       </div>
