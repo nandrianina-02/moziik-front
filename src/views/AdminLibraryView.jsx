@@ -113,7 +113,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[500] flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-500 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[92vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}>
 
@@ -134,7 +134,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
             </div>
             <div>
               <h3 className="font-black text-sm">Modifier la musique</h3>
-              <p className="text-[10px] text-zinc-500 truncate max-w-[200px]">{song.titre}</p>
+              <p className="text-[10px] text-zinc-500 truncate max-w-50">{song.titre}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition">
@@ -154,7 +154,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
 
           {/* Titre */}
           <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
               <Tag size={9}/> Titre *
             </label>
             <input value={titre} onChange={e => setTitre(e.target.value)}
@@ -164,7 +164,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
 
           {/* Artiste */}
           <div className="relative">
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
               <Mic2 size={9}/> Artiste
               {(!artiste && !artisteId) && <span className="text-orange-400 ml-1 flex items-center gap-0.5"><AlertCircle size={9}/> requis</span>}
             </label>
@@ -212,7 +212,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
 
           {/* Album */}
           <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
               <Disc3 size={9}/> Album (optionnel)
             </label>
             <select value={albumId} onChange={e => setAlbumId(e.target.value)}
@@ -242,7 +242,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
 
           {/* FIX: Moods — tags cliquables enregistrés via FormData */}
           <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2 flex items-center gap-1">
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-1">
               <Tag size={9}/> Ambiances / Moods
               {selectedMoods.length > 0 && <span className="text-green-400 ml-auto">{selectedMoods.length} sélectionné{selectedMoods.length>1?'s':''}</span>}
             </label>
@@ -563,7 +563,7 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
                   </div>
 
                   {/* Moods */}
-                  <div className="hidden md:flex items-center gap-1 flex-wrap max-w-[140px]">
+                  <div className="hidden md:flex items-center gap-1 flex-wrap max-w-35">
                     {song.moods?.length > 0
                       ? song.moods.slice(0, 2).map(m => (
                         <span key={m} className="text-[8px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded-full">{m}</span>

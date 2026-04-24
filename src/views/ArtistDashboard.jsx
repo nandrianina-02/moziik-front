@@ -598,7 +598,7 @@ const ArtistDashboard = ({ token, userArtistId, userNom }) => {
               </div>
 
               <button type="submit" disabled={uploadingStory || !storyFile}
-                className="w-full bg-gradient-to-r from-pink-600 to-red-600 hover:from-pink-500 hover:to-red-500 text-white font-bold py-3 rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]">
+                className="w-full bg-linear-to-r from-pink-600 to-red-600 hover:from-pink-500 hover:to-red-500 text-white font-bold py-3 rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]">
                 {uploadingStory ? <Loader2 size={15} className="animate-spin"/> : <Camera size={15}/>}
                 {uploadingStory ? 'Publication...' : 'Publier la story'}
               </button>
@@ -628,7 +628,7 @@ const ArtistDashboard = ({ token, userArtistId, userNom }) => {
                         </div>
                       )}
                       {/* Overlay infos */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex flex-col justify-end p-2.5">
+                      <div className="absolute inset-0 bg-linear-to-t from-black/70 to-transparent flex flex-col justify-end p-2.5">
                         {s.caption && <p className="text-[10px] text-white font-bold truncate">{s.caption}</p>}
                         <div className="flex items-center justify-between mt-1">
                           <span className="text-[9px] text-white/60 flex items-center gap-1"><Eye size={8}/> {s.views}</span>

@@ -44,7 +44,7 @@ const StatCard = ({ icon, label, value, sub, color = 'text-red-400', onClick, ac
 
 // ── Modal liste détaillée ───────────────────────
 const DetailModal = ({ title, children, onClose }) => (
-  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[400] flex items-center justify-center p-4" onClick={onClose}>
+  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-400 flex items-center justify-center p-4" onClick={onClose}>
     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl"
       onClick={e => e.stopPropagation()}>
       <div className="flex items-center justify-between p-5 border-b border-zinc-800">
