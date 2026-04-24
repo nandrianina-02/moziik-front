@@ -74,7 +74,7 @@ const HorizontalCard = ({ song, isActive, isPlaying, onClick, badge, badgeColor 
 const DiscoveryCard = ({ song, isActive, isPlaying, onClick }) => (
   <div onClick={onClick} className={`relative overflow-hidden rounded-2xl cursor-pointer group transition-all duration-200 aspect-square ${isActive ? 'ring-2 ring-white/25' : ''}`}>
     <img src={song.image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt="" />
-    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"/>
+    <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent"/>
     {isActive && isPlaying ? (
       <div className="absolute top-3 right-3 flex gap-0.5 items-end h-4">
         {[1,2,3].map(i => <div key={i} className="w-0.5 bg-white rounded-full animate-bounce" style={{ height:`${(i%3+1)*4}px`, animationDelay:`${i*0.15}s`}}/>)}
@@ -423,7 +423,7 @@ const HomeView = ({
             <div className="absolute inset-0">
               <img src={heroSong.image} className="w-full h-full object-cover scale-110 blur-xl opacity-40" alt="" />
             </div>
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
+            <div className="absolute inset-0 bg-linear-to-r from-black/80 via-black/40 to-transparent" />
             <div className="relative flex items-center gap-5 p-6 md:p-8">
               <div className="relative shrink-0">
                 <img src={heroSong.image} className={`w-24 h-24 md:w-32 md:h-32 rounded-2xl object-cover shadow-2xl border border-white/10 transition-transform group-hover:scale-105 ${currentSong?._id === heroSong._id && isPlaying ? 'ring-2 ring-white/30' : ''}`} alt="" />
@@ -481,7 +481,7 @@ const HomeView = ({
               <p className="text-[10px] text-zinc-500 uppercase">{lastPlayed.song.artiste}</p>
               {lastPlayed.timestamp > 0 && (
                 <div className="flex items-center gap-2 mt-1.5">
-                  <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden max-w-[120px]">
+                  <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden max-w-30">
                     <div className="h-full bg-red-500 rounded-full" style={{ width: `${Math.min(100, (lastPlayed.timestamp / (lastPlayed.song.duration || 180)) * 100)}%` }}/>
                   </div>
                   <span className="text-[9px] text-zinc-600">
@@ -548,7 +548,7 @@ const HomeView = ({
             <div className="absolute inset-0">
               <img src={discoveryToday.image} className="w-full h-full object-cover opacity-30 blur-lg scale-110" alt="" />
             </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-black/30"/>
+            <div className="absolute inset-0 bg-linear-to-t from-black/90 to-black/30"/>
             <div className="relative flex items-center gap-4 p-5">
               <img src={discoveryToday.image} className="w-16 h-16 rounded-2xl object-cover shadow-lg shrink-0" alt="" />
               <div className="flex-1 min-w-0">
