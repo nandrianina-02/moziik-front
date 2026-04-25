@@ -361,10 +361,6 @@ const AppInner = () => {
     draw();
   };
 
-  useEffect(() => {
-    console.log(currentSong);
-  
-  }, [currentSong]);
     
   // ── FIX: handleNext — file d'attente + shuffle + auto-queue ──
   const musiquesRef = useRef(musiques);

@@ -44,45 +44,58 @@ export const NotificationsPanel = ({ token, onPlaySong, onUnreadCount, isPage = 
   try { navigate = useNavigate(); } catch {}
 
   // Badge polling toutes les 30s
-useEffect(() => {
-  if (!token) return;
+  useEffect(() => {
+    if (!token) return;
 
-  const controller = new AbortController();
-  
-  const poll = async () => {
-    try {
-      const response = await fetch(`${API}/notifications/unread-count`, { 
-        headers: { Authorization: `Bearer ${token}` },
-        signal: controller.signal // Links fetch to the cleanup function
-      });
+    const controller = new AbortController();
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+    let timeoutId = null;
 
-      if (response.status === 401) {
-        console.error("Auth error: Token expired or invalid.");
-        // Optional: Trigger logout or token refresh flow here
-        return; 
+    const poll = async () => {
+      try {
+        const response = await fetch(`${API}/notifications/unread-count`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        });
+
+        if (response.status === 401) {
+          console.error("Auth error: Token expired or invalid.");
+          return;
+        }
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+        const d = await response.json();
+        setUnread(d.count || 0);
+        if (onUnreadCount) onUnreadCount(d.count || 0);
+
+        retryCount = 0; // ✅ Reset au succès
+        timeoutId = setTimeout(poll, 30_000); // ✅ Interval chaîné, pas fixe
+
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+
+        retryCount++;
+        console.error(`Polling error (tentative ${retryCount}):`, err);
+
+        if (retryCount <= MAX_RETRIES) {
+          // ✅ Backoff exponentiel : 5s, 10s, 20s...
+          const delay = Math.min(5_000 * 2 ** (retryCount - 1), 60_000);
+          timeoutId = setTimeout(poll, delay);
+        } else {
+          console.warn("Polling suspendu après trop d'échecs.");
+        }
       }
+    };
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    poll();
 
-      const d = await response.json();
-      setUnread(d.count || 0);
-      if (onUnreadCount) onUnreadCount(d.count || 0);
-      
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error("Polling error:", err);
-      }
-    }
-  };
-
-  poll();
-  const id = setInterval(poll, 30_000);
-
-  return () => {
-    controller.abort(); // Cancels the pending fetch if the component unmounts
-    clearInterval(id);
-  };
-}, [token, API]); // Added API to dependencies
+    return () => {
+      controller.abort();
+      clearTimeout(timeoutId);
+    };
+  }, [token, API]); // Added API to dependencies
 
   // Charger auto si mode page
   useEffect(() => {

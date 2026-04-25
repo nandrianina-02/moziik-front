@@ -8,19 +8,28 @@ export function useRealtimeListeners(token, currentSong) {
   const wsRef = useRef(null);
   const reconnectRef = useRef(null);
   const mountedRef = useRef(true);
+  const retryDelay = useRef(2000);
+
 
   const connect = useCallback(() => {
     // Ne pas reconnecter si pas de token ou déjà connecté
     if (!token) return;
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    // const ws = new WebSocket(`${WS_URL}/ws/listeners`);
+    const ws = new WebSocket(
+      `${WS_URL}/ws/listeners?token=${encodeURIComponent(token)}`
+    );
+    wsRef.current = ws;
 
     try {
-      const ws = new WebSocket(`${WS_URL}/ws/listeners`);
-      wsRef.current = ws;
 
       ws.onopen = () => {
-        if (!mountedRef.current) return;
-        setConnected(true);
+
+        if (!mountedRef.current) {
+          ws.close(); // ← fermer proprement si déjà démonté
+          return;
+        }
         if (currentSong) {
           ws.send(JSON.stringify({
             type: 'join', token,
@@ -30,6 +39,8 @@ export function useRealtimeListeners(token, currentSong) {
             image: currentSong.image,
           }));
         }
+        setConnected(true);
+        retryDelay.current = 2000;
       };
 
       ws.onmessage = (e) => {
@@ -40,11 +51,13 @@ export function useRealtimeListeners(token, currentSong) {
         } catch {}
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (!mountedRef.current) return;
         setConnected(false);
-        // Reconnexion après 10s (pas 5s pour éviter le flood)
-        reconnectRef.current = setTimeout(connect, 10000);
+        // Ne pas reconnecter sur fermeture normale (1000) ou auth échouée (4001)
+        if (event.code === 1000 || event.code === 4001) return;
+        reconnectRef.current = setTimeout(connect, retryDelay.current);
+        retryDelay.current = Math.min(retryDelay.current * 2, 60000);
       };
 
       ws.onerror = () => ws.close();
