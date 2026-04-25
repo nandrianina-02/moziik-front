@@ -45,7 +45,7 @@ export const EQ_PRESETS_12 = {
 // ════════════════════════════════════════════
 // INIT EQ 12 BANDES — à appeler dans App.jsx
 // ════════════════════════════════════════════
-export const initEQ12 = (audioRef, eqFiltersRef, audioContextRef) => {
+export const initEQ12 = (audioRef, eqFiltersRef, audioContextRef, onReady) => {
   if (audioContextRef.current || !audioRef.current) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -74,6 +74,7 @@ export const initEQ12 = (audioRef, eqFiltersRef, audioContextRef) => {
 
     // Visualizer canvas (appelé depuis draw loop dans App)
     audioContextRef.current = { ctx, analyser };
+    onReady?.(); // ← notifier App.jsx
   } catch (e) { console.warn('AudioContext init failed:', e); }
 };
 

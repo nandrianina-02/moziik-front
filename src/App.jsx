@@ -16,8 +16,6 @@ import { useRealtimeListeners, ListenersWidget } from './hooks/useRealtimeListen
 import { useMediaSession, useWakeLock, useAppBadge, useOfflineDetection, useAudioCache } from './hooks/usePWA';
 
 import MiniPlayerMobile from './components/player/MiniPlayerMobile';
-import FullPlayerPage from './components/player/FullPlayerPage';
-
 import LoginModal from './components/modals/LoginModal';
 import UploadModal from './components/modals/UploadModal';
 import CreatePlaylistModal from './components/modals/CreatePlaylistModal';
@@ -52,6 +50,8 @@ import { NotificationsPanel, HistoryView, RecommendationsView, SharePageView } f
 import { TrendingView, ListenPartyModal, LoyaltyWidget } from './components/SocialComponents';
 import ArtistAnalyticsView from './views/ArtistAnalyticsView.jsx';
 import AdminLibraryView from './views/AdminLibraryView';
+import FullPlayerPage, { initEQ12, EQ_PRESETS_12 } from './components/player/FullPlayerPage';
+
 
 const DashboardView     = lazy(() => import('./views/EnhancedDashboardView'));
 const PublicProfileView = lazy(() => import('./views/PublicProfileView'));
@@ -121,15 +121,12 @@ const AppInner = () => {
   const audioRef        = useRef(null);
   const canvasRef       = useRef(null);
   const audioContextRef = useRef(null);
-  const bassFilterRef   = useRef(null);
-  const midFilterRef    = useRef(null);
-  const trebleFilterRef = useRef(null);
   const sleepRef        = useRef(null);
   const playCountedRef  = useRef(false);
   const queueRef        = useRef(queue); // FIX: évite les closures dans handleNext
   const shuffleHistoryRef = useRef(new Set());
   const [cachedIds, setCachedIds] = useState([]);
-  const [eqGains, setEqGains] = useState([0,0,0,0,0,0,0,0,0,0]);
+  const [eqGains, setEqGains] = useState(Array(12).fill(0));
   const eqFiltersRef = useRef([]);
 
   const tokenRef = useRef(token);
@@ -156,6 +153,29 @@ const AppInner = () => {
     if (hadTerm && !hasTerm && location.pathname === '/') { /* rester sur accueil */ }
     prevSearchRef.current = searchTerm;
   }, [searchTerm]);
+
+  const [activePreset, setActivePreset] = useState('Flat');
+  const setEqBand = useCallback((idx, value) => {
+  setEqGains(prev => {
+    const n = prev.length === 12 ? [...prev] : Array(12).fill(0);
+    n[idx] = value;
+    return n;
+  });
+  if (eqFiltersRef.current[idx]) eqFiltersRef.current[idx].gain.value = value;
+    setActivePreset('');
+  }, [setEqGains]);
+
+  const applyPreset = useCallback((name) => {
+    const gains = EQ_PRESETS_12[name] || Array(12).fill(0);
+    setEqGains(gains);
+    setActivePreset(name);
+    gains.forEach((v, i) => {
+      if (eqFiltersRef.current[i]) eqFiltersRef.current[i].gain.value = v;
+    });
+  }, []);
+
+  const resetEQ = useCallback(() => applyPreset('Flat'), [applyPreset]);
+
 
   // ── FIX: Titre dynamique ──────────────────────────────────────
   useEffect(() => {
@@ -329,37 +349,73 @@ const AppInner = () => {
     } catch {}
   }, []);
 
-  // ── AUDIO ENGINE ─────────────────────────────────────────────
   useEffect(() => {
-    const audio = new Audio(); audio.crossOrigin = 'anonymous'; audioRef.current = audio;
+    const audio = new Audio();
+    audio.crossOrigin = 'anonymous';
+    audioRef.current = audio;
     return () => { audio.pause(); audio.src = ''; };
   }, []);
+  // ── AUDIO ENGINE ─────────────────────────────────────────────
 
-  const initAudioEngine = () => {
-    if (audioContextRef.current || !audioRef.current) return;
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const setStereo = (node) => { node.channelCount = 2; node.channelCountMode = 'explicit'; node.channelInterpretation = 'speakers'; return node; };
-    ctx.destination.channelCount = Math.min(2, ctx.destination.maxChannelCount);
-    const src = ctx.createMediaElementSource(audioRef.current);
-    const analyser = setStereo(ctx.createAnalyser());
-    const bass = setStereo(ctx.createBiquadFilter()); bass.type = 'lowshelf'; bass.frequency.value = 200;
-    const mid  = setStereo(ctx.createBiquadFilter()); mid.type  = 'peaking';  mid.frequency.value  = 1000;
-    const treble = setStereo(ctx.createBiquadFilter()); treble.type = 'highshelf'; treble.frequency.value = 4000;
-    bassFilterRef.current = bass; midFilterRef.current = mid; trebleFilterRef.current = treble;
-    src.connect(bass); bass.connect(mid); mid.connect(treble); treble.connect(analyser); analyser.connect(ctx.destination);
-    analyser.fftSize = 128; audioContextRef.current = { ctx, analyser };
+  const eqGainsRef = useRef(eqGains);
+  const [audioReady, setAudioReady] = useState(false);
+
+  useEffect(() => { eqGainsRef.current = eqGains; }, [eqGains]);
+
+  const initAudioEngine = useCallback(() => {
+    initEQ12(audioRef, eqFiltersRef, audioContextRef, () => setAudioReady(true));
+    eqGainsRef.current.forEach((gain, i) => {
+      if (eqFiltersRef.current[i]) eqFiltersRef.current[i].gain.value = gain;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!audioReady || !canvasRef.current) return;
+    const analyser = audioContextRef.current.analyser;
     const buf = new Uint8Array(analyser.frequencyBinCount);
+    let rafId;
     const draw = () => {
-      requestAnimationFrame(draw);
+      rafId = requestAnimationFrame(draw);
       if (!canvasRef.current) return;
       analyser.getByteFrequencyData(buf);
-      const cv = canvasRef.current; const c = cv.getContext('2d');
+      const cv = canvasRef.current;
+      const c = cv.getContext('2d');
       c.clearRect(0, 0, cv.width, cv.height);
-      const bw = (cv.width / buf.length) * 2.5; let x = 0;
-      buf.forEach(v => { c.fillStyle = `rgb(${v+100},40,40)`; c.fillRect(x, cv.height - (v/255)*cv.height, bw, (v/255)*cv.height); x += bw + 1; });
+      const bw = (cv.width / buf.length) * 2.5;
+      let x = 0;
+      buf.forEach(v => {
+        c.fillStyle = `rgb(${v + 100},40,40)`;
+        c.fillRect(x, cv.height - (v / 255) * cv.height, bw, (v / 255) * cv.height);
+        x += bw + 1;
+      });
     };
     draw();
-  };
+    return () => cancelAnimationFrame(rafId);
+  }, [audioReady]);
+
+  useEffect(() => {
+    if (!audioContextRef.current?.analyser || !canvasRef.current) return;
+    const analyser = audioContextRef.current.analyser;
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    let rafId;
+    const draw = () => {
+      rafId = requestAnimationFrame(draw);
+      if (!canvasRef.current) return;
+      analyser.getByteFrequencyData(buf);
+      const cv = canvasRef.current;
+      const c = cv.getContext('2d');
+      c.clearRect(0, 0, cv.width, cv.height);
+      const bw = (cv.width / buf.length) * 2.5;
+      let x = 0;
+      buf.forEach(v => {
+        c.fillStyle = `rgb(${v + 100},40,40)`;
+        c.fillRect(x, cv.height - (v / 255) * cv.height, bw, (v / 255) * cv.height);
+        x += bw + 1;
+      });
+    };
+    draw();
+    return () => cancelAnimationFrame(rafId);
+  }, [audioContextRef.current]); // se déclenche quand initEQ12 initialise le contexte
 
     
   // ── FIX: handleNext — file d'attente + shuffle + auto-queue ──
@@ -561,15 +617,13 @@ const AppInner = () => {
     currentSong, isPlaying, setIsPlaying, setCurrentSong, currentTime, duration,
     handleNext, handlePrev, isShuffle, setIsShuffle, repeatMode, setRepeatMode,
     toggleLike, volume, setVolume, queue, setQueue, audioRef, initAudioEngine,
-    bassGain, setBassGain, midGain, setMidGain, trebleGain, setTrebleGain,
-    bassFilterRef, midFilterRef, trebleFilterRef,
     playbackRate, setPlaybackRate, sleepTimer, setSleepTimer, sleepRemaining,
     formatTime, canvasRef, audioContextRef, musiques, eqGains, setEqGains, eqFiltersRef,
     token, isLoggedIn,
     onClose: () => setShowFullPlayer(false),
     onOpenListenParty: () => setShowListenParty(true),
   };
-
+  
   return (
     <div className="flex h-screen bg-black text-white font-sans overflow-hidden">
 
@@ -895,41 +949,133 @@ const AppInner = () => {
       {/* EQ Modal */}
       {showEQ && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-150 flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 md:p-8 rounded-3xl w-full max-w-md shadow-2xl">
+          <div className="bg-zinc-900 border border-zinc-800 p-6 md:p-8 rounded-3xl w-full max-w-2xl shadow-2xl">
+
+            {/* En-tête */}
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-black italic flex items-center gap-2"><Sliders className="text-red-600"/> ÉGALISEUR</h3>
-              <button onClick={() => setShowEQ(false)} className="text-zinc-500 hover:text-white p-1 hover:bg-zinc-800 rounded-lg transition"><X size={20}/></button>
+              <h3 className="text-xl font-black italic flex items-center gap-2">
+                <Sliders className="text-red-600"/> ÉGALISEUR
+              </h3>
+              <button onClick={() => setShowEQ(false)} className="text-zinc-500 hover:text-white p-1 hover:bg-zinc-800 rounded-lg transition">
+                <X size={20}/>
+              </button>
             </div>
-            <div className="space-y-6">
-              {[
-                { label:'Graves',  value:bassGain,   set: v => { setBassGain(v);   if (bassFilterRef.current)   bassFilterRef.current.gain.value = v; }, color:'accent-red-600' },
-                { label:'Médiums', value:midGain,    set: v => { setMidGain(v);    if (midFilterRef.current)    midFilterRef.current.gain.value = v; },  color:'accent-yellow-500' },
-                { label:'Aigus',   value:trebleGain, set: v => { setTrebleGain(v); if (trebleFilterRef.current) trebleFilterRef.current.gain.value = v; }, color:'accent-blue-500' },
-              ].map(b => (
-                <div key={b.label}>
-                  <div className="flex justify-between text-xs font-bold mb-2 uppercase tracking-widest"><span>{b.label}</span><span className="text-zinc-400">{b.value} dB</span></div>
-                  <input type="range" min="-12" max="12" step="1" value={b.value} className={`w-full h-1.5 ${b.color} bg-zinc-800 rounded-lg appearance-none cursor-pointer`} onChange={e => b.set(parseInt(e.target.value))}/>
-                </div>
+
+            {/* Presets */}
+            <div className="flex gap-2 flex-wrap mb-6">
+              {Object.keys(EQ_PRESETS_12).map(name => (
+                <button
+                  key={name}
+                  onClick={() => applyPreset(name)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition active:scale-95 ${
+                    activePreset === name
+                      ? 'bg-red-600 text-white'
+                      : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                  }`}
+                >
+                  {name}
+                </button>
               ))}
-              <div className="border-t border-zinc-800 pt-4">
-                <div className="flex justify-between text-xs font-bold mb-2 uppercase tracking-widest"><span className="flex items-center gap-1"><Gauge size={12}/> Vitesse</span><span className="text-zinc-400">{playbackRate}×</span></div>
-                <input type="range" min="0.5" max="2" step="0.25" value={playbackRate} className="w-full h-1.5 accent-purple-500 bg-zinc-800 rounded-lg appearance-none cursor-pointer" onChange={e => setPlaybackRate(parseFloat(e.target.value))}/>
+            </div>
+
+            {/* 12 bandes EQ */}
+            {(() => {
+              const BANDS = [
+                { label: '32',   hz: '32 Hz'   },
+                { label: '64',   hz: '64 Hz'   },
+                { label: '125',  hz: '125 Hz'  },
+                { label: '250',  hz: '250 Hz'  },
+                { label: '500',  hz: '500 Hz'  },
+                { label: '1k',   hz: '1 kHz'   },
+                { label: '2k',   hz: '2 kHz'   },
+                { label: '4k',   hz: '4 kHz'   },
+                { label: '8k',   hz: '8 kHz'   },
+                { label: '10k',  hz: '10 kHz'  },
+                { label: '14k',  hz: '14 kHz'  },
+                { label: '16k',  hz: '16 kHz'  },
+              ];
+              return (
+                <div className="flex items-end justify-between gap-1 mb-2" style={{ height: 160 }}>
+                  {BANDS.map((band, idx) => {
+                    const gain = eqGains[idx] ?? 0;
+                    // Hauteur : gain va de -12 à +12, on mappe sur 0%–100% avec 0dB au centre
+                    const pct = ((gain + 12) / 24) * 100;
+                    return (
+                      <div key={idx} className="flex flex-col items-center gap-1 flex-1">
+                        <span className="text-zinc-500 text-[10px] font-mono tabular-nums"
+                          style={{ minWidth: 28, textAlign: 'center' }}>
+                          {gain > 0 ? `+${gain}` : gain}
+                        </span>
+                        <div className="relative flex-1 w-full flex justify-center" style={{ height: 108 }}>
+                          <input
+                            type="range"
+                            orient="vertical"
+                            min="-12" max="12" step="1"
+                            value={gain}
+                            onChange={e => setEqBand(idx, parseInt(e.target.value))}
+                            className="appearance-none cursor-pointer accent-red-600"
+                            style={{
+                              writingMode: 'vertical-lr',
+                              direction: 'rtl',
+                              width: 20,
+                              height: 108,
+                              background: 'transparent',
+                            }}
+                          />
+                        </div>
+                        <span className="text-zinc-500 text-[10px] font-bold">{band.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {/* Repères dB */}
+            <div className="flex justify-between text-[10px] text-zinc-600 font-mono mb-6 px-1">
+              <span>+12</span><span>0</span><span>−12</span>
+            </div>
+
+            {/* Vitesse + Timer */}
+            <div className="grid grid-cols-2 gap-4 border-t border-zinc-800 pt-4">
+              <div>
+                <div className="flex justify-between text-xs font-bold mb-2 uppercase tracking-widest">
+                  <span className="flex items-center gap-1"><Gauge size={12}/> Vitesse</span>
+                  <span className="text-zinc-400">{playbackRate}×</span>
+                </div>
+                <input type="range" min="0.5" max="2" step="0.25" value={playbackRate}
+                  className="w-full h-1.5 accent-purple-500 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                  onChange={e => setPlaybackRate(parseFloat(e.target.value))}/>
               </div>
-              <div className="border-t border-zinc-800 pt-4">
-                <div className="flex justify-between text-xs font-bold mb-3 uppercase tracking-widest"><span className="flex items-center gap-1"><Timer size={12}/> Timer</span>{sleepRemaining && <span className="text-green-400">{Math.floor(sleepRemaining/60)}:{String(sleepRemaining%60).padStart(2,'0')}</span>}</div>
-                <div className="flex gap-2 flex-wrap">
+              <div>
+                <div className="flex justify-between text-xs font-bold mb-2 uppercase tracking-widest">
+                  <span className="flex items-center gap-1"><Timer size={12}/> Timer</span>
+                  {sleepRemaining && (
+                    <span className="text-green-400">
+                      {Math.floor(sleepRemaining/60)}:{String(sleepRemaining%60).padStart(2,'0')}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-1 flex-wrap">
                   {[0,15,30,45,60].map(m => (
-                    <button key={m} onClick={() => setSleepTimer(m)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition active:scale-95 ${sleepTimer===m ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>
-                      {m===0 ? 'Off' : `${m} min`}
+                    <button key={m} onClick={() => setSleepTimer(m)}
+                      className={`px-2 py-1 rounded-lg text-xs font-bold transition active:scale-95 ${
+                        sleepTimer===m ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                      }`}>
+                      {m===0 ? 'Off' : `${m}m`}
                     </button>
                   ))}
                 </div>
               </div>
-              <button onClick={() => { setBassGain(0); setMidGain(0); setTrebleGain(0); setPlaybackRate(1); [bassFilterRef,midFilterRef,trebleFilterRef].forEach(r => { if (r.current) r.current.gain.value = 0; }); }}
-                className="w-full py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-xs font-bold rounded-xl transition">
-                Réinitialiser
-              </button>
             </div>
+
+            {/* Reset */}
+            <button
+              onClick={resetEQ}
+              className="w-full mt-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-xs font-bold rounded-xl transition"
+            >
+              Réinitialiser
+            </button>
           </div>
         </div>
       )}
