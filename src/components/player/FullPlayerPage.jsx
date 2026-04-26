@@ -4,47 +4,43 @@ import {
   Shuffle, Repeat, Repeat1, Heart, Volume2,
   ListMusic, Sliders, X, Gauge, Timer,
   GripVertical, RotateCcw, Radio, Sparkles, Tag,
-  Check, Zap
 } from 'lucide-react';
 import { LyricsDisplay, LyricsEditor } from '../music/LyricsDisplay';
 import { API } from '../../config/api';
 
 // ════════════════════════════════════════════
-// FIX: EQ à 12 BANDES — unifié App.jsx + FullPlayerPage
+// EQ 12 BANDES
 // ════════════════════════════════════════════
 export const EQ_BANDS_12 = [
-  { hz: 32,    label: '32',   type: 'lowshelf',  color: '#ef4444' },
-  { hz: 64,    label: '64',   type: 'peaking',   color: '#f97316' },
-  { hz: 125,   label: '125',  type: 'peaking',   color: '#f59e0b' },
-  { hz: 250,   label: '250',  type: 'peaking',   color: '#eab308' },
-  { hz: 500,   label: '500',  type: 'peaking',   color: '#84cc16' },
-  { hz: 1000,  label: '1k',   type: 'peaking',   color: '#22c55e' },
-  { hz: 2000,  label: '2k',   type: 'peaking',   color: '#14b8a6' },
-  { hz: 3500,  label: '3.5k', type: 'peaking',   color: '#06b6d4' },
-  { hz: 6000,  label: '6k',   type: 'peaking',   color: '#3b82f6' },
-  { hz: 8000,  label: '8k',   type: 'peaking',   color: '#6366f1' },
-  { hz: 12000, label: '12k',  type: 'peaking',   color: '#8b5cf6' },
-  { hz: 16000, label: '16k',  type: 'highshelf', color: '#ec4899' },
+  { hz: 32,    label: '32',   type: 'lowshelf',  color: '#ff6b6b' },
+  { hz: 64,    label: '64',   type: 'peaking',   color: '#ff8e53' },
+  { hz: 125,   label: '125',  type: 'peaking',   color: '#ffd93d' },
+  { hz: 250,   label: '250',  type: 'peaking',   color: '#c8f557' },
+  { hz: 500,   label: '500',  type: 'peaking',   color: '#6bcb77' },
+  { hz: 1000,  label: '1k',   type: 'peaking',   color: '#4dd9ac' },
+  { hz: 2000,  label: '2k',   type: 'peaking',   color: '#4dc9f6' },
+  { hz: 3500,  label: '3.5k', type: 'peaking',   color: '#4d79f6' },
+  { hz: 6000,  label: '6k',   type: 'peaking',   color: '#7c6df6' },
+  { hz: 8000,  label: '8k',   type: 'peaking',   color: '#a06df6' },
+  { hz: 12000, label: '12k',  type: 'peaking',   color: '#c56ef6' },
+  { hz: 16000, label: '16k',  type: 'highshelf', color: '#f06ef6' },
 ];
 
 export const EQ_PRESETS_12 = {
-  Flat:     [0,0,0,0,0,0,0,0,0,0,0,0],
-  Bass:     [9,7,5,3,1,0,0,0,0,0,0,0],
-  Treble:   [0,0,0,0,0,0,2,3,5,6,8,9],
-  Vocal:    [-2,-1,0,2,5,6,5,3,1,0,-1,-2],
-  Pop:      [-1,0,2,4,5,4,3,2,1,0,-1,-1],
-  Rock:     [6,5,3,1,-1,0,1,3,5,6,6,5],
-  Jazz:     [3,2,1,3,4,4,3,2,2,3,3,2],
-  Club:     [0,0,5,5,4,3,3,4,5,5,0,0],
-  Classical:[0,0,0,0,0,0,0,0,-2,-3,-4,-5],
-  Dance:    [7,5,2,0,-1,-2,0,3,5,6,6,5],
-  Latin:    [4,3,0,0,-1,-1,0,1,3,4,5,4],
-  Lounge:   [-3,-2,0,2,3,2,1,0,-1,-2,-2,-3],
+  Flat:      [0,0,0,0,0,0,0,0,0,0,0,0],
+  Bass:      [9,7,5,3,1,0,0,0,0,0,0,0],
+  Treble:    [0,0,0,0,0,0,2,3,5,6,8,9],
+  Vocal:     [-2,-1,0,2,5,6,5,3,1,0,-1,-2],
+  Pop:       [-1,0,2,4,5,4,3,2,1,0,-1,-1],
+  Rock:      [6,5,3,1,-1,0,1,3,5,6,6,5],
+  Jazz:      [3,2,1,3,4,4,3,2,2,3,3,2],
+  Club:      [0,0,5,5,4,3,3,4,5,5,0,0],
+  Classical: [0,0,0,0,0,0,0,0,-2,-3,-4,-5],
+  Dance:     [7,5,2,0,-1,-2,0,3,5,6,6,5],
+  Latin:     [4,3,0,0,-1,-1,0,1,3,4,5,4],
+  Lounge:    [-3,-2,0,2,3,2,1,0,-1,-2,-2,-3],
 };
 
-// ════════════════════════════════════════════
-// INIT EQ 12 BANDES — à appeler dans App.jsx
-// ════════════════════════════════════════════
 export const initEQ12 = (audioRef, eqFiltersRef, audioContextRef, onReady) => {
   if (audioContextRef.current || !audioRef.current) return;
   try {
@@ -53,46 +49,279 @@ export const initEQ12 = (audioRef, eqFiltersRef, audioContextRef, onReady) => {
     const src      = ctx.createMediaElementSource(audioRef.current);
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 256;
-
-    // Créer 12 filtres BiquadFilter
     const filters = EQ_BANDS_12.map(band => {
       const f = ctx.createBiquadFilter();
-      f.type      = band.type;
+      f.type = band.type;
       f.frequency.value = band.hz;
-      f.gain.value      = 0;
+      f.gain.value = 0;
       if (band.type === 'peaking') f.Q.value = 1.2;
       return f;
     });
-
-    // Chaîner : src → f0 → f1 → ... → f11 → analyser → destination
     src.connect(filters[0]);
     filters.forEach((f, i) => { if (i < filters.length - 1) f.connect(filters[i + 1]); });
     filters[filters.length - 1].connect(analyser);
     analyser.connect(ctx.destination);
-
     eqFiltersRef.current = filters;
-
-    // Visualizer canvas (appelé depuis draw loop dans App)
     audioContextRef.current = { ctx, analyser };
-    onReady?.(); // ← notifier App.jsx
+    onReady?.();
   } catch (e) { console.warn('AudioContext init failed:', e); }
 };
 
 // ════════════════════════════════════════════
-// FULL PLAYER PAGE
+// STYLES INJECTÉS (glass morphism + animations)
+// ════════════════════════════════════════════
+const STYLES = `
+  @keyframes fp-spin { to { transform: rotate(360deg); } }
+  @keyframes fp-pulse-ring { 0%,100%{opacity:.15;transform:scale(1)} 50%{opacity:.35;transform:scale(1.04)} }
+  @keyframes fp-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+  @keyframes fp-shimmer { 0%{background-position:200% center} 100%{background-position:-200% center} }
+  @keyframes fp-bar-in { from{transform:scaleY(0)} to{transform:scaleY(1)} }
+
+  .fp-glass {
+    background: rgba(255,255,255,0.04);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .fp-glass-strong {
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+  .fp-cover-glow {
+    animation: fp-pulse-ring 3s ease-in-out infinite;
+  }
+  .fp-playing .fp-cover-img {
+    animation: fp-float 6s ease-in-out infinite;
+  }
+  .fp-btn-play {
+    position: relative;
+    transition: transform .15s cubic-bezier(.34,1.56,.64,1);
+  }
+  .fp-btn-play:active { transform: scale(.9); }
+  .fp-btn-play::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    background: conic-gradient(from var(--a,0deg), #6366f1, #a855f7, #ec4899, #f97316, #6366f1);
+    animation: fp-spin 4s linear infinite;
+    opacity: 0;
+    transition: opacity .3s;
+  }
+  .fp-playing .fp-btn-play::before { opacity: 1; }
+  .fp-progress-bar {
+    position: relative;
+    height: 3px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 99px;
+    cursor: pointer;
+    overflow: hidden;
+  }
+  .fp-progress-bar::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.05);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform .1s;
+  }
+  .fp-progress-bar:hover::after { transform: scaleX(1); }
+  .fp-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, rgba(255,255,255,.6), rgba(255,255,255,1));
+    border-radius: 99px;
+    transition: width .1s linear;
+    position: relative;
+  }
+  .fp-progress-fill::after {
+    content: '';
+    position: absolute;
+    right: -4px;
+    top: 50%;
+    transform: translateY(-50%) scale(0);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 8px rgba(255,255,255,.6);
+    transition: transform .2s;
+  }
+  .fp-progress-bar:hover .fp-progress-fill::after { transform: translateY(-50%) scale(1); }
+  .fp-vol-track {
+    position: relative;
+    flex: 1;
+    height: 3px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 99px;
+    cursor: pointer;
+  }
+  .fp-vol-fill {
+    height: 100%;
+    background: rgba(255,255,255,.45);
+    border-radius: 99px;
+    pointer-events: none;
+  }
+  .fp-vol-input {
+    position: absolute;
+    inset: -8px 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+  }
+  .fp-eq-bar-wrap {
+    position: relative;
+    width: 100%;
+    border-radius: 99px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.06);
+  }
+  .fp-eq-fill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-radius: 2px;
+    transition: height .12s, top .12s, background .3s;
+  }
+  .fp-eq-zero {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(255,255,255,0.2);
+    top: 50%;
+  }
+  .fp-eq-thumb {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid rgba(255,255,255,0.3);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    transition: top .12s;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .fp-eq-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: ns-resize;
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 100%;
+    height: 100%;
+  }
+  .fp-tab-btn {
+    position: relative;
+    flex: 1;
+    padding: 14px 0;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.3);
+    transition: color .2s;
+    border: none;
+    background: none;
+    cursor: pointer;
+  }
+  .fp-tab-btn.active { color: rgba(255,255,255,0.9); }
+  .fp-tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 20%;
+    right: 20%;
+    height: 2px;
+    border-radius: 99px;
+    background: linear-gradient(90deg,#6366f1,#a855f7,#ec4899);
+  }
+  .fp-ctrl-btn {
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    transition: transform .15s, background .15s;
+    cursor: pointer;
+    background: none; border: none;
+  }
+  .fp-ctrl-btn:hover { background: rgba(255,255,255,0.08); }
+  .fp-ctrl-btn:active { transform: scale(.88); }
+  .fp-queue-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid transparent;
+    transition: background .15s, border-color .15s;
+    cursor: grab;
+  }
+  .fp-queue-item:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.08); }
+  .fp-queue-item.drag-over { background: rgba(139,92,246,0.15); border-color: rgba(139,92,246,0.4); }
+  .fp-preset-btn {
+    padding: 4px 10px;
+    border-radius: 99px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.4);
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .fp-preset-btn:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8); }
+  .fp-preset-btn.active {
+    background: linear-gradient(135deg,#6366f1,#a855f7);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(99,102,241,.4);
+  }
+  .fp-mood-tag {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 9px; font-weight: 600; letter-spacing: .05em;
+    padding: 3px 8px; border-radius: 99px;
+    background: rgba(255,255,255,0.07);
+    color: rgba(255,255,255,0.4);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .fp-smart-btn {
+    display: flex; align-items: center; gap: 5px;
+    padding: 5px 10px; border-radius: 10px; font-size: 10px; font-weight: 700;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.35);
+    cursor: pointer; transition: all .2s;
+  }
+  .fp-smart-btn.active {
+    background: rgba(139,92,246,0.2);
+    border-color: rgba(139,92,246,0.4);
+    color: #c4b5fd;
+    box-shadow: 0 0 16px rgba(139,92,246,0.15);
+  }
+  .fp-section-label {
+    font-size: 9px; font-weight: 800; letter-spacing: .15em;
+    text-transform: uppercase; color: rgba(255,255,255,0.2);
+  }
+`;
+
+// ════════════════════════════════════════════
+// FULL PLAYER PAGE — VERSION PRO
 // ════════════════════════════════════════════
 const FullPlayerPage = ({
   currentSong, isPlaying, setIsPlaying, setCurrentSong, currentTime, duration,
   handleNext, handlePrev, isShuffle, setIsShuffle, repeatMode, setRepeatMode,
   toggleLike, volume, setVolume, queue, setQueue, musiques,
   audioRef, initAudioEngine, audioContextRef,
-  // FIX: eqGains doit avoir 12 éléments (pas 10)
   eqGains, setEqGains, eqFiltersRef,
   playbackRate, setPlaybackRate, sleepTimer, setSleepTimer, sleepRemaining,
   formatTime, onClose, canvasRef,
   token, isLoggedIn,
   onOpenListenParty,
-  // FIX: mode intelligent par moods
   smartMode, setSmartMode,
 }) => {
   const [activeTab, setActiveTab] = useState('player');
@@ -106,13 +335,23 @@ const FullPlayerPage = ({
   const isArtist     = role === 'artist';
   const userArtistId = localStorage.getItem('moozik_artisteId');
 
-  // FIX: S'assurer que eqGains a bien 12 éléments
   const safeEqGains = useMemo(() => {
     if (!eqGains || eqGains.length < 12) return Array(12).fill(0);
     return eqGains;
   }, [eqGains]);
 
-  // ── Bucket rétention ──
+  // Injecter styles une seule fois
+  useEffect(() => {
+    const id = 'fp-styles';
+    if (!document.getElementById(id)) {
+      const s = document.createElement('style');
+      s.id = id;
+      s.textContent = STYLES;
+      document.head.appendChild(s);
+    }
+  }, []);
+
+  // Bucket rétention
   const sentBuckets = useRef(new Set());
   useEffect(() => {
     if (!currentSong || !duration) return;
@@ -127,15 +366,14 @@ const FullPlayerPage = ({
   }, [Math.floor(currentTime / 5)]);
   useEffect(() => { sentBuckets.current.clear(); }, [currentSong?._id]);
 
-  // ── Auto-queue initial ──
+  // Auto-queue
   useEffect(() => {
-    if (!musiques?.length || !currentSong) return;
-    if (queue.length > 0) return;
+    if (!musiques?.length || !currentSong || queue.length > 0) return;
     const idx = musiques.findIndex(s => s._id === currentSong._id);
     if (idx !== -1) setQueue([...musiques.slice(idx + 1), ...musiques.slice(0, idx)]);
   }, [currentSong?._id]);
 
-  // ── EQ handlers ──
+  // EQ handlers
   const setEqBand = useCallback((idx, value) => {
     setEqGains(prev => {
       const n = prev.length === 12 ? [...prev] : Array(12).fill(0);
@@ -146,165 +384,179 @@ const FullPlayerPage = ({
     setActivePreset('');
   }, [setEqGains, eqFiltersRef]);
 
-  const applyPreset = (name) => {
+  const applyPreset = useCallback((name) => {
     const gains = EQ_PRESETS_12[name] || Array(12).fill(0);
     setEqGains(gains);
     setActivePreset(name);
     gains.forEach((v, i) => { if (eqFiltersRef.current[i]) eqFiltersRef.current[i].gain.value = v; });
-  };
+  }, [setEqGains, eqFiltersRef]);
 
-  const resetEQ = () => applyPreset('Flat');
+  const resetEQ = useCallback(() => applyPreset('Flat'), [applyPreset]);
 
-  // ── Drag queue ──
+  // Drag queue
   const onDragStart = (i) => { dragIdx.current = i; };
   const onDragOver  = (e, i) => { e.preventDefault(); setDragOver(i); };
   const onDrop = (i) => {
     if (dragIdx.current === null || dragIdx.current === i) { setDragOver(null); return; }
-    const arr = [...queue]; const [moved] = arr.splice(dragIdx.current, 1); arr.splice(i, 0, moved);
+    const arr = [...queue];
+    const [moved] = arr.splice(dragIdx.current, 1);
+    arr.splice(i, 0, moved);
     setQueue(arr); dragIdx.current = null; setDragOver(null);
   };
 
-  // ── Seek ──
-  const seek      = (e) => { const r = e.currentTarget.getBoundingClientRect(); if (audioRef.current) audioRef.current.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration; };
-  const seekTouch = (e) => { const r = e.currentTarget.getBoundingClientRect(); if (audioRef.current) audioRef.current.currentTime = Math.max(0, Math.min(1, (e.touches[0].clientX - r.left) / r.width)) * duration; };
+  // Seek
+  const seek = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (audioRef.current) audioRef.current.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration;
+  };
+  const seekTouch = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (audioRef.current) audioRef.current.currentTime = Math.max(0, Math.min(1, (e.touches[0].clientX - r.left) / r.width)) * duration;
+  };
 
-  // ── Mode intelligent (smart mode par moods) ──
   const currentMoods = currentSong?.moods || [];
   const smartQueueCount = useMemo(() => {
     if (!smartMode || !musiques?.length || !currentMoods.length) return 0;
     return musiques.filter(s => s._id !== currentSong?._id && s.moods?.some(m => currentMoods.includes(m))).length;
   }, [smartMode, musiques, currentSong, currentMoods]);
 
-  // ── EQ Bar verticale (12 bandes) ──
+  // ── EQ Bar ──
   const EQBar = ({ band, idx, value }) => {
-    const clampedValue = Math.max(-12, Math.min(12, isNaN(value) ? 0 : value));
+    const v = Math.max(-12, Math.min(12, isNaN(value) ? 0 : value));
+    const positivePct = v > 0 ? (v / 12) * 50 : 0;
+    const negativePct = v < 0 ? (Math.abs(v) / 12) * 50 : 0;
+    const thumbTop = `calc(50% - ${(v / 12) * 50}% - 6px)`;
     return (
-      <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
-        <span className="text-[7px] tabular-nums text-white/35 h-3 leading-none shrink-0 font-mono">
-          {clampedValue > 0 ? `+${clampedValue}` : clampedValue !== 0 ? clampedValue : '·'}
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, flex:1, minWidth:0 }}>
+        <span style={{ fontSize:8, fontFamily:'monospace', color:'rgba(255,255,255,0.3)', height:14, lineHeight:'14px', flexShrink:0 }}>
+          {v > 0 ? `+${v}` : v !== 0 ? v : '·'}
         </span>
-        <div className="relative w-full flex justify-center flex-1" style={{ minHeight: 72 }}>
-          <div className="relative w-3.5 h-full bg-white/8 rounded-full overflow-visible flex items-center">
-            {/* Ligne zéro */}
-            <div className="absolute left-0 right-0 h-px bg-white/20 z-10" style={{ top: '50%' }}/>
-            {/* Rempli positif */}
-            {clampedValue > 0 && (
-              <div className="absolute left-0 right-0 rounded-t-sm transition-all duration-150"
-                style={{ background: band.color, opacity: 0.75, bottom: '50%', height: `${(clampedValue / 12) * 50}%` }}/>
-            )}
-            {/* Rempli négatif */}
-            {clampedValue < 0 && (
-              <div className="absolute left-0 right-0 rounded-b-sm transition-all duration-150"
-                style={{ background: band.color, opacity: 0.45, top: '50%', height: `${(Math.abs(clampedValue) / 12) * 50}%` }}/>
-            )}
-            {/* Curseur */}
-            <div className="absolute left-1/2 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-white/70 bg-zinc-900 z-20 shadow transition-all duration-150"
-              style={{ top: `calc(50% - ${(clampedValue / 12) * 50}% - 6px)` }}/>
-            {/* Input vertical */}
-            <input type="range" min="-12" max="12" step="1" value={clampedValue}
-              onChange={e => setEqBand(idx, parseInt(e.target.value))}
-              className="absolute inset-0 opacity-0 cursor-pointer"
-              style={{ writingMode: 'vertical-lr', direction: 'rtl', width: '100%', height: '100%' }}/>
-          </div>
+        <div className="fp-eq-bar-wrap" style={{ flex:1, minHeight:80 }}>
+          <div className="fp-eq-zero"/>
+          {v > 0 && (
+            <div className="fp-eq-fill" style={{
+              background: `${band.color}cc`,
+              bottom: '50%',
+              height: `${positivePct}%`,
+              boxShadow: `0 0 8px ${band.color}66`,
+            }}/>
+          )}
+          {v < 0 && (
+            <div className="fp-eq-fill" style={{
+              background: `${band.color}77`,
+              top: '50%',
+              height: `${negativePct}%`,
+            }}/>
+          )}
+          <div className="fp-eq-thumb" style={{ top: thumbTop }}/>
+          <input
+            type="range" min="-12" max="12" step="1" value={v}
+            onChange={e => setEqBand(idx, parseInt(e.target.value))}
+            className="fp-eq-input"
+          />
         </div>
-        <span className="text-[7px] text-white/25 shrink-0 font-mono">{band.label}</span>
+        <span style={{ fontSize:8, fontFamily:'monospace', color:'rgba(255,255,255,0.2)', flexShrink:0 }}>{band.label}</span>
       </div>
     );
   };
 
   // ── EQ Content ──
   const EQContent = () => (
-    <div className="flex flex-col gap-3 px-3 pb-4 pt-2">
-      {/* Header + mode intelligent */}
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] font-black uppercase tracking-widest text-white/50 flex items-center gap-1.5">
-          <Sliders size={11} className="text-blue-400"/> 12 bandes
-        </p>
-        <div className="flex items-center gap-2">
-          {/* FIX: Mode intelligent par moods */}
+    <div style={{ display:'flex', flexDirection:'column', gap:16, padding:'12px 16px 20px' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <Sliders size={11} color="#818cf8"/>
+          <span className="fp-section-label">Égaliseur 12 bandes</span>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
           <button
             onClick={() => setSmartMode?.(v => !v)}
-            title="Mode intelligent — joue des titres similaires par mood"
-            className={`flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-lg transition ${
-              smartMode
-                ? 'bg-violet-500/25 text-violet-300 ring-1 ring-violet-400/40'
-                : 'bg-white/5 text-white/30 hover:text-white/60 hover:bg-white/10'
-            }`}>
-            <Sparkles size={9}/> Smart {smartMode && currentMoods.length > 0 && `(${smartQueueCount})`}
+            className={`fp-smart-btn ${smartMode ? 'active' : ''}`}
+          >
+            <Sparkles size={9}/> Smart
+            {smartMode && currentMoods.length > 0 && ` (${smartQueueCount})`}
           </button>
-          <button onClick={resetEQ}
-            className="flex items-center gap-1 text-[9px] text-white/30 hover:text-white px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 transition">
+          <button onClick={resetEQ} style={{ display:'flex', alignItems:'center', gap:4, padding:'5px 10px', borderRadius:10, fontSize:10, fontWeight:700, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.04)', color:'rgba(255,255,255,0.35)', cursor:'pointer' }}>
             <RotateCcw size={9}/> Reset
           </button>
         </div>
       </div>
 
-      {/* Mode intelligent info */}
       {smartMode && (
-        <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl px-3 py-2">
-          <p className="text-[10px] text-violet-300 font-bold flex items-center gap-1.5">
+        <div style={{ background:'rgba(139,92,246,0.1)', border:'1px solid rgba(139,92,246,0.2)', borderRadius:12, padding:'10px 14px' }}>
+          <p style={{ fontSize:10, fontWeight:700, color:'#c4b5fd', display:'flex', alignItems:'center', gap:5 }}>
             <Sparkles size={10}/> Mode intelligent actif
           </p>
-          {currentMoods.length > 0 ? (
-            <p className="text-[9px] text-violet-400/60 mt-0.5">
-              Moods : {currentMoods.join(', ')} · {smartQueueCount} titres similaires disponibles
-            </p>
-          ) : (
-            <p className="text-[9px] text-violet-400/40 mt-0.5">
-              Ce titre n'a pas de moods — ajoutez-en dans la bibliothèque admin
-            </p>
-          )}
+          <p style={{ fontSize:9, color:'rgba(196,181,253,0.5)', marginTop:3 }}>
+            {currentMoods.length > 0
+              ? `Moods : ${currentMoods.join(', ')} · ${smartQueueCount} titres similaires`
+              : 'Aucun mood — ajoutez-en dans la bibliothèque admin'}
+          </p>
         </div>
       )}
 
-      {/* Préréglages — 2 lignes sur mobile */}
-      <div className="flex gap-1 flex-wrap">
+      {/* Presets */}
+      <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
         {Object.keys(EQ_PRESETS_12).map(name => (
-          <button key={name} onClick={() => applyPreset(name)}
-            className={`px-2 py-1 rounded-full text-[9px] font-bold transition ${
-              activePreset === name ? 'bg-blue-500 text-white' : 'bg-white/8 text-white/40 hover:bg-white/15 hover:text-white'
-            }`}>
+          <button
+            key={name}
+            onClick={() => applyPreset(name)}
+            className={`fp-preset-btn ${activePreset === name ? 'active' : ''}`}
+          >
             {name}
           </button>
         ))}
       </div>
 
-      {/* FIX: 12 barres EQ verticales */}
-      <div className="flex gap-1 w-full" style={{ height: 130 }}>
+      {/* Barres EQ */}
+      <div style={{ display:'flex', gap:4, height:130 }}>
         {EQ_BANDS_12.map((band, idx) => (
           <EQBar key={band.hz} band={band} idx={idx} value={safeEqGains[idx] ?? 0}/>
         ))}
       </div>
 
       {/* Vitesse + Timer */}
-      <div className="border-t border-white/8 pt-3 space-y-3">
+      <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:16, display:'flex', flexDirection:'column', gap:16 }}>
         <div>
-          <div className="flex justify-between text-[10px] text-white/40 mb-2 font-bold uppercase tracking-widest">
-            <span className="flex items-center gap-1"><Gauge size={10}/> Vitesse</span>
-            <span className="text-white/60">{playbackRate}×</span>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+            <span className="fp-section-label" style={{ display:'flex', alignItems:'center', gap:5 }}>
+              <Gauge size={10}/> Vitesse
+            </span>
+            <span style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.5)', fontFamily:'monospace' }}>{playbackRate}×</span>
           </div>
-          <div className="relative h-1.5 bg-white/10 rounded-full group">
-            <div className="absolute top-0 left-0 h-full bg-purple-500/70 rounded-full"
-              style={{ width: `${((playbackRate - 0.5) / 1.5) * 100}%` }}/>
+          <div style={{ position:'relative' }}>
+            <div style={{ height:3, background:'rgba(255,255,255,0.08)', borderRadius:99, overflow:'hidden' }}>
+              <div style={{ height:'100%', width:`${((playbackRate-0.5)/1.5)*100}%`, background:'linear-gradient(90deg,#818cf8,#a855f7)', borderRadius:99 }}/>
+            </div>
             <input type="range" min="0.5" max="2" step="0.25" value={playbackRate}
               onChange={e => setPlaybackRate(parseFloat(e.target.value))}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
+              style={{ position:'absolute', inset:'-8px 0', opacity:0, cursor:'pointer', width:'100%' }}/>
           </div>
-          <div className="flex justify-between text-[9px] text-white/15 mt-1">
+          <div style={{ display:'flex', justifyContent:'space-between', marginTop:5, fontSize:9, color:'rgba(255,255,255,0.2)', fontFamily:'monospace' }}>
             {['0.5×','1×','1.5×','2×'].map(v => <span key={v}>{v}</span>)}
           </div>
         </div>
+
         <div>
-          <div className="flex justify-between text-[10px] text-white/40 mb-2 font-bold uppercase tracking-widest">
-            <span className="flex items-center gap-1"><Timer size={10}/> Minuterie</span>
-            {sleepRemaining && <span className="text-green-400">{Math.floor(sleepRemaining/60)}:{String(sleepRemaining%60).padStart(2,'0')}</span>}
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+            <span className="fp-section-label" style={{ display:'flex', alignItems:'center', gap:5 }}>
+              <Timer size={10}/> Minuterie
+            </span>
+            {sleepRemaining && (
+              <span style={{ fontSize:11, fontWeight:700, color:'#4ade80', fontFamily:'monospace' }}>
+                {Math.floor(sleepRemaining/60)}:{String(sleepRemaining%60).padStart(2,'0')}
+              </span>
+            )}
           </div>
-          <div className="grid grid-cols-5 gap-1.5">
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:6 }}>
             {[0,15,30,45,60].map(m => (
-              <button key={m} onClick={() => setSleepTimer(m)}
-                className={`py-1.5 rounded-xl text-[10px] font-bold transition ${
-                  sleepTimer === m ? 'bg-blue-500 text-white' : 'bg-white/8 text-white/35 hover:bg-white/15'
-                }`}>
+              <button key={m} onClick={() => setSleepTimer(m)} style={{
+                padding:'8px 0', borderRadius:10, fontSize:10, fontWeight:700, cursor:'pointer',
+                border: sleepTimer===m ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.07)',
+                background: sleepTimer===m ? 'rgba(99,102,241,0.25)' : 'rgba(255,255,255,0.04)',
+                color: sleepTimer===m ? '#a5b4fc' : 'rgba(255,255,255,0.3)',
+                transition: 'all .15s',
+              }}>
                 {m === 0 ? 'Off' : `${m}'`}
               </button>
             ))}
@@ -315,59 +567,45 @@ const FullPlayerPage = ({
   );
 
   // ── Queue Content ──
-  // FIX: overflow-y-auto isolé sur la liste, pas sur le conteneur global
   const QueueContent = () => (
-    <div className="flex flex-col h-full" style={{ minHeight: 0 }}>
-      <div className="flex items-center justify-between px-4 py-2.5 shrink-0 border-b border-white/8">
-        <p className="text-[10px] font-black uppercase tracking-widest text-white/40 flex items-center gap-1.5">
-          <ListMusic size={12} className="text-violet-400"/> File d'attente
-          <span className="bg-white/10 px-1.5 py-0.5 rounded-full">{queue.length}</span>
-        </p>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <ListMusic size={13} color="#a78bfa"/>
+          <span className="fp-section-label">File d'attente</span>
+          <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:99, background:'rgba(255,255,255,0.07)', color:'rgba(255,255,255,0.4)' }}>{queue.length}</span>
+        </div>
         {queue.length > 0 && (
-          <button onClick={() => setQueue([])}
-            className="text-[10px] text-white/25 hover:text-red-400 transition px-2 py-1 rounded-lg hover:bg-red-500/10">
+          <button onClick={() => setQueue([])} style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.25)', border:'none', background:'none', cursor:'pointer', padding:'4px 8px', borderRadius:8, transition:'color .15s' }}
+            onMouseEnter={e => e.target.style.color='#f87171'}
+            onMouseLeave={e => e.target.style.color='rgba(255,255,255,0.25)'}>
             Vider
           </button>
         )}
       </div>
-      {/* FIX: overflow-y-auto uniquement sur cet élément avec flex-1 */}
-      <div
-        className="flex-1 overflow-y-auto p-3 space-y-1"
-        style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ flex:1, overflowY:'auto', padding:'10px 12px', display:'flex', flexDirection:'column', gap:4, overscrollBehavior:'contain' }}>
         {queue.length === 0 ? (
-          <div className="text-center py-10 text-white/20">
-            <ListMusic size={28} className="mx-auto mb-2 opacity-30"/>
-            <p className="text-sm">File vide</p>
-            {smartMode && currentMoods.length > 0 && (
-              <p className="text-[10px] text-violet-400/50 mt-2">
-                Mode intelligent : les titres similaires s'ajouteront automatiquement
-              </p>
-            )}
+          <div style={{ textAlign:'center', padding:'40px 0', color:'rgba(255,255,255,0.15)' }}>
+            <ListMusic size={28} style={{ margin:'0 auto 8px', opacity:.3, display:'block' }}/>
+            <p style={{ fontSize:13 }}>File vide</p>
           </div>
         ) : queue.map((s, i) => (
           <div key={`${s._id}-${i}`} draggable
             onDragStart={() => onDragStart(i)}
             onDragOver={e => onDragOver(e, i)}
             onDrop={() => onDrop(i)}
-            className={`flex items-center gap-2.5 p-2.5 rounded-xl group transition cursor-grab active:cursor-grabbing ${
-              dragOver === i ? 'bg-violet-500/20 ring-1 ring-violet-500/40' : 'bg-white/5 hover:bg-white/10'
-            }`}>
-            <GripVertical size={13} className="text-white/15 group-hover:text-white/35 shrink-0 transition"/>
-            <img src={s.image} className="w-8 h-8 rounded-lg object-cover shrink-0" alt=""/>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold truncate text-white/80">{s.titre}</p>
-              <p className="text-[10px] text-white/30 truncate">{s.artiste}</p>
-              {s.moods?.length > 0 && (
-                <div className="flex gap-1 mt-0.5 flex-wrap">
-                  {s.moods.slice(0, 2).map(m => (
-                    <span key={m} className="text-[7px] bg-white/10 text-white/30 px-1 py-0.5 rounded-full">{m}</span>
-                  ))}
-                </div>
-              )}
+            className={`fp-queue-item ${dragOver === i ? 'drag-over' : ''}`}>
+            <GripVertical size={13} style={{ color:'rgba(255,255,255,0.15)', flexShrink:0 }}/>
+            <img src={s.image} style={{ width:34, height:34, borderRadius:8, objectFit:'cover', flexShrink:0 }} alt=""/>
+            <div style={{ flex:1, minWidth:0 }}>
+              <p style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.8)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:2 }}>{s.titre}</p>
+              <p style={{ fontSize:10, color:'rgba(255,255,255,0.3)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{s.artiste}</p>
             </div>
             <button onClick={() => setQueue(prev => prev.filter((_, idx) => idx !== i))}
-              className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/20 rounded-lg transition text-white/25 hover:text-red-400 shrink-0">
-              <X size={11}/>
+              style={{ padding:6, borderRadius:8, border:'none', background:'transparent', color:'rgba(255,255,255,0.2)', cursor:'pointer', flexShrink:0, transition:'all .15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background='rgba(239,68,68,0.15)'; e.currentTarget.style.color='#f87171'; }}
+              onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.color='rgba(255,255,255,0.2)'; }}>
+              <X size={12}/>
             </button>
           </div>
         ))}
@@ -375,165 +613,196 @@ const FullPlayerPage = ({
     </div>
   );
 
+  // ════════════════════════════════════════════
+  // RENDER PRINCIPAL
+  // ════════════════════════════════════════════
   return (
-    <div className="fixed inset-0 z-200 flex flex-col md:flex-row overflow-hidden select-none">
+    <div className='bg-red-950' style={{ position:'fixed', inset:0, zIndex:200, display:'flex', flexDirection:'row', overflow:'hidden', userSelect:'none' }}>
 
-      {/* ══ FOND AMBIANT ══ */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {/* ── FOND AMBIANT ── */}
+      <div style={{ position:'absolute', inset:0, pointerEvents:'none', overflow:'hidden' }}>
         {currentSong?.image && (
-          <img src={currentSong.image} className="absolute inset-0 w-full h-full object-cover scale-125 blur-3xl opacity-50" alt=""/>
+          <img src={currentSong.image} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', transform:'scale(1.3)', filter:'blur(60px) saturate(1.4)', opacity:.45 }} alt=""/>
         )}
-        <div className="absolute inset-0 bg-linear-to-b from-zinc-950/75 via-zinc-950/65 to-zinc-950/95"/>
-        <div className="absolute inset-0 bg-linear-to-r from-zinc-950/40 via-transparent to-zinc-950/40"/>
+        <div style={{ position:'absolute', inset:0, background:'linear-gradient(to bottom, rgba(5,5,10,0.7) 0%, rgba(5,5,10,0.55) 40%, rgba(5,5,10,0.92) 100%)' }}/>
+        <div style={{ position:'absolute', inset:0, background:'linear-gradient(to right, rgba(5,5,10,0.5) 0%, transparent 30%, transparent 70%, rgba(5,5,10,0.5) 100%)' }}/>
+        {/* Grain subtil */}
+        <div style={{ position:'absolute', inset:0, opacity:.025, backgroundImage:`url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`, backgroundSize:'128px' }}/>
       </div>
 
       {/* ══ COLONNE PRINCIPALE ══ */}
-      <div className="relative flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className={isPlaying ? 'fp-playing' : ''} style={{ position:'relative', display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
 
-        {/* Visualizer */}
-        <canvas ref={canvasRef} className="absolute top-0 left-0 w-full z-10 pointer-events-none"
-          style={{ height: 3, opacity: 0.85 }} width="1000" height="6"/>
+        {/* Visualizer canvas */}
+        <canvas ref={canvasRef} style={{ position:'absolute', top:0, left:0, width:'100%', height:3, zIndex:10, pointerEvents:'none', opacity:.9 }} width="1000" height="6"/>
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-12 pb-3 md:pt-6 shrink-0 z-10">
-          <button onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 backdrop-blur transition active:scale-90">
-            <ChevronDown size={20} className="text-white"/>
+        {/* ── HEADER ── */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'48px 20px 12px', flexShrink:0, zIndex:10 }}>
+          <button onClick={onClose} className="fp-ctrl-btn" style={{ width:38, height:38 }}>
+            <ChevronDown size={20} color="rgba(255,255,255,0.7)"/>
           </button>
-          <div className="text-center flex items-center gap-2">
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/35">Lecture en cours</p>
-            {/* Indicateur mode intelligent */}
+
+          <div style={{ textAlign:'center', display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:9, fontWeight:800, letterSpacing:'.3em', textTransform:'uppercase', color:'rgba(255,255,255,0.3)' }}>En cours</span>
             {smartMode && (
-              <span className="flex items-center gap-1 text-[9px] bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded-full">
+              <span style={{ display:'flex', alignItems:'center', gap:4, fontSize:9, background:'rgba(139,92,246,0.2)', color:'#c4b5fd', padding:'3px 8px', borderRadius:99, border:'1px solid rgba(139,92,246,0.3)' }}>
                 <Sparkles size={8}/> Smart
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1.5">
-            <button onClick={() => setActiveTab(t => t === 'eq' ? 'player' : 'eq')}
-              className={`w-9 h-9 flex items-center justify-center rounded-full backdrop-blur-sm transition active:scale-90 ${
-                activeTab === 'eq' ? 'bg-blue-500/25 text-blue-400 ring-1 ring-blue-500/40' : 'bg-white/10 hover:bg-white/18 text-white/55'
-              }`}>
+
+          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <button
+              onClick={() => setActiveTab(t => t === 'eq' ? 'player' : 'eq')}
+              className="fp-ctrl-btn"
+              style={{ width:38, height:38, background: activeTab==='eq' ? 'rgba(99,102,241,0.2)' : undefined, color: activeTab==='eq' ? '#818cf8' : 'rgba(255,255,255,0.4)', border: activeTab==='eq' ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent' }}>
               <Sliders size={16}/>
             </button>
-            <button onClick={() => setActiveTab(t => t === 'queue' ? 'player' : 'queue')}
-              className={`w-9 h-9 flex items-center justify-center rounded-full backdrop-blur-sm transition active:scale-90 ${
-                activeTab === 'queue' ? 'bg-violet-500/25 text-violet-400 ring-1 ring-violet-500/40' : 'bg-white/10 hover:bg-white/18 text-white/55'
-              }`}>
+            <button
+              onClick={() => setActiveTab(t => t === 'queue' ? 'player' : 'queue')}
+              className="fp-ctrl-btn"
+              style={{ width:38, height:38, background: activeTab==='queue' ? 'rgba(139,92,246,0.2)' : undefined, color: activeTab==='queue' ? '#a78bfa' : 'rgba(255,255,255,0.4)', border: activeTab==='queue' ? '1px solid rgba(139,92,246,0.3)' : '1px solid transparent' }}>
               <ListMusic size={16}/>
             </button>
           </div>
         </div>
 
-        {/* Contenu onglets */}
-        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+        {/* ── CONTENU SCROLLABLE ── */}
+        <div style={{ flex:1, minHeight:0, overflowY:'auto', display:'flex', flexDirection:'column' }}>
 
           {/* ── VUE PLAYER ── */}
           {activeTab === 'player' && (
-            <div className="flex flex-col flex-1">
+            <div style={{ display:'flex', flexDirection:'column', flex:1 }}>
+
               {/* Cover */}
-              <div className="flex items-center justify-center px-8 py-6 md:py-10 shrink-0">
-                <div className="relative w-full max-w-55 md:max-w-70 aspect-square">
+              <div style={{ display:'flex', justifyContent:'center', padding:'16px 32px 20px', flexShrink:0 }}>
+                <div style={{ position:'relative', width:'100%', maxWidth:240 }}>
+                  {/* Glow derrière la pochette */}
                   {currentSong?.image && (
-                    <div className="absolute inset-3 rounded-3xl blur-2xl opacity-55 scale-95"
-                      style={{ backgroundImage: `url(${currentSong.image})`, backgroundSize: 'cover' }}/>
+                    <div className="fp-cover-glow" style={{
+                      position:'absolute', inset:12, borderRadius:24,
+                      backgroundImage:`url(${currentSong.image})`, backgroundSize:'cover',
+                      filter:'blur(28px)', opacity:.55,
+                    }}/>
                   )}
-                  <img src={currentSong?.image} alt={currentSong?.titre}
-                    className={`relative w-full h-full rounded-3xl object-cover shadow-2xl transition-all duration-700 ${
-                      isPlaying ? 'scale-100' : 'scale-95 opacity-70'
-                    }`}/>
-                  {isPlaying && (
-                    <div className="absolute inset-0 rounded-3xl ring-1 ring-white/15 animate-pulse pointer-events-none"/>
-                  )}
+                  <div style={{ position:'relative', aspectRatio:'1/1' }}>
+                    <img
+                      src={currentSong?.image}
+                      alt={currentSong?.titre}
+                      className="fp-cover-img"
+                      style={{
+                        width:'100%', height:'100%', borderRadius:20,
+                        objectFit:'cover',
+                        boxShadow:'0 24px 64px rgba(0,0,0,0.5)',
+                        transition:'transform .6s cubic-bezier(.34,1.56,.64,1), opacity .4s',
+                        opacity: isPlaying ? 1 : .75,
+                        transform: isPlaying ? 'scale(1)' : 'scale(.95)',
+                      }}
+                    />
+                    {isPlaying && (
+                      <div style={{ position:'absolute', inset:0, borderRadius:20, border:'1px solid rgba(255,255,255,0.15)', animation:'fp-pulse-ring 3s ease-in-out infinite', pointerEvents:'none' }}/>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Titre + moods + like */}
-              <div className="flex items-start px-6 py-2 shrink-0">
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-black text-white truncate leading-tight">{currentSong?.titre}</h2>
-                  <p className="text-sm text-white/45 mt-0.5 truncate font-medium">{currentSong?.artiste}</p>
-                  {/* Moods du titre en cours */}
+              {/* Titre + Like */}
+              <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', padding:'0 24px 8px', flexShrink:0 }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <h2 style={{ fontSize:20, fontWeight:900, color:'#fff', letterSpacing:'-.02em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:2 }}>
+                    {currentSong?.titre}
+                  </h2>
+                  <p style={{ fontSize:13, color:'rgba(255,255,255,0.4)', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {currentSong?.artiste}
+                  </p>
                   {currentSong?.moods?.length > 0 && (
-                    <div className="flex gap-1 mt-1.5 flex-wrap">
+                    <div style={{ display:'flex', gap:4, marginTop:8, flexWrap:'wrap' }}>
                       {currentSong.moods.map(m => (
-                        <span key={m} className="text-[8px] bg-white/10 text-white/40 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
-                          <Tag size={7}/> {m}
-                        </span>
+                        <span key={m} className="fp-mood-tag"><Tag size={7}/>{m}</span>
                       ))}
                     </div>
                   )}
                 </div>
-                <button onClick={() => toggleLike(currentSong?._id)} className="ml-4 p-2 shrink-0 active:scale-90 transition mt-1">
-                  <Heart size={22} fill={currentSong?.liked ? '#ef4444' : 'none'}
-                    className={currentSong?.liked ? 'text-red-500' : 'text-white/35 hover:text-white/60 transition'}/>
+                <button
+                  onClick={() => toggleLike(currentSong?._id)}
+                  style={{ marginLeft:16, padding:8, borderRadius:'50%', border:'none', background:'transparent', cursor:'pointer', flexShrink:0, transition:'transform .2s cubic-bezier(.34,1.56,.64,1)' }}
+                  onMouseEnter={e => e.currentTarget.style.transform='scale(1.2)'}
+                  onMouseLeave={e => e.currentTarget.style.transform='scale(1)'}>
+                  <Heart
+                    size={22}
+                    fill={currentSong?.liked ? '#ef4444' : 'none'}
+                    color={currentSong?.liked ? '#ef4444' : 'rgba(255,255,255,0.3)'}
+                  />
                 </button>
               </div>
 
-              {/* Progression */}
-              <div className="px-6 py-1 shrink-0">
-                <div className="relative h-1.5 bg-white/12 rounded-full cursor-pointer group"
-                  onClick={seek} onTouchMove={seekTouch}>
-                  <div className="absolute top-0 left-0 h-full bg-white rounded-full transition-all duration-100" style={{ width: `${prog}%` }}/>
-                  <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg shadow-black/50 opacity-0 group-hover:opacity-100 transition"
-                    style={{ left: `calc(${prog}% - 8px)` }}/>
+              {/* Progress bar */}
+              <div style={{ padding:'4px 24px 2px', flexShrink:0 }}>
+                <div className="fp-progress-bar" onClick={seek} onTouchMove={seekTouch}>
+                  <div className="fp-progress-fill" style={{ width:`${prog}%` }}/>
                 </div>
-                <div className="flex justify-between mt-1.5">
-                  <span className="text-[11px] text-white/30 tabular-nums">{formatTime(currentTime)}</span>
-                  <span className="text-[11px] text-white/30 tabular-nums">{formatTime(duration)}</span>
+                <div style={{ display:'flex', justifyContent:'space-between', marginTop:8, fontSize:10, color:'rgba(255,255,255,0.25)', fontFamily:'monospace' }}>
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(duration)}</span>
                 </div>
               </div>
 
               {/* Contrôles */}
-              <div className="flex items-center justify-between px-6 py-2 shrink-0">
-                <button onClick={() => onOpenListenParty?.()}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/8 hover:bg-white/15 text-white/50 hover:text-white text-[11px] font-bold transition active:scale-90">
-                  <Radio size={14}/> Party
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 20px', flexShrink:0 }}>
+                <button onClick={() => onOpenListenParty?.()} style={{ display:'flex', alignItems:'center', gap:5, padding:'8px 14px', borderRadius:99, fontSize:11, fontWeight:700, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.4)', cursor:'pointer', transition:'all .15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background='rgba(255,255,255,0.1)'; e.currentTarget.style.color='rgba(255,255,255,0.8)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.05)'; e.currentTarget.style.color='rgba(255,255,255,0.4)'; }}>
+                  <Radio size={13}/> Party
                 </button>
-                <button onClick={() => setIsShuffle(!isShuffle)}
-                  className={`p-2.5 rounded-full transition active:scale-90 ${isShuffle ? 'bg-blue-500/20 text-blue-400' : 'text-white/35 hover:text-white'}`}>
-                  <Shuffle size={20}/>
+
+                <button onClick={() => setIsShuffle(!isShuffle)} className="fp-ctrl-btn" style={{ width:40, height:40, color: isShuffle ? '#818cf8' : 'rgba(255,255,255,0.3)' }}>
+                  <Shuffle size={19}/>
                 </button>
-                <button onClick={handlePrev} className="p-2 text-white hover:text-white/70 transition active:scale-90">
-                  <SkipBack size={26} fill="white"/>
+
+                <button onClick={handlePrev} className="fp-ctrl-btn" style={{ width:44, height:44, color:'rgba(255,255,255,0.85)' }}>
+                  <SkipBack size={24} fill="rgba(255,255,255,0.85)"/>
                 </button>
-                {/* Bouton Play/Pause */}
-                <button onClick={() => { initAudioEngine(); setIsPlaying(p => !p); }}
-                  className="relative flex items-center justify-center w-16 h-16 md:w-17 md:h-17 active:scale-95 transition">
-                  <div className="absolute inset-0 rounded-full"
-                    style={{ background: 'conic-gradient(from 0deg, #6366f1, #8b5cf6, #ec4899, #3b82f6, #6366f1)', padding: '2.5px' }}>
-                    <div className="w-full h-full rounded-full bg-zinc-950"/>
+
+                {/* Bouton play principal */}
+                <button
+                  className="fp-btn-play"
+                  onClick={() => { initAudioEngine(); setIsPlaying(p => !p); }}
+                  style={{ width:64, height:64, borderRadius:'50%', border:'none', cursor:'pointer', background:'none', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <div style={{ position:'relative', zIndex:1, width:64, height:64, borderRadius:'50%', background:'rgba(255,255,255,0.12)', backdropFilter:'blur(10px)', border:'1px solid rgba(255,255,255,0.2)', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .2s' }}>
+                    {isPlaying
+                      ? <Pause fill="white" size={22} color="white"/>
+                      : <Play  fill="white" size={22} color="white" style={{ marginLeft:2 }}/>
+                    }
                   </div>
-                  <div className="relative z-10 flex items-center justify-center w-10 h-10 md:w-11 md:h-11 rounded-full bg-white/10">
-                    {isPlaying ? <Pause fill="white" size={21}/> : <Play fill="white" size={21} className="ml-0.5"/>}
-                  </div>
                 </button>
-                <button onClick={handleNext} className="p-2 text-white hover:text-white/70 transition active:scale-90">
-                  <SkipForward size={26} fill="white"/>
+
+                <button onClick={handleNext} className="fp-ctrl-btn" style={{ width:44, height:44, color:'rgba(255,255,255,0.85)' }}>
+                  <SkipForward size={24} fill="rgba(255,255,255,0.85)"/>
                 </button>
-                <button onClick={() => setRepeatMode(m => (m+1)%3)}
-                  className={`p-2.5 rounded-full transition active:scale-90 ${repeatMode > 0 ? 'bg-blue-500/20 text-blue-400' : 'text-white/35 hover:text-white'}`}>
-                  {repeatMode === 2 ? <Repeat1 size={20}/> : <Repeat size={20}/>}
+
+                <button onClick={() => setRepeatMode(m => (m+1)%3)} className="fp-ctrl-btn" style={{ width:40, height:40, color: repeatMode > 0 ? '#818cf8' : 'rgba(255,255,255,0.3)' }}>
+                  {repeatMode === 2 ? <Repeat1 size={19}/> : <Repeat size={19}/>}
                 </button>
+
+                {/* Placeholder droit */}
+                <div style={{ width:60 }}/>
               </div>
 
               {/* Volume */}
-              <div className="flex items-center gap-3 px-7 py-2 shrink-0">
-                <Volume2 size={13} className="text-white/25 shrink-0"/>
-                <div className="relative flex-1 h-1.5 bg-white/10 rounded-full group">
-                  <div className="absolute top-0 left-0 h-full bg-white/50 rounded-full" style={{ width: `${volume}%` }}/>
-                  <div className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition"
-                    style={{ left: `calc(${volume}% - 7px)` }}/>
+              <div style={{ display:'flex', alignItems:'center', gap:12, padding:'4px 28px 16px', flexShrink:0 }}>
+                <Volume2 size={13} color="rgba(255,255,255,0.2)"/>
+                <div className="fp-vol-track">
+                  <div className="fp-vol-fill" style={{ width:`${volume}%` }}/>
                   <input type="range" min="0" max="100" value={volume}
                     onChange={e => setVolume(parseInt(e.target.value))}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
+                    className="fp-vol-input"/>
                 </div>
-                <span className="text-[10px] text-white/25 w-7 text-right tabular-nums">{volume}%</span>
+                <span style={{ fontSize:10, color:'rgba(255,255,255,0.2)', fontFamily:'monospace', minWidth:28, textAlign:'right' }}>{volume}%</span>
               </div>
 
               {/* Paroles */}
               {currentSong && (
-                <div className="px-4 pb-4">
+                <div style={{ padding:'0 16px 24px' }}>
                   <LyricsDisplay songId={currentSong._id} currentTime={currentTime} isPlaying={isPlaying}/>
                   <LyricsEditor
                     songId={currentSong._id} songTitre={currentSong.titre} token={token}
@@ -543,40 +812,33 @@ const FullPlayerPage = ({
             </div>
           )}
 
-          {/* ── EQ mobile ── */}
           {activeTab === 'eq' && <EQContent/>}
 
-          {/* ── Queue mobile — FIX: flex-1 pour scroll isolé ── */}
           {activeTab === 'queue' && (
-            <div className="flex-1 flex flex-col min-h-0">
+            <div style={{ flex:1, display:'flex', flexDirection:'column', minHeight:0 }}>
               <QueueContent/>
             </div>
           )}
         </div>
       </div>
 
-      {/* ══ COLONNE DROITE desktop ══ */}
-      <div className="relative hidden md:flex w-85 lg:w-100 flex-col border-l border-white/8 overflow-hidden">
-        <div className="absolute inset-0 bg-black/30 backdrop-blur-sm"/>
-        <div className="relative flex flex-col h-full">
-          <div className="flex border-b border-white/8 shrink-0">
-            {[
-              ['eq', <Sliders size={13}/>, 'Égaliseur'],
-              ['queue', <ListMusic size={13}/>, `File (${queue.length})`],
-            ].map(([key, icon, label]) => (
-              <button key={key} onClick={() => setActiveTab(key)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-4 text-[11px] font-bold uppercase tracking-wide transition ${
-                  activeTab === key ? 'text-white border-b-2 border-blue-400' : 'text-white/30 hover:text-white/55'
-                }`}>
-                {icon} {label}
+      {/* ══ COLONNE DROITE DESKTOP ══ */}
+      <div style={{ position:'relative', display:'none', width:340, flexDirection:'column', borderLeft:'1px solid rgba(255,255,255,0.07)', overflow:'hidden' }} className="md-col-right">
+        <style>{`.md-col-right { display: none !important; } @media(min-width:768px){.md-col-right{display:flex!important}}`}</style>
+        <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.25)', backdropFilter:'blur(30px)' }}/>
+        <div style={{ position:'relative', display:'flex', flexDirection:'column', height:'100%' }}>
+          {/* Tabs */}
+          <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
+            {[['eq', <Sliders size={12}/>, 'Égaliseur'], ['queue', <ListMusic size={12}/>, `File (${queue.length})`]].map(([key, icon, label]) => (
+              <button key={key} onClick={() => setActiveTab(key)} className={`fp-tab-btn ${activeTab===key?'active':''}`}>
+                <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>{icon}{label}</span>
               </button>
             ))}
           </div>
-          {/* FIX: overflow isolé sur chaque contenu */}
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
             {activeTab === 'queue'
               ? <QueueContent/>
-              : <div className="flex-1 overflow-y-auto"><EQContent/></div>
+              : <div style={{ flex:1, overflowY:'auto' }}><EQContent/></div>
             }
           </div>
         </div>
