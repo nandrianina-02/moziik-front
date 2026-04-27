@@ -18,14 +18,6 @@ import { AudioAdPlayer } from '../components/MonetisationComponents';
 // ════════════════════════════════════════════
 // HOOK UTILITAIRE : "Voir plus"
 // ════════════════════════════════════════════
-
-/**
- * useShowMore(initialLimit)
- * Retourne { limit, expanded, toggle }
- * – limit    : nombre d'éléments à afficher
- * – expanded : booléen indiquant l'état
- * – toggle   : fonction pour basculer
- */
 const useShowMore = (initialLimit = 5) => {
   const [expanded, setExpanded] = useState(false);
   return {
@@ -36,18 +28,8 @@ const useShowMore = (initialLimit = 5) => {
 };
 
 // ════════════════════════════════════════════
-// BOUTON "VOIR PLUS / VOIR MOINS"
+// BOUTON "VOIR PLUS / VOIR MOINS" (vertical)
 // ════════════════════════════════════════════
-
-/**
- * ShowMoreButton
- * Props :
- *   expanded   – boolean
- *   onToggle   – function
- *   total      – nombre total d'éléments (affiché dans le label)
- *   shown      – nombre actuellement affiché
- *   className  – classes supplémentaires facultatives
- */
 const ShowMoreButton = ({ expanded, onToggle, total, shown, className = '' }) => {
   const remaining = total - shown;
   return (
@@ -64,17 +46,144 @@ const ShowMoreButton = ({ expanded, onToggle, total, shown, className = '' }) =>
       `}
     >
       {expanded ? (
-        <>
-          <ChevronUp size={13} />
-          Voir moins
-        </>
+        <><ChevronUp size={13} />Voir moins</>
       ) : (
-        <>
-          <ChevronDown size={13} />
-          Voir {remaining > 0 ? `${remaining} de plus` : 'plus'}
-        </>
+        <><ChevronDown size={13} />Voir {remaining > 0 ? `${remaining} de plus` : 'plus'}</>
       )}
     </button>
+  );
+};
+
+// ════════════════════════════════════════════
+// SCROLL HORIZONTAL AVEC BOUTONS DESKTOP
+// ════════════════════════════════════════════
+/**
+ * HorizontalScrollContainer
+ * Wraps a horizontal scroll area and adds prev/next arrow buttons
+ * visible only on non-touch devices (md+).
+ * Optionally shows a "Voir plus" card at the END of the scroll.
+ */
+const HorizontalScrollContainer = ({
+  children,
+  showMoreProps,   // { total, shown, expanded, onToggle } — optional
+  className = '',
+}) => {
+  const scrollRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 8);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 8);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener('scroll', checkScroll, { passive: true });
+    const ro = new ResizeObserver(checkScroll);
+    ro.observe(el);
+    return () => { el.removeEventListener('scroll', checkScroll); ro.disconnect(); };
+  }, [checkScroll]);
+
+  const scroll = (dir) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * 280, behavior: 'smooth' });
+  };
+
+  return (
+    <div className={`relative group/hscroll ${className}`}>
+      {/* ← bouton gauche (desktop seulement) */}
+      <button
+        onClick={() => scroll(-1)}
+        aria-label="Défiler à gauche"
+        className={`
+          hidden md:flex
+          absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10
+          w-9 h-9 rounded-full bg-zinc-900 border border-zinc-700 shadow-xl
+          items-center justify-center text-white
+          transition-all duration-200
+          hover:bg-zinc-800 hover:border-zinc-500 active:scale-95
+          ${canScrollLeft ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
+        `}
+      >
+        <ChevronLeft size={16} />
+      </button>
+
+      {/* → bouton droit (desktop seulement) */}
+      <button
+        onClick={() => scroll(1)}
+        aria-label="Défiler à droite"
+        className={`
+          hidden md:flex
+          absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10
+          w-9 h-9 rounded-full bg-zinc-900 border border-zinc-700 shadow-xl
+          items-center justify-center text-white
+          transition-all duration-200
+          hover:bg-zinc-800 hover:border-zinc-500 active:scale-95
+          ${canScrollRight ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
+        `}
+      >
+        <ChevronRight size={16} />
+      </button>
+
+      {/* Zone de scroll */}
+      <div
+        ref={scrollRef}
+        className="flex gap-3 md:gap-4 overflow-x-auto pb-3 scroll-smooth"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        {children}
+
+        {/* Carte "Voir plus / Voir moins" en fin de scroll */}
+        {showMoreProps && showMoreProps.total > showMoreProps.shown && (
+          <button
+            onClick={showMoreProps.onToggle}
+            className="
+              shrink-0 w-28 md:w-32 flex flex-col items-center justify-center gap-2
+              rounded-2xl border border-dashed border-zinc-700
+              bg-zinc-900/50 hover:bg-zinc-800/60 hover:border-zinc-500
+              text-zinc-500 hover:text-white
+              transition-all duration-200 active:scale-95
+              aspect-square
+            "
+          >
+            <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center">
+              <ChevronRight size={16} />
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-wide text-center px-2 leading-tight">
+              +{showMoreProps.total - showMoreProps.shown} de plus
+            </span>
+          </button>
+        )}
+
+        {/* Carte "Voir moins" si expanded */}
+        {showMoreProps && showMoreProps.expanded && showMoreProps.total <= showMoreProps.shown && (
+          <button
+            onClick={showMoreProps.onToggle}
+            className="
+              shrink-0 w-28 md:w-32 flex flex-col items-center justify-center gap-2
+              rounded-2xl border border-dashed border-zinc-700
+              bg-zinc-900/50 hover:bg-zinc-800/60 hover:border-zinc-500
+              text-zinc-500 hover:text-white
+              transition-all duration-200 active:scale-95
+              aspect-square
+            "
+          >
+            <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center">
+              <ChevronLeft size={16} />
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-wide text-center px-2 leading-tight">
+              Voir moins
+            </span>
+          </button>
+        )}
+      </div>
+    </div>
   );
 };
 
@@ -191,7 +300,7 @@ const AdminAlertBanner = ({ token, isAdmin }) => {
 // ── Section partages récents ─────────────────
 const RecentSharesSection = ({ token, setCurrentSong, setIsPlaying, currentSong }) => {
   const [shares, setShares] = useState([]);
-  const { expanded, limit, toggle } = useShowMore(4);
+  const { expanded, limit, toggle } = useShowMore(8);
 
   useEffect(() => {
     if (!token) return;
@@ -206,38 +315,46 @@ const RecentSharesSection = ({ token, setCurrentSong, setIsPlaying, currentSong 
 
   return (
     <section>
-      <SectionHeader icon={<Share2 size={18} className="text-blue-400" />} title="Mes partages récents" subtitle={`${validShares.length} lien${validShares.length > 1 ? 's' : ''} actif${validShares.length > 1 ? 's' : ''}`} />
-      <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
+      <SectionHeader
+        icon={<Share2 size={18} className="text-blue-400" />}
+        title="Mes partages récents"
+        subtitle={`${validShares.length} lien${validShares.length > 1 ? 's' : ''} actif${validShares.length > 1 ? 's' : ''}`}
+      />
+      <HorizontalScrollContainer
+        showMoreProps={
+          validShares.length > 8
+            ? { total: validShares.length, shown: visibleShares.length, expanded, onToggle: toggle }
+            : undefined
+        }
+      >
         {visibleShares.map(share => {
           const song = share.songId;
           const expired = new Date(share.expiresAt) < new Date();
           return (
-            <div key={share._id} onClick={() => { if (!expired) { setCurrentSong(song); setIsPlaying(true); } }}
-              className={`shrink-0 w-32 group cursor-pointer ${expired ? 'opacity-40' : ''}`}>
+            <div
+              key={share._id}
+              onClick={() => { if (!expired) { setCurrentSong(song); setIsPlaying(true); } }}
+              className={`shrink-0 w-28 md:w-32 group cursor-pointer ${expired ? 'opacity-40' : ''}`}
+            >
               <div className="relative aspect-square mb-2">
                 <img src={song.image} className="w-full h-full rounded-xl object-cover" alt="" />
-                {expired && <div className="absolute inset-0 rounded-xl bg-black/60 flex items-center justify-center"><span className="text-[9px] text-red-400 font-bold">Expiré</span></div>}
+                {expired && (
+                  <div className="absolute inset-0 rounded-xl bg-black/60 flex items-center justify-center">
+                    <span className="text-[9px] text-red-400 font-bold">Expiré</span>
+                  </div>
+                )}
               </div>
               <p className="text-xs font-bold truncate text-zinc-200">{song.titre}</p>
               <p className="text-[10px] text-zinc-600">{share.playCount || 0} écoute{share.playCount !== 1 ? 's' : ''}</p>
             </div>
           );
         })}
-      </div>
-      {validShares.length > 4 && (
-        <ShowMoreButton
-          expanded={expanded}
-          onToggle={toggle}
-          total={validShares.length}
-          shown={visibleShares.length}
-        />
-      )}
+      </HorizontalScrollContainer>
     </section>
   );
 };
 
-
-// Evènements bannière
+// ── Événements bannière ─────────────────────
 const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
   const [events, setEvents] = useState([]);
   const [current, setCurrent] = useState(0);
@@ -273,33 +390,22 @@ const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
         icon={<Ticket size={18} className="text-purple-400" />}
         title="Événements" subtitle="Concerts et shows à venir"
       />
-
-      <div className="group relative w-full  mx-auto rounded-2xl overflow-hidden bg-[#1a0a2e] border border-purple-500/30 shadow-2xl shadow-purple-900/20">
-
-        {/* ── Image full-bleed ── */}
+      <div className="group relative w-full mx-auto rounded-2xl overflow-hidden bg-[#1a0a2e] border border-purple-500/30 shadow-2xl shadow-purple-900/20">
         {ev.image
           ? <img src={ev.image} alt={ev.title}
             className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105" />
           : <div className="absolute inset-0 bg-linear-to-br from-purple-900/60 to-zinc-950" />
         }
-
-        {/* ── Overlay ── */}
         <div className="absolute inset-0 bg-linear-to-r from-zinc-950/95 via-zinc-950/70 to-zinc-950/15" />
         <div className="absolute inset-0 bg-purple-900/10" />
-
         <div className="pb-[46%] md:pb-[40%]" />
-
-        {/* ── Pastille billets ── */}
         <div className="absolute top-3 right-3 w-16 h-16 md:w-20 md:h-20 rounded-full bg-purple-700/85 border-2 border-purple-400/60 flex flex-col items-center justify-center text-center gap-0.5 z-10">
           <Ticket size={14} className="text-white/90" />
           <span className="text-white font-black leading-tight" style={{ fontSize: 'clamp(7px,1.4vw,9px)', letterSpacing: '0.02em' }}>
             BILLETS<br />DISPO
           </span>
         </div>
-
-        {/* ── Contenu superposé ── */}
         <div className="absolute inset-0 flex flex-col justify-between z-10">
-
           <div className="flex items-center gap-2 px-4 pt-3 flex-wrap">
             <span className="bg-purple-700/80 border border-purple-400/50 text-white font-black px-2.5 py-1 rounded-md"
               style={{ fontSize: 'clamp(8px,1.5vw,10px)', letterSpacing: '0.06em' }}>
@@ -309,10 +415,7 @@ const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
               <span className="bg-blue-600/70 text-white font-bold px-2.5 py-1 rounded-full"
                 style={{ fontSize: 'clamp(7px,1.4vw,9px)' }}>✓ Officiel</span>
             )}
-            <span className="text-white/50 font-bold tracking-[0.15em] hidden sm:block"
-              style={{ fontSize: 9 }}>LIVE · MUSIC · EMOTIONS</span>
           </div>
-
           <div className="flex-1 flex flex-col justify-center px-4">
             <h3 className="font-black text-white leading-none tracking-tighter drop-shadow-2xl"
               style={{ fontSize: 'clamp(24px,5.5vw,50px)' }}>
@@ -333,9 +436,7 @@ const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
               </div>
             )}
           </div>
-
           <div className="flex items-center gap-0 flex-wrap bg-zinc-950/80 backdrop-blur-sm border-t border-purple-500/20 px-4 py-2.5">
-
             <div className="flex items-center gap-2 pr-3 mr-3 border-r border-white/10">
               <Calendar size={13} className="text-purple-400 shrink-0" />
               <div>
@@ -345,7 +446,6 @@ const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
                 <p className="text-zinc-500 uppercase tracking-wide" style={{ fontSize: 9 }}>À PARTIR DE 18H00</p>
               </div>
             </div>
-
             <div className="flex items-center gap-2 pr-3 mr-3 border-r border-white/10">
               <MapPin size={13} className="text-purple-400 shrink-0" />
               <div>
@@ -355,7 +455,6 @@ const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
                 <p className="text-zinc-500 uppercase tracking-wide" style={{ fontSize: 9 }}>{ev.city}</p>
               </div>
             </div>
-
             <div className="flex items-center gap-2">
               <Ticket size={13} className="text-purple-400 shrink-0" />
               <div>
@@ -365,7 +464,6 @@ const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
                 <p className="text-zinc-500 uppercase tracking-wide" style={{ fontSize: 9 }}>PAR PERSONNE</p>
               </div>
             </div>
-
             {!isPast && (
               <div className="flex-1 flex justify-end">
                 <a href={`/events/${ev._id}`}
@@ -383,41 +481,124 @@ const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
   );
 };
 
-
-// ── Section hors-ligne ───────────────────────
+// ════════════════════════════════════════════
+// SECTION HORS-LIGNE — grille 2 cols, max 3 lignes (6 items),
+// scroll horizontal sur mobile si débordement,
+// puis ShowMoreButton en bas
+// ════════════════════════════════════════════
 const OfflineSection = ({ musiques, setCurrentSong, setIsPlaying, currentSong, isPlaying, isAudioCached }) => {
   const cached = useMemo(() => musiques.filter(s => isAudioCached && isAudioCached(s._id)), [musiques, isAudioCached]);
-  const { expanded, limit, toggle } = useShowMore(6);
+
+  // 2 colonnes × 3 lignes = 6 items par page
+  const COLS = 2;
+  const ROWS = 3;
+  const PAGE = COLS * ROWS; // 6
+  const { expanded, limit, toggle } = useShowMore(PAGE);
+
   if (!cached.length) return null;
 
   const visible = expanded ? cached : cached.slice(0, limit);
 
   return (
     <section>
-      <SectionHeader icon={<WifiOff size={18} className="text-green-400" />} title="Disponible hors-ligne" subtitle={`${cached.length} titre${cached.length > 1 ? 's' : ''} téléchargé${cached.length > 1 ? 's' : ''}`} />
-      <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
-        {visible.map(song => (
-          <div key={song._id} onClick={() => { setCurrentSong(song); setIsPlaying(true); }} className="shrink-0 w-28 group cursor-pointer">
-            <div className="relative aspect-square mb-2">
-              <img src={song.image} className="w-full h-full rounded-xl object-cover" alt="" />
-              <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center shadow"><Check size={10} className="text-white" /></div>
-            </div>
-            <p className="text-xs font-bold truncate text-zinc-200">{song.titre}</p>
-            <p className="text-[10px] text-zinc-600 truncate">{song.artiste}</p>
-          </div>
-        ))}
+      <SectionHeader
+        icon={<WifiOff size={18} className="text-green-400" />}
+        title="Disponible hors-ligne"
+        subtitle={`${cached.length} titre${cached.length > 1 ? 's' : ''} téléchargé${cached.length > 1 ? 's' : ''}`}
+      />
+
+      {/*
+        Sur mobile  : grille 2 colonnes, scrollable horizontalement
+                      (chaque "colonne" de 3 lignes = un groupe de 3)
+        Sur desktop : grille 2 cols, flow normal
+      */}
+
+      {/* ── MOBILE : scroll horizontal par groupes de ROWS items ── */}
+      <div className="block md:hidden">
+        <div
+          className="flex gap-3 overflow-x-auto pb-2"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {/* On group les items par ROWS pour former des colonnes */}
+          {Array.from({ length: Math.ceil(visible.length / ROWS) }, (_, colIdx) => {
+            const colItems = visible.slice(colIdx * ROWS, (colIdx + 1) * ROWS);
+            return (
+              <div key={colIdx} className="flex flex-col gap-3 shrink-0" style={{ width: 'calc(50vw - 20px)', maxWidth: 160 }}>
+                {colItems.map(song => (
+                  <OfflineSongCard
+                    key={song._id}
+                    song={song}
+                    isActive={currentSong?._id === song._id}
+                    isPlaying={isPlaying}
+                    onClick={() => { setCurrentSong(song); setIsPlaying(true); }}
+                  />
+                ))}
+              </div>
+            );
+          })}
+        </div>
+        {cached.length > PAGE && (
+          <ShowMoreButton
+            expanded={expanded}
+            onToggle={toggle}
+            total={cached.length}
+            shown={visible.length}
+          />
+        )}
       </div>
-      {cached.length > 6 && (
-        <ShowMoreButton
-          expanded={expanded}
-          onToggle={toggle}
-          total={cached.length}
-          shown={visible.length}
-        />
-      )}
+
+      {/* ── DESKTOP : grille 2 colonnes classique ── */}
+      <div className="hidden md:block">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {visible.map(song => (
+            <OfflineSongCard
+              key={song._id}
+              song={song}
+              isActive={currentSong?._id === song._id}
+              isPlaying={isPlaying}
+              onClick={() => { setCurrentSong(song); setIsPlaying(true); }}
+            />
+          ))}
+        </div>
+        {cached.length > PAGE && (
+          <ShowMoreButton
+            expanded={expanded}
+            onToggle={toggle}
+            total={cached.length}
+            shown={visible.length}
+          />
+        )}
+      </div>
     </section>
   );
 };
+
+// Carte individuelle hors-ligne
+const OfflineSongCard = ({ song, isActive, isPlaying, onClick }) => (
+  <div
+    onClick={onClick}
+    className={`
+      flex items-center gap-2.5 p-2 rounded-xl cursor-pointer group transition-all duration-200
+      ${isActive ? 'bg-white/8 ring-1 ring-white/10' : 'hover:bg-white/5'}
+    `}
+  >
+    <div className="relative shrink-0 w-11 h-11">
+      <img src={song.image} className="w-full h-full rounded-xl object-cover" alt="" />
+      <div className="absolute top-0.5 right-0.5 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center shadow">
+        <Check size={8} className="text-white" />
+      </div>
+      {isActive && isPlaying && (
+        <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center">
+          <Pause fill="white" size={10} />
+        </div>
+      )}
+    </div>
+    <div className="flex-1 min-w-0">
+      <p className="text-xs font-bold truncate text-zinc-200 leading-tight">{song.titre}</p>
+      <p className="text-[10px] text-zinc-600 truncate mt-0.5">{song.artiste}</p>
+    </div>
+  </div>
+);
 
 // ════════════════════════════════════════════
 // HOME VIEW
@@ -441,14 +622,14 @@ const HomeView = ({
   const { subscribed, subscribe, unsubscribe, loading: pushLoading } = usePushNotifications(token);
 
   // ── "Voir plus" hooks — un par section ──
-  const top24hShowMore       = useShowMore(5);
-  const nouveautesShowMore   = useShowMore(8);   // scroll horizontal → on gère le nb de cartes
-  const artistesShowMore     = useShowMore(6);
-  const albumsShowMore       = useShowMore(6);
-  const gemsShowMore         = useShowMore(4);   // grille 2 cols → multiple de 2
-  const rankingShowMore      = useShowMore(5);
-  const favorisShowMore      = useShowMore(5);
-  const moodShowMore         = useShowMore(5);
+  const top24hShowMore     = useShowMore(5);
+  const nouveautesShowMore = useShowMore(8);
+  const artistesShowMore   = useShowMore(8);
+  const albumsShowMore     = useShowMore(8);
+  const gemsShowMore       = useShowMore(4);
+  const rankingShowMore    = useShowMore(5);
+  const favorisShowMore    = useShowMore(5);
+  const moodShowMore       = useShowMore(5);
 
   // Pub audio
   const [showAd, setShowAd] = useState(false);
@@ -477,7 +658,6 @@ const HomeView = ({
   const [downloadingId, setDownloadingId] = useState(null);
   const [downloadedId, setDownloadedId] = useState(null);
 
-  // Charge la dernière écoute depuis localStorage
   useEffect(() => {
     if (!isLoggedIn) return;
     try {
@@ -489,7 +669,6 @@ const HomeView = ({
     } catch { }
   }, [isLoggedIn]);
 
-  // Hero
   useEffect(() => {
     fetch(`${API}/songs/meta`).then(r => r.ok ? r.json() : null).then(d => {
       if (d?.heroSong) { setHeroSong(d.heroSong); return; }
@@ -507,7 +686,6 @@ const HomeView = ({
     });
   }, [songs.length]);
 
-  // Top 24h
   useEffect(() => {
     fetch(`${API}/trending?limit=20`)
       .then(r => r.ok ? r.json() : [])
@@ -518,12 +696,10 @@ const HomeView = ({
       .catch(() => setTop24h([...songs].sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 20)));
   }, [songs.length]);
 
-  // Albums récents
   useEffect(() => {
     fetch(`${API}/albums?limit=20`).then(r => r.ok ? r.json() : []).then(d => setRecentAlbums(Array.isArray(d) ? d : [])).catch(() => { });
   }, []);
 
-  // Classement amis
   useEffect(() => {
     if (!token) return;
     fetch(`${API}/loyalty/leaderboard`)
@@ -532,7 +708,6 @@ const HomeView = ({
       .catch(() => { });
   }, [token]);
 
-  // Sauvegarder la lecture en cours
   useEffect(() => {
     if (!currentSong || !isLoggedIn) return;
     const save = () => {
@@ -544,7 +719,6 @@ const HomeView = ({
     return () => clearInterval(t);
   }, [currentSong, isLoggedIn]);
 
-  // ── Mémos ──
   const recentMusiques = useMemo(() =>
     [...songs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), [songs]);
 
@@ -621,7 +795,6 @@ const HomeView = ({
     { label: 'Gospel',    color: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300', activeColor: 'bg-emerald-500/30 border-emerald-400 text-emerald-200' },
   ];
 
-  // ── Recherche globale ──
   if (searchTerm) return (
     <GlobalSearchView
       searchTerm={searchTerm} currentSong={currentSong}
@@ -738,28 +911,21 @@ const HomeView = ({
         </section>
       )}
 
+      {/* ══ RADIO IA ══ */}
       <section>
         <SectionHeader
           icon={<Radio size={18} className="text-red-400"/>}
           title="Radio IA"
           subtitle="L'IA compose votre playlist en continu"
         />
-      
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-900/30 via-zinc-900/60 to-orange-900/20 border border-red-500/20 p-5 group cursor-pointer hover:border-red-500/40 transition-all duration-300"
           onClick={onInfiniteRadio}>
-      
-          {/* Fond décoratif */}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(239,68,68,0.08)_0%,_transparent_60%)] pointer-events-none"/>
-      
           <div className="relative flex items-center gap-4">
-            {/* Icône animée */}
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-xl shadow-red-500/30 shrink-0 group-hover:scale-105 transition-transform duration-300">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-xl shadow-red-500/30 shrink-0 group-hover:scale-105 transition-transform duration-300 relative">
               <Radio size={24} className="text-white"/>
-              {/* Point "on air" */}
               <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-zinc-900 animate-pulse"/>
             </div>
-      
-            {/* Texte */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-[9px] font-black bg-red-500/20 border border-red-500/30 text-red-400 px-2 py-0.5 rounded-full uppercase tracking-widest">
@@ -767,22 +933,14 @@ const HomeView = ({
                 </span>
               </div>
               <h3 className="text-base font-black text-white">Radio IA MOOZIK</h3>
-              <p className="text-[11px] text-zinc-400 mt-0.5">
-                Choisissez une ambiance ·L'IA compose en continu
-              </p>
-      
-              {/* Mini moods preview */}
+              <p className="text-[11px] text-zinc-400 mt-0.5">Choisissez une ambiance · L'IA compose en continu</p>
               <div className="flex gap-1.5 mt-2 flex-wrap">
                 {['🌊 Chill','⚡ Énergie','🎯 Focus','🎉 Fête'].map(m => (
-                  <span key={m} className="text-[9px] font-bold bg-white/6 border border-white/8 text-zinc-500 px-2 py-0.5 rounded-full">
-                    {m}
-                  </span>
+                  <span key={m} className="text-[9px] font-bold bg-white/6 border border-white/8 text-zinc-500 px-2 py-0.5 rounded-full">{m}</span>
                 ))}
                 <span className="text-[9px] font-bold text-zinc-600 px-1 py-0.5">+4…</span>
               </div>
             </div>
-      
-            {/* Flèche */}
             <div className="w-9 h-9 rounded-full bg-white/8 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-red-500/20 group-hover:border-red-500/30 transition-all duration-300">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400 group-hover:text-red-400 transition-colors"/>
@@ -792,14 +950,13 @@ const HomeView = ({
         </div>
       </section>
 
-
       {/* ══ 3. AMBIANCES / MOODS ══ */}
       <section>
         <SectionHeader icon={<Zap size={18} className="text-purple-400" />} title="Ambiances" subtitle="Filtrez par mood" />
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {MOODS.map(m => (
             <button key={m.label}
-              onClick={() => { setSelectedMood(selectedMood === m.label ? null : m.label); moodShowMore.toggle && moodShowMore.expanded && moodShowMore.toggle(); }}
+              onClick={() => setSelectedMood(selectedMood === m.label ? null : m.label)}
               className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold transition border ${selectedMood === m.label ? m.activeColor : m.color}`}>
               {m.label}
             </button>
@@ -879,25 +1036,28 @@ const HomeView = ({
         </section>
       )}
 
-      {/* ══ 6. NOUVEAUTÉS ══ */}
+      {/* ══ 6. NOUVEAUTÉS — scroll horizontal + "Voir plus" en fin de scroll ══ */}
       <section>
         <SectionHeader icon={<Sparkles size={18} className="text-blue-400" />} title="Nouveautés" />
-        <div className="flex gap-3 md:gap-4 overflow-x-auto pb-3" style={{ scrollbarWidth: 'none' }}>
+        <HorizontalScrollContainer
+          showMoreProps={
+            recentMusiques.length > 8
+              ? {
+                  total: recentMusiques.length,
+                  shown: visibleNouveautes.length,
+                  expanded: nouveautesShowMore.expanded,
+                  onToggle: nouveautesShowMore.toggle,
+                }
+              : undefined
+          }
+        >
           {visibleNouveautes.map(song => (
             <HorizontalCard key={song._id} song={song}
               isActive={currentSong?._id === song._id} isPlaying={isPlaying}
               onClick={() => { setCurrentSong(song); setIsPlaying(true); }}
               badge={isNewSong(song) ? 'NEW' : null} badgeColor="bg-blue-500" />
           ))}
-        </div>
-        {recentMusiques.length > 8 && (
-          <ShowMoreButton
-            expanded={nouveautesShowMore.expanded}
-            onToggle={nouveautesShowMore.toggle}
-            total={recentMusiques.length}
-            shown={visibleNouveautes.length}
-          />
-        )}
+        </HorizontalScrollContainer>
       </section>
 
       {/* ══ PUB AUDIO (free users) ══ */}
@@ -905,38 +1065,55 @@ const HomeView = ({
         <AudioAdPlayer isPremium={isPremium} token={token} onAdEnd={() => setShowAd(false)} />
       )}
 
-      {/* ══ 7. ARTISTES TENDANCE ══ */}
+      {/* ══ 7. ARTISTES TENDANCE — scroll horizontal ══ */}
       {trendingArtistsMemo.length > 0 && (
         <section>
           <SectionHeader icon={<Users size={18} className="text-pink-400" />} title="Artistes tendance" subtitle="Classés par vélocité d'écoutes" />
-          <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
+          <HorizontalScrollContainer
+            showMoreProps={
+              trendingArtistsMemo.length > 8
+                ? {
+                    total: trendingArtistsMemo.length,
+                    shown: visibleArtistes.length,
+                    expanded: artistesShowMore.expanded,
+                    onToggle: artistesShowMore.toggle,
+                  }
+                : undefined
+            }
+          >
             {visibleArtistes.map(({ nom, plays, song }) => (
               <div key={nom} className="shrink-0 w-24 text-center group cursor-pointer"
                 onClick={() => { if (song) { setCurrentSong(song); setIsPlaying(true); } }}>
                 <div className="w-20 h-20 rounded-full mx-auto mb-2 overflow-hidden bg-zinc-800 border-2 border-zinc-700 group-hover:border-red-500/50 transition">
-                  {song?.image ? <img src={song.image} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-xl font-black text-zinc-600">{nom[0]}</div>}
+                  {song?.image
+                    ? <img src={song.image} className="w-full h-full object-cover" alt="" />
+                    : <div className="w-full h-full flex items-center justify-center text-xl font-black text-zinc-600">{nom[0]}</div>
+                  }
                 </div>
                 <p className="text-xs font-bold truncate text-zinc-300">{nom}</p>
                 <p className="text-[10px] text-zinc-600">{plays.toLocaleString()} écoutes</p>
               </div>
             ))}
-          </div>
-          {trendingArtistsMemo.length > 6 && (
-            <ShowMoreButton
-              expanded={artistesShowMore.expanded}
-              onToggle={artistesShowMore.toggle}
-              total={trendingArtistsMemo.length}
-              shown={visibleArtistes.length}
-            />
-          )}
+          </HorizontalScrollContainer>
         </section>
       )}
 
-      {/* ══ 8. ALBUMS RÉCENTS ══ */}
+      {/* ══ 8. ALBUMS RÉCENTS — scroll horizontal ══ */}
       {recentAlbums.length > 0 && (
         <section>
           <SectionHeader icon={<Disc3 size={18} className="text-indigo-400" />} title="Albums récents" />
-          <div className="flex gap-3 md:gap-4 overflow-x-auto pb-3" style={{ scrollbarWidth: 'none' }}>
+          <HorizontalScrollContainer
+            showMoreProps={
+              recentAlbums.length > 8
+                ? {
+                    total: recentAlbums.length,
+                    shown: visibleAlbums.length,
+                    expanded: albumsShowMore.expanded,
+                    onToggle: albumsShowMore.toggle,
+                  }
+                : undefined
+            }
+          >
             {visibleAlbums.map(album => (
               <div key={album._id} className="shrink-0 w-28 md:w-32 group cursor-pointer">
                 <div className="relative mb-2 aspect-square">
@@ -946,15 +1123,7 @@ const HomeView = ({
                 <p className="text-[10px] text-zinc-600 truncate">{album.artiste || album.annee}</p>
               </div>
             ))}
-          </div>
-          {recentAlbums.length > 6 && (
-            <ShowMoreButton
-              expanded={albumsShowMore.expanded}
-              onToggle={albumsShowMore.toggle}
-              total={recentAlbums.length}
-              shown={visibleAlbums.length}
-            />
-          )}
+          </HorizontalScrollContainer>
         </section>
       )}
 
@@ -980,7 +1149,7 @@ const HomeView = ({
         </section>
       )}
 
-      {/* ══ CLASSEMENT ENTRE AMIS ══ */}
+      {/* ══ CLASSEMENT DES FANS ══ */}
       {isLoggedIn && friendRanking.length > 0 && (
         <section>
           <SectionHeader icon={<Trophy size={18} className="text-yellow-400" />} title="Classement des fans" subtitle="Les plus actifs cette semaine" />
@@ -989,7 +1158,10 @@ const HomeView = ({
               <div key={entry._id} className="flex items-center gap-3">
                 <span className={`text-sm font-black w-5 ${i === 0 ? 'text-yellow-400' : i === 1 ? 'text-zinc-300' : i === 2 ? 'text-amber-600' : 'text-zinc-600'}`}>{i + 1}</span>
                 <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden shrink-0">
-                  {entry.userId?.avatar ? <img src={entry.userId.avatar} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-sm font-black text-zinc-500">{(entry.userId?.nom || '?')[0]}</div>}
+                  {entry.userId?.avatar
+                    ? <img src={entry.userId.avatar} className="w-full h-full object-cover" alt="" />
+                    : <div className="w-full h-full flex items-center justify-center text-sm font-black text-zinc-500">{(entry.userId?.nom || '?')[0]}</div>
+                  }
                 </div>
                 <p className="flex-1 text-sm font-bold truncate">{entry.userId?.nom || 'Anonyme'}</p>
                 <span className="text-xs text-zinc-500 shrink-0">{entry.points?.toLocaleString()} pts</span>
@@ -1026,12 +1198,23 @@ const HomeView = ({
       )}
 
       {/* ══ HORS-LIGNE ══ */}
-      <OfflineSection musiques={songs} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}
-        currentSong={currentSong} isPlaying={isPlaying} isAudioCached={isAudioCached} />
+      <OfflineSection
+        musiques={songs}
+        setCurrentSong={setCurrentSong}
+        setIsPlaying={setIsPlaying}
+        currentSong={currentSong}
+        isPlaying={isPlaying}
+        isAudioCached={isAudioCached}
+      />
 
       {/* ══ MES PARTAGES ══ */}
       {isLoggedIn && (
-        <RecentSharesSection token={token} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} currentSong={currentSong} />
+        <RecentSharesSection
+          token={token}
+          setCurrentSong={setCurrentSong}
+          setIsPlaying={setIsPlaying}
+          currentSong={currentSong}
+        />
       )}
 
     </div>

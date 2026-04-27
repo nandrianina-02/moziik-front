@@ -2,28 +2,31 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Loader2, Mic2, Disc3, Music, CheckCircle, Star,
-  UserPlus, UserCheck, Bell, Share2, ExternalLink, Calendar, Clock, Users, Play, Pause, PlayCircle, Video, Tv, ListMusic, Shuffle
+  UserPlus, UserCheck, Clock, Users, Play, Pause,
+  ExternalLink, Calendar, ListMusic, Shuffle
 } from 'lucide-react';
-
-import { FaInstagram, FaYoutube, FaTwitter } from 'react-icons/fa';
+import { FaInstagram, FaYoutube } from 'react-icons/fa';
 
 import { API } from '../config/api';
 import SongRow from '../components/music/SongRow';
 import { TipButton } from '../components/MonetisationComponents';
+import { usePlayerQueue } from '../hooks/usePlayerQueue';   // ← hook centralisé
 
-// ── Badge certifié ─────────────────────────────
+// ── Badge certifié ─────────────────────────────────────────────────
 const CertBadge = ({ level }) => {
   if (!level) return null;
   return level === 'gold'
-    ? <span title="Artiste certifié Or" className="inline-flex items-center gap-1 bg-yellow-500/20 border border-yellow-500/40 text-yellow-400 text-[9px] font-black px-2 py-0.5 rounded-full">
+    ? <span title="Artiste certifié Or"
+        className="inline-flex items-center gap-1 bg-yellow-500/20 border border-yellow-500/40 text-yellow-400 text-[9px] font-black px-2 py-0.5 rounded-full">
         <Star size={8} fill="currentColor"/> GOLD
       </span>
-    : <span title="Artiste vérifié" className="inline-flex items-center gap-1 bg-blue-500/20 border border-blue-500/40 text-blue-400 text-[9px] font-black px-2 py-0.5 rounded-full">
+    : <span title="Artiste vérifié"
+        className="inline-flex items-center gap-1 bg-blue-500/20 border border-blue-500/40 text-blue-400 text-[9px] font-black px-2 py-0.5 rounded-full">
         <CheckCircle size={8}/> VÉRIFIÉ
       </span>;
 };
 
-// ── Countdown sortie ───────────────────────────
+// ── Countdown sortie ────────────────────────────────────────────────
 const Countdown = ({ releaseAt }) => {
   const [diff, setDiff] = useState(new Date(releaseAt) - Date.now());
   useEffect(() => {
@@ -39,7 +42,9 @@ const Countdown = ({ releaseAt }) => {
     <div className="flex items-center gap-2">
       {[['J', d], ['H', h], ['M', m], ['S', s]].map(([l, v]) => (
         <div key={l} className="text-center">
-          <div className="text-lg font-black text-white tabular-nums w-10 bg-zinc-800 rounded-lg py-1">{String(v).padStart(2,'0')}</div>
+          <div className="text-lg font-black text-white tabular-nums w-10 bg-zinc-800 rounded-lg py-1">
+            {String(v).padStart(2, '0')}
+          </div>
           <div className="text-[9px] text-zinc-600 mt-0.5">{l}</div>
         </div>
       ))}
@@ -47,6 +52,7 @@ const Countdown = ({ releaseAt }) => {
   );
 };
 
+// ── Composant principal ─────────────────────────────────────────────
 const ArtistView = ({
   setCurrentSong, setIsPlaying, currentSong, isPlaying, toggleLike,
   addToQueue, setQueue, token, isLoggedIn, userNom, isAdmin, isArtist, userArtistId,
@@ -65,19 +71,29 @@ const ArtistView = ({
   const [certLoading, setCertLoading]     = useState(false);
   const [tab, setTab]               = useState('songs');
 
-  // Feedback visuel du bouton "Lire tout"
-  const [playAllActive, setPlayAllActive] = useState(false);
-  const [shuffleActive, setShuffleActive] = useState(false);
-
   const isOwnProfile = isArtist && String(userArtistId) === String(id);
   const canManage    = isAdmin || isOwnProfile;
 
+  // Liste des titres de cet artiste (dépend de `data`)
+  const songs = data?.songs ?? [];
+
+  // ── Hook de queue ──────────────────────────────────────────────
+  const queue = usePlayerQueue({ songs, setCurrentSong, setIsPlaying, setQueue, addToQueue });
+
+  // Indique si le lecteur joue un titre de CET artiste
+  const isCurrentArtistPlaying =
+    currentSong && songs.some(s => String(s._id) === String(currentSong._id)) && isPlaying;
+
+  // ── Fetch données artiste ──────────────────────────────────────
   useEffect(() => {
+    setData(null);
     Promise.all([
       fetch(`${API}/artists/${id}`).then(r => r.json()),
       fetch(`${API}/albums?artisteId=${id}`).then(r => r.json()).catch(() => []),
       fetch(`${API}/artists/${id}/certification`).then(r => r.json()).catch(() => null),
-      fetch(`${API}/artists/${id}/follow`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()).catch(() => ({ count: 0, following: false })),
+      fetch(`${API}/artists/${id}/follow`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).then(r => r.json()).catch(() => ({ count: 0, following: false })),
       fetch(`${API}/artists/${id}/featurings`).then(r => r.json()).catch(() => []),
       fetch(`${API}/a/${id}`).then(r => r.ok ? r.json() : null).catch(() => null),
     ]).then(([artistData, albumData, certData, followData, feats, sl]) => {
@@ -88,60 +104,35 @@ const ArtistView = ({
       setFeaturings(Array.isArray(feats) ? feats : []);
       if (sl?.artist) setSmartLink(sl);
     });
+
     if (canManage && token) {
       fetch(`${API}/artists/${id}/schedule`, { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.json()).then(d => setScheduled(Array.isArray(d) ? d : [])).catch(() => {});
+        .then(r => r.json())
+        .then(d => setScheduled(Array.isArray(d) ? d : []))
+        .catch(() => {});
     }
   }, [id]);
 
-  // Réinitialiser le feedback visuel quand l'artiste change
-  useEffect(() => {
-    setPlayAllActive(false);
-    setShuffleActive(false);
-  }, [id]);
-
-  // Détecter si la lecture de l'artiste est toujours active
-  const isCurrentArtistPlaying =
-    currentSong && data?.songs?.some(s => String(s._id) === String(currentSong._id)) && isPlaying;
-
-  // ── Lire tout ────────────────────────────────────────────────────
-  const handlePlayAll = () => {
-    if (!data?.songs?.length) return;
-    const [first, ...rest] = data.songs;
-    setCurrentSong(first);
-    setIsPlaying(true);
-    if (setQueue) setQueue(rest);
-    setPlayAllActive(true);
-    setShuffleActive(false);
-  };
-
-  // ── Lire en mode aléatoire ───────────────────────────────────────
-  const handleShuffle = () => {
-    if (!data?.songs?.length) return;
-    const shuffled = [...data.songs].sort(() => Math.random() - 0.5);
-    const [first, ...rest] = shuffled;
-    setCurrentSong(first);
-    setIsPlaying(true);
-    if (setQueue) setQueue(rest);
-    setShuffleActive(true);
-    setPlayAllActive(false);
-  };
-
+  // ── Follow ─────────────────────────────────────────────────────
   const handleFollow = async () => {
     if (!isLoggedIn) return;
     setFollowLoading(true);
     const res = await fetch(`${API}/artists/${id}/follow`, {
-      method: 'POST', headers: { Authorization: `Bearer ${token}` }
+      method: 'POST', headers: { Authorization: `Bearer ${token}` },
     }).then(r => r.json()).catch(() => null);
-    if (res) setFollowInfo(prev => ({ count: prev.count + (res.following ? 1 : -1), following: res.following }));
+    if (res) setFollowInfo(prev => ({
+      count: prev.count + (res.following ? 1 : -1),
+      following: res.following,
+    }));
     setFollowLoading(false);
   };
 
+  // ── Certification ──────────────────────────────────────────────
   const handleRequestCert = async () => {
     if (!canManage) return;
     setCertLoading(true);
     const res = await fetch(`${API}/artists/${id}/certification`, {
-      method: 'POST', headers: { Authorization: `Bearer ${token}` }
+      method: 'POST', headers: { Authorization: `Bearer ${token}` },
     }).then(r => r.json()).catch(() => null);
     if (res) setCert(res);
     setCertLoading(false);
@@ -149,56 +140,91 @@ const ArtistView = ({
 
   if (!data) return (
     <div className="p-8 text-zinc-500 flex items-center gap-2">
-      <Loader2 className="animate-spin" size={16} /> Chargement...
+      <Loader2 className="animate-spin" size={16}/> Chargement...
     </div>
   );
 
-  const { artist, songs } = data;
+  const { artist } = data;
 
+  // Props partagés avec SongRow
   const songProps = {
-    setCurrentSong, setIsPlaying, currentSong, isPlaying,
-    toggleLike, addToQueue, token, isLoggedIn, userNom,
-    isAdmin, isArtist, userArtistId,
-    playlists, userPlaylists, onAddToUserPlaylist, ajouterAPlaylist,
-    onDeleted, onRefresh, onTogglePlaylistVisibility,
+    setCurrentSong,
+    setIsPlaying,
+    currentSong,
+    isPlaying,
+    toggleLike,
+    addToQueue,
+    token,
+    isLoggedIn,
+    userNom,
+    isAdmin,
+    isArtist,
+    userArtistId,
+    playlists,
+    userPlaylists,
+    onAddToUserPlaylist,
+    ajouterAPlaylist,
+    onDeleted,
+    onRefresh,
+    onTogglePlaylistVisibility,
+    // ← on surcharge onPlay pour que chaque SongRow utilise notre hook
+    onPlay: (song) => queue.playSong(song),
   };
 
   return (
     <div className="animate-in fade-in duration-500">
 
       {/* ── Hero ── */}
-      <div className="flex flex-col md:flex-row items-start md:items-end gap-5 md:gap-6 mb-8 bg-gradient-to-t from-zinc-900/50 to-red-900/20 p-5 md:p-7 rounded-3xl">
-        <div className="w-28 h-28 md:w-44 md:h-44 bg-zinc-800 rounded-2xl shadow-2xl flex items-center justify-center border border-white/5 overflow-hidden shrink-0">
+      <div className="flex flex-col md:flex-row items-start md:items-end gap-5 md:gap-6 mb-8
+                      bg-gradient-to-t from-zinc-900/50 to-red-900/20 p-5 md:p-7 rounded-3xl">
+
+        {/* Photo artiste */}
+        <div className="w-28 h-28 md:w-44 md:h-44 bg-zinc-800 rounded-2xl shadow-2xl
+                        flex items-center justify-center border border-white/5 overflow-hidden shrink-0">
           {artist.image
-            ? <img src={artist.image} className="w-full h-full object-cover" alt="" />
-            : <Mic2 size={48} className="text-red-600" />}
+            ? <img src={artist.image} className="w-full h-full object-cover" alt={artist.nom}/>
+            : <Mic2 size={48} className="text-red-600"/>}
         </div>
 
+        {/* Infos + actions */}
         <div className="flex-1 min-w-0">
           <p className="text-xs font-bold uppercase tracking-widest text-red-500 mb-1">Artiste</p>
+
+          {/* Nom + badge */}
           <div className="flex items-center gap-2 flex-wrap mb-2">
             <h2 className="text-3xl md:text-5xl font-black">{artist.nom}</h2>
             {(artist.certified || cert?.status === 'approved') && (
-              <CertBadge level={artist.certLevel || cert?.level || 'blue'} />
+              <CertBadge level={artist.certLevel || cert?.level || 'blue'}/>
             )}
           </div>
-          {artist.bio && <p className="text-zinc-400 text-sm mb-3 max-w-xl line-clamp-2">{artist.bio}</p>}
+
+          {/* Bio */}
+          {artist.bio && (
+            <p className="text-zinc-400 text-sm mb-3 max-w-xl line-clamp-2">{artist.bio}</p>
+          )}
 
           {/* Stats */}
           <div className="flex items-center gap-4 text-xs text-zinc-500 mb-4 flex-wrap">
-            <span className="flex items-center gap-1.5"><Music size={12}/> {songs.length} titre{songs.length > 1 ? 's' : ''}</span>
-            <span className="flex items-center gap-1.5"><Disc3 size={12}/> {albums.length} album{albums.length > 1 ? 's' : ''}</span>
-            <span className="flex items-center gap-1.5 font-bold text-zinc-300"><Users size={12}/> {followInfo.count.toLocaleString()} abonné{followInfo.count > 1 ? 's' : ''}</span>
+            <span className="flex items-center gap-1.5">
+              <Music size={12}/> {songs.length} titre{songs.length > 1 ? 's' : ''}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Disc3 size={12}/> {albums.length} album{albums.length > 1 ? 's' : ''}
+            </span>
+            <span className="flex items-center gap-1.5 font-bold text-zinc-300">
+              <Users size={12}/> {followInfo.count.toLocaleString()} abonné{followInfo.count > 1 ? 's' : ''}
+            </span>
           </div>
 
-          {/* ── Boutons Lire tout + Aléatoire ── */}
+          {/* ── Boutons lecture ── */}
           {songs.length > 0 && (
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
 
-              {/* Lire tout */}
+              {/* Lire tout / Pause */}
               <button
-                onClick={isCurrentArtistPlaying ? () => setIsPlaying(false) : handlePlayAll}
-                className={`group flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm transition-all active:scale-95 shadow-lg ${
+                onClick={isCurrentArtistPlaying ? () => setIsPlaying(false) : queue.playAll}
+                className={`group flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm
+                            transition-all active:scale-95 shadow-lg ${
                   isCurrentArtistPlaying
                     ? 'bg-white text-zinc-950 shadow-white/20 hover:bg-zinc-100'
                     : 'bg-red-600 hover:bg-red-500 text-white shadow-red-500/30 hover:shadow-red-500/50'
@@ -206,16 +232,16 @@ const ArtistView = ({
               >
                 {isCurrentArtistPlaying
                   ? <><Pause size={16} fill="currentColor"/> Pause</>
-                  : <><Play  size={16} fill="currentColor"/> Lire tout</>
-                }
+                  : <><Play  size={16} fill="currentColor"/> Lire tout</>}
               </button>
 
               {/* Aléatoire */}
               <button
-                onClick={handleShuffle}
+                onClick={queue.shuffle}
                 title="Lecture aléatoire"
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border transition-all active:scale-95 ${
-                  shuffleActive
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border
+                            transition-all active:scale-95 ${
+                  queue.shuffleActive
                     ? 'bg-red-500/15 border-red-500/40 text-red-400'
                     : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:border-white/20 hover:bg-white/8'
                 }`}
@@ -227,11 +253,11 @@ const ArtistView = ({
               {/* Ajouter tout à la file */}
               {addToQueue && (
                 <button
-                  onClick={() => {
-                    songs.forEach(s => addToQueue(s));
-                  }}
+                  onClick={queue.addAllToQueue}
                   title="Ajouter tous les titres à la file d'attente"
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:border-white/20 hover:bg-white/8 transition-all active:scale-95"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border
+                             bg-white/5 border-white/10 text-zinc-400 hover:text-white
+                             hover:border-white/20 hover:bg-white/8 transition-all active:scale-95"
                 >
                   <ListMusic size={15}/>
                   <span className="hidden sm:inline">File d'attente</span>
@@ -240,54 +266,67 @@ const ArtistView = ({
             </div>
           )}
 
-          {/* Autres actions */}
+          {/* ── Autres actions (follow, tip, certif, réseaux) ── */}
           <div className="flex items-center gap-2 flex-wrap">
             {isLoggedIn && !isOwnProfile && (
               <>
-                <button onClick={handleFollow} disabled={followLoading}
-                  className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl transition active:scale-95 ${
-                    followInfo.following
-                      ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
-                      : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-white/10'
-                  }`}>
+                <button
+                  onClick={handleFollow}
+                  disabled={followLoading}
+                  className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl
+                             bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-white/10
+                             transition active:scale-95"
+                >
                   {followLoading
                     ? <Loader2 size={13} className="animate-spin"/>
                     : followInfo.following
                       ? <><UserCheck size={13}/> Abonné</>
-                      : <><UserPlus size={13}/> S'abonner</>
-                  }
+                      : <><UserPlus  size={13}/> S'abonner</>}
                 </button>
 
-                <TipButton
-                  artistId={id}
-                  artistNom={artist.nom}
-                  token={token}
-                  isLoggedIn={isLoggedIn}
-                />
+                <TipButton artistId={id} artistNom={artist.nom} token={token} isLoggedIn={isLoggedIn}/>
               </>
             )}
 
             {smartLink && (
-              <a href={`${window.location.origin}/a/${smartLink.slug || id}`} target="_blank" rel="noreferrer"
-                className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition">
-                <ExternalLink size={13}/> moozik.app/a/{smartLink.slug || artist.nom.toLowerCase().replace(/\s/g,'')}
+              <a
+                href={`${window.location.origin}/a/${smartLink.slug || id}`}
+                target="_blank" rel="noreferrer"
+                className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl
+                           bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition"
+              >
+                <ExternalLink size={13}/>
+                moozik.app/a/{smartLink.slug || artist.nom.toLowerCase().replace(/\s/g, '')}
               </a>
             )}
 
-            {isOwnProfile && !artist.certified && cert?.status !== 'approved' && cert?.status !== 'pending' && (
-              <button onClick={handleRequestCert} disabled={certLoading}
-                className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-blue-600/20 border border-blue-600/30 text-blue-400 hover:bg-blue-600/30 transition">
-                {certLoading ? <Loader2 size={12} className="animate-spin"/> : <CheckCircle size={12}/>}
+            {isOwnProfile && !artist.certified
+              && cert?.status !== 'approved' && cert?.status !== 'pending' && (
+              <button
+                onClick={handleRequestCert}
+                disabled={certLoading}
+                className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl
+                           bg-blue-600/20 border border-blue-600/30 text-blue-400
+                           hover:bg-blue-600/30 transition"
+              >
+                {certLoading
+                  ? <Loader2 size={12} className="animate-spin"/>
+                  : <CheckCircle size={12}/>}
                 Demander la certification
               </button>
             )}
+
             {isOwnProfile && cert?.status === 'pending' && (
-              <span className="text-xs text-orange-400 bg-orange-500/10 border border-orange-500/20 px-3 py-2 rounded-xl flex items-center gap-1.5">
+              <span className="text-xs text-orange-400 bg-orange-500/10 border border-orange-500/20
+                               px-3 py-2 rounded-xl flex items-center gap-1.5">
                 <Clock size={12}/> Certification en attente
               </span>
             )}
 
-            {smartLink?.socialLinks && Object.entries(smartLink.socialLinks).filter(([,v]) => v).map(([k, url]) => (
+            {smartLink?.socialLinks
+              && Object.entries(smartLink.socialLinks)
+                  .filter(([, v]) => v)
+                  .map(([k, url]) => (
               <a key={k} href={url} target="_blank" rel="noreferrer"
                 className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-xl transition"
                 title={k}>
@@ -298,7 +337,7 @@ const ArtistView = ({
         </div>
       </div>
 
-      {/* ── Planning ── */}
+      {/* ── Planning (admin / propriétaire) ── */}
       {canManage && scheduled.length > 0 && (
         <div className="mb-8 bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5">
           <h3 className="font-black text-sm mb-4 flex items-center gap-2 text-zinc-300">
@@ -307,12 +346,19 @@ const ArtistView = ({
           <div className="space-y-3">
             {scheduled.map(r => (
               <div key={r._id} className="flex items-center gap-4 p-3 bg-zinc-800/40 rounded-xl">
-                {r.songId?.image && <img src={r.songId.image} className="w-10 h-10 rounded-lg object-cover shrink-0" alt="" />}
+                {r.songId?.image && (
+                  <img src={r.songId.image} className="w-10 h-10 rounded-lg object-cover shrink-0" alt=""/>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold truncate">{r.songId?.titre}</p>
-                  <p className="text-[10px] text-zinc-500">Sortie : {new Date(r.releaseAt).toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' })}</p>
+                  <p className="text-[10px] text-zinc-500">
+                    Sortie : {new Date(r.releaseAt).toLocaleDateString('fr-FR', {
+                      day: 'numeric', month: 'long', year: 'numeric',
+                      hour: '2-digit', minute: '2-digit',
+                    })}
+                  </p>
                 </div>
-                <Countdown releaseAt={r.releaseAt} />
+                <Countdown releaseAt={r.releaseAt}/>
               </div>
             ))}
           </div>
@@ -327,32 +373,44 @@ const ArtistView = ({
           ['featurings', `Featurings (${featurings.length})`],
         ].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${tab === k ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-white'}`}>
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${
+              tab === k ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-white'
+            }`}>
             {l}
           </button>
         ))}
       </div>
 
-      {/* ── Tab: Titres ── */}
+      {/* ── Tab : Titres ── */}
       {tab === 'songs' && (
         <div className="flex flex-col gap-1">
           {songs.length === 0
             ? <p className="p-8 text-zinc-600 text-sm text-center italic">Aucun titre publié</p>
             : songs.map((song, index) => (
-              <SongRow key={song._id} song={song} index={index} {...songProps} />
+              <SongRow
+                key={song._id}
+                song={song}
+                index={index}
+                {...songProps}
+                // Clic sur le titre → notre hook reconstruit la queue
+                onPlay={() => queue.playSong(song)}
+              />
             ))}
         </div>
       )}
 
-      {/* ── Tab: Albums ── */}
+      {/* ── Tab : Albums ── */}
       {tab === 'albums' && (
         albums.length === 0
           ? <p className="p-8 text-zinc-600 text-sm text-center italic">Aucun album</p>
           : <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {albums.map(album => (
                 <Link key={album._id} to={`/album/${album._id}`} className="group">
-                  <div className="aspect-square bg-zinc-800 rounded-2xl overflow-hidden shadow-lg mb-2 group-hover:scale-105 transition">
-                    {album.image ? <img src={album.image} className="w-full h-full object-cover" alt="" /> : <Disc3 size={32} className="text-indigo-400 m-auto mt-[40%]" />}
+                  <div className="aspect-square bg-zinc-800 rounded-2xl overflow-hidden shadow-lg mb-2
+                                  group-hover:scale-105 transition">
+                    {album.image
+                      ? <img src={album.image} className="w-full h-full object-cover" alt=""/>
+                      : <Disc3 size={32} className="text-indigo-400 m-auto mt-[40%]"/>}
                   </div>
                   <p className="text-sm font-bold truncate">{album.titre}</p>
                   <p className="text-[10px] text-zinc-500">{album.annee}</p>
@@ -361,7 +419,7 @@ const ArtistView = ({
             </div>
       )}
 
-      {/* ── Tab: Featurings ── */}
+      {/* ── Tab : Featurings ── */}
       {tab === 'featurings' && (
         featurings.length === 0
           ? <p className="p-8 text-zinc-600 text-sm text-center italic">Aucun featuring officiel</p>
@@ -372,10 +430,12 @@ const ArtistView = ({
                 const song    = feat.songId;
                 if (!song) return null;
                 return (
-                  <div key={feat._id}
+                  <div
+                    key={feat._id}
                     onClick={() => { setCurrentSong(song); setIsPlaying(true); }}
-                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 cursor-pointer transition group">
-                    <img src={song.image} className="w-10 h-10 rounded-lg object-cover shrink-0" alt="" />
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 cursor-pointer transition group"
+                  >
+                    <img src={song.image} className="w-10 h-10 rounded-lg object-cover shrink-0" alt=""/>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold truncate">{song.titre}</p>
                       <div className="flex items-center gap-1.5 mt-0.5">
@@ -383,16 +443,19 @@ const ArtistView = ({
                           {feat.role}
                         </span>
                         {partner && (
-                          <Link to={`/artist/${partner._id}`} onClick={e => e.stopPropagation()}
-                            className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-white transition">
-                            <img src={partner.image} className="w-4 h-4 rounded-full object-cover" alt="" />
+                          <Link
+                            to={`/artist/${partner._id}`}
+                            onClick={e => e.stopPropagation()}
+                            className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-white transition"
+                          >
+                            <img src={partner.image} className="w-4 h-4 rounded-full object-cover" alt=""/>
                             {partner.nom}
                             {partner.certified && <CheckCircle size={9} className="text-blue-400"/>}
                           </Link>
                         )}
                       </div>
                     </div>
-                    <Play size={13} className="text-zinc-600 opacity-0 group-hover:opacity-100 transition shrink-0" />
+                    <Play size={13} className="text-zinc-600 opacity-0 group-hover:opacity-100 transition shrink-0"/>
                   </div>
                 );
               })}

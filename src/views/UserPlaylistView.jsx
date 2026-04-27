@@ -3,15 +3,15 @@ import { useParams } from 'react-router-dom';
 import { Loader2, Globe, Lock, Heart, ListPlus, Trash2, Play, Pause, Shuffle, ListMusic } from 'lucide-react';
 import { API } from '../config/api';
 import ConfirmDialog, { useConfirm } from '../components/ui/ConfirmDialog';
+import { usePlayerQueue } from '../hooks/usePlayerQueue';   // ← hook centralisé
 
 const UserPlaylistView = ({
   token, setCurrentSong, setIsPlaying, currentSong, isPlaying,
-  toggleLike, addToQueue, setQueue, isOwner, isLoggedIn, userNom
+  toggleLike, addToQueue, setQueue, isOwner, isLoggedIn, userNom,
 }) => {
   const { id } = useParams();
   const [playlist, setPlaylist]       = useState(null);
   const [loading, setLoading]         = useState(true);
-  const [shuffleActive, setShuffleActive] = useState(false);
   const { confirmDialog, ask, close } = useConfirm();
 
   useEffect(() => {
@@ -22,44 +22,16 @@ const UserPlaylistView = ({
       .catch(() => setLoading(false));
   }, [id, token]);
 
-  if (loading) return (
-    <div className="p-8 text-zinc-500 flex items-center gap-2">
-      <Loader2 className="animate-spin" size={16} /> Chargement...
-    </div>
-  );
-  if (!playlist) return (
-    <div className="p-8 text-zinc-500">Playlist introuvable ou accès refusé.</div>
-  );
+  const songs = playlist?.musiques ?? [];
 
-  const songs = playlist.musiques || [];
+  // ── Hook de queue ────────────────────────────────────────────
+  const queue = usePlayerQueue({ songs, setCurrentSong, setIsPlaying, setQueue, addToQueue });
 
-  // Détecter si un titre de cette playlist est en lecture
+  // Un titre de cette playlist est-il en lecture ?
   const isCurrentPlaylistPlaying =
     currentSong && songs.some(s => String(s._id) === String(currentSong._id)) && isPlaying;
 
-  const handlePlayAll = () => {
-    if (!songs.length) return;
-    const [first, ...rest] = songs;
-    setCurrentSong(first);
-    setIsPlaying(true);
-    if (setQueue) setQueue(rest);
-    setShuffleActive(false);
-  };
-
-  const handleShuffle = () => {
-    if (!songs.length) return;
-    const shuffled = [...songs].sort(() => Math.random() - 0.5);
-    const [first, ...rest] = shuffled;
-    setCurrentSong(first);
-    setIsPlaying(true);
-    if (setQueue) setQueue(rest);
-    setShuffleActive(true);
-  };
-
-  const handleAddAllToQueue = () => {
-    songs.forEach(s => addToQueue(s));
-  };
-
+  // ── Retirer un titre ─────────────────────────────────────────
   const removeFromPlaylist = (songId, titre) => {
     ask({
       title: `Retirer "${titre}" de la playlist ?`,
@@ -78,16 +50,28 @@ const UserPlaylistView = ({
     });
   };
 
+  if (loading) return (
+    <div className="p-8 text-zinc-500 flex items-center gap-2">
+      <Loader2 className="animate-spin" size={16}/> Chargement...
+    </div>
+  );
+  if (!playlist) return (
+    <div className="p-8 text-zinc-500">Playlist introuvable ou accès refusé.</div>
+  );
+
   return (
     <div className="animate-in fade-in duration-500">
-      <ConfirmDialog config={confirmDialog} onClose={close} />
+      <ConfirmDialog config={confirmDialog} onClose={close}/>
 
       {/* ── Hero ── */}
-      <div className="flex items-end gap-4 md:gap-6 mb-8 bg-gradient-to-t from-zinc-900/50 to-purple-900/20 p-4 md:p-6 rounded-3xl">
-        <div className="w-28 h-28 md:w-48 md:h-48 bg-purple-900/30 rounded-2xl shadow-2xl flex items-center justify-center border border-purple-500/20 shrink-0">
+      <div className="flex items-end gap-4 md:gap-6 mb-8
+                      bg-gradient-to-t from-zinc-900/50 to-purple-900/20
+                      p-4 md:p-6 rounded-3xl">
+        <div className="w-28 h-28 md:w-48 md:h-48 bg-purple-900/30 rounded-2xl shadow-2xl
+                        flex items-center justify-center border border-purple-500/20 shrink-0">
           {playlist.isPublic
-            ? <Globe size={48} className="text-purple-400" />
-            : <Lock  size={48} className="text-purple-400" />}
+            ? <Globe size={48} className="text-purple-400"/>
+            : <Lock  size={48} className="text-purple-400"/>}
         </div>
 
         <div className="min-w-0">
@@ -99,17 +83,19 @@ const UserPlaylistView = ({
               {playlist.isPublic ? 'Publique' : 'Privée'}
             </span>
           </div>
+
           <h2 className="text-2xl md:text-5xl font-black mb-2 truncate">{playlist.nom}</h2>
           <p className="text-zinc-500 text-xs mb-4">
             {songs.length} titre{songs.length !== 1 ? 's' : ''}
           </p>
 
-          {/* ── Boutons lecture ── */}
+          {/* Boutons lecture */}
           {songs.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={isCurrentPlaylistPlaying ? () => setIsPlaying(false) : handlePlayAll}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm transition-all active:scale-95 shadow-lg ${
+                onClick={isCurrentPlaylistPlaying ? () => setIsPlaying(false) : queue.playAll}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm
+                            transition-all active:scale-95 shadow-lg ${
                   isCurrentPlaylistPlaying
                     ? 'bg-white text-zinc-950 shadow-white/20 hover:bg-zinc-100'
                     : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/30 hover:shadow-purple-500/50'
@@ -117,14 +103,14 @@ const UserPlaylistView = ({
               >
                 {isCurrentPlaylistPlaying
                   ? <><Pause size={16} fill="currentColor"/> Pause</>
-                  : <><Play  size={16} fill="currentColor"/> Lire tout</>
-                }
+                  : <><Play  size={16} fill="currentColor"/> Lire tout</>}
               </button>
 
               <button
-                onClick={handleShuffle}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border transition-all active:scale-95 ${
-                  shuffleActive
+                onClick={queue.shuffle}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border
+                            transition-all active:scale-95 ${
+                  queue.shuffleActive
                     ? 'bg-purple-500/15 border-purple-500/40 text-purple-400'
                     : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:border-white/20 hover:bg-white/8'
                 }`}
@@ -135,8 +121,10 @@ const UserPlaylistView = ({
 
               {addToQueue && (
                 <button
-                  onClick={handleAddAllToQueue}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:border-white/20 hover:bg-white/8 transition-all active:scale-95"
+                  onClick={queue.addAllToQueue}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border
+                             bg-white/5 border-white/10 text-zinc-400 hover:text-white
+                             hover:border-white/20 hover:bg-white/8 transition-all active:scale-95"
                 >
                   <ListMusic size={15}/>
                   <span className="hidden sm:inline">File d'attente</span>
@@ -160,13 +148,15 @@ const UserPlaylistView = ({
               className={`flex items-center justify-between p-3 rounded-xl cursor-pointer group transition ${
                 currentSong?._id === song._id ? 'bg-purple-600/10' : 'hover:bg-white/5'
               }`}
-              onClick={() => { setCurrentSong(song); setIsPlaying(true); }}
+              onClick={() => queue.playSong(song)}   // ← hook : reconstruit la queue
             >
               <div className="flex items-center gap-4 min-w-0">
                 <span className="text-zinc-600 font-mono text-xs w-4 shrink-0">{index + 1}</span>
-                <img src={song.image} className="w-10 h-10 rounded-md object-cover shrink-0" alt="" />
+                <img src={song.image} className="w-10 h-10 rounded-md object-cover shrink-0" alt=""/>
                 <div className="min-w-0">
-                  <p className={`text-sm font-bold truncate ${currentSong?._id === song._id ? 'text-purple-400' : ''}`}>
+                  <p className={`text-sm font-bold truncate ${
+                    currentSong?._id === song._id ? 'text-purple-400' : ''
+                  }`}>
                     {song.titre}
                   </p>
                   <p className="text-[10px] text-zinc-500 uppercase truncate">{song.artiste}</p>
@@ -175,14 +165,18 @@ const UserPlaylistView = ({
 
               <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition shrink-0 ml-3">
                 <button onClick={e => { e.stopPropagation(); toggleLike(song._id); }}>
-                  <Heart size={16} fill={song.liked ? 'red' : 'none'} className={song.liked ? 'text-red-500' : 'text-zinc-500 hover:text-red-400 transition'} />
+                  <Heart
+                    size={16}
+                    fill={song.liked ? 'red' : 'none'}
+                    className={song.liked ? 'text-red-500' : 'text-zinc-500 hover:text-red-400 transition'}
+                  />
                 </button>
                 <button onClick={e => { e.stopPropagation(); addToQueue(song); }}>
-                  <ListPlus size={16} className="text-zinc-500 hover:text-white transition" />
+                  <ListPlus size={16} className="text-zinc-500 hover:text-white transition"/>
                 </button>
                 {isOwner && (
                   <button onClick={e => { e.stopPropagation(); removeFromPlaylist(song._id, song.titre); }}>
-                    <Trash2 size={14} className="text-zinc-600 hover:text-red-500 transition" />
+                    <Trash2 size={14} className="text-zinc-600 hover:text-red-500 transition"/>
                   </button>
                 )}
               </div>
