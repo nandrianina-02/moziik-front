@@ -738,6 +738,61 @@ const HomeView = ({
         </section>
       )}
 
+      <section>
+        <SectionHeader
+          icon={<Radio size={18} className="text-red-400"/>}
+          title="Radio IA"
+          subtitle="L'IA compose votre playlist en continu"
+        />
+      
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-900/30 via-zinc-900/60 to-orange-900/20 border border-red-500/20 p-5 group cursor-pointer hover:border-red-500/40 transition-all duration-300"
+          onClick={onInfiniteRadio}>
+      
+          {/* Fond décoratif */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(239,68,68,0.08)_0%,_transparent_60%)] pointer-events-none"/>
+      
+          <div className="relative flex items-center gap-4">
+            {/* Icône animée */}
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-xl shadow-red-500/30 shrink-0 group-hover:scale-105 transition-transform duration-300">
+              <Radio size={24} className="text-white"/>
+              {/* Point "on air" */}
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-zinc-900 animate-pulse"/>
+            </div>
+      
+            {/* Texte */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[9px] font-black bg-red-500/20 border border-red-500/30 text-red-400 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                  IA · En direct
+                </span>
+              </div>
+              <h3 className="text-base font-black text-white">Radio IA MOOZIK</h3>
+              <p className="text-[11px] text-zinc-400 mt-0.5">
+                Choisissez une ambiance ·L'IA compose en continu
+              </p>
+      
+              {/* Mini moods preview */}
+              <div className="flex gap-1.5 mt-2 flex-wrap">
+                {['🌊 Chill','⚡ Énergie','🎯 Focus','🎉 Fête'].map(m => (
+                  <span key={m} className="text-[9px] font-bold bg-white/6 border border-white/8 text-zinc-500 px-2 py-0.5 rounded-full">
+                    {m}
+                  </span>
+                ))}
+                <span className="text-[9px] font-bold text-zinc-600 px-1 py-0.5">+4…</span>
+              </div>
+            </div>
+      
+            {/* Flèche */}
+            <div className="w-9 h-9 rounded-full bg-white/8 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-red-500/20 group-hover:border-red-500/30 transition-all duration-300">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400 group-hover:text-red-400 transition-colors"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
       {/* ══ 3. AMBIANCES / MOODS ══ */}
       <section>
         <SectionHeader icon={<Zap size={18} className="text-purple-400" />} title="Ambiances" subtitle="Filtrez par mood" />

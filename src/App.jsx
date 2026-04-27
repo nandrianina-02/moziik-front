@@ -51,6 +51,7 @@ import { TrendingView, ListenPartyModal, LoyaltyWidget } from './components/Soci
 import ArtistAnalyticsView from './views/ArtistAnalyticsView.jsx';
 import AdminLibraryView from './views/AdminLibraryView';
 import FullPlayerPage, { initEQ12, EQ_PRESETS_12 } from './components/player/FullPlayerPage';
+import RadioView from './views/RadioView';
 
 
 const DashboardView     = lazy(() => import('./views/EnhancedDashboardView'));
@@ -143,6 +144,7 @@ const AppInner = () => {
   useAppBadge(unreadNotifs);
   const { lang, setLang, t } = useI18n();
   const { isPremium } = useSubscription(token);
+  const [showRadio, setShowRadio] = useState(false);
 
   // ── FIX: Recherche → redirection automatique ──────────────────
   const prevSearchRef = useRef('');
@@ -340,7 +342,9 @@ const AppInner = () => {
   }, []);
 
   // ── FIX: Radio infinie ────────────────────────────────────────
-  const handleInfiniteRadio = useCallback(async (song) => {
+
+  const handleInfiniteRadio = useCallback( async (song) => {
+    setShowRadio(true);
     try {
       const similar = await fetch(`${API}/songs/${song._id}/similar`).then(r => r.json());
       if (Array.isArray(similar) && similar.length > 0) {
@@ -482,6 +486,8 @@ const AppInner = () => {
     setCurrentSong(mus[(idx - 1 + mus.length) % mus.length]);
     setIsPlaying(true);
   }, []);
+
+
 
   useMediaSession(currentSong, isPlaying, { onPlay: () => setIsPlaying(true), onPause: () => setIsPlaying(false), onNext: handleNext, onPrev: handlePrev });
 
@@ -672,7 +678,7 @@ const AppInner = () => {
             <Link key={link.to} to={link.to} className="flex items-center gap-3 text-zinc-400 hover:text-white transition px-3 py-2 rounded-xl hover:bg-zinc-900/80 text-sm active:scale-[0.98]">
               {link.icon} {link.label}
             </Link>
-          ))}
+          ))} 
           {isLoggedIn && navLinksUser.length > 0 && (
             <>
               <p className="text-[9px] font-bold text-zinc-700 uppercase tracking-widest px-3 pt-3 pb-0.5">Mon espace</p>
@@ -940,7 +946,7 @@ const AppInner = () => {
               userId={userId} onDeleted={deleteSong} onRefresh={chargerMusiques}
               onTogglePlaylistVisibility={togglePlaylistVisibility}
               isAudioCached={isAudioCached} cachedIds={cachedIds}
-              playAll={playAll}
+              playAll={playAll} onInfiniteRadio={handleInfiniteRadio}
             />
           } />
         </Routes>
@@ -1195,6 +1201,23 @@ const AppInner = () => {
         currentTime={currentTime} duration={duration} initAudioEngine={initAudioEngine}
         cacheAudio={cacheAudio} removeCached={removeCached} isAudioCached={isAudioCached}
       />
+
+      {showRadio && (
+        <div className="fixed inset-0 z-70 flex items-start justify-end">
+          <div className="absolute inset-0 bg-black/60 " onClick={() => setShowRadio(false)}/>
+          <div className="relative w-full max-w-lg h-full bg-zinc-950 border-l border-zinc-800/60 overflow-y-auto p-6 shadow-2xl">
+            <RadioView
+              token={token}
+              currentSong={currentSong}
+              setCurrentSong={setCurrentSong}
+              isPlaying={isPlaying}
+              setIsPlaying={setIsPlaying}
+              musiques={musiques}
+              onClose={() => setShowRadio(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
