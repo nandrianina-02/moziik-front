@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Loader2, Mic2, Disc3, Music, CheckCircle, Star,
-  UserPlus, UserCheck, Bell, Share2, ExternalLink , Calendar, Clock, Users, Play, Pause, PlayCircle, Video, Tv
+  UserPlus, UserCheck, Bell, Share2, ExternalLink, Calendar, Clock, Users, Play, Pause, PlayCircle, Video, Tv, ListMusic, Shuffle
 } from 'lucide-react';
 
-import { FaInstagram, FaYoutube, FaTwitter } from 'react-icons/fa'
+import { FaInstagram, FaYoutube, FaTwitter } from 'react-icons/fa';
 
 import { API } from '../config/api';
 import SongRow from '../components/music/SongRow';
@@ -49,21 +49,25 @@ const Countdown = ({ releaseAt }) => {
 
 const ArtistView = ({
   setCurrentSong, setIsPlaying, currentSong, isPlaying, toggleLike,
-  addToQueue, token, isLoggedIn, userNom, isAdmin, isArtist, userArtistId,
+  addToQueue, setQueue, token, isLoggedIn, userNom, isAdmin, isArtist, userArtistId,
   playlists, userPlaylists, onAddToUserPlaylist, ajouterAPlaylist,
   onDeleted, onRefresh, onTogglePlaylistVisibility,
 }) => {
   const { id } = useParams();
-  const [data, setData]           = useState(null);
-  const [albums, setAlbums]       = useState([]);
-  const [cert, setCert]           = useState(null);
+  const [data, setData]             = useState(null);
+  const [albums, setAlbums]         = useState([]);
+  const [cert, setCert]             = useState(null);
   const [followInfo, setFollowInfo] = useState({ count: 0, following: false });
   const [featurings, setFeaturings] = useState([]);
-  const [smartLink, setSmartLink] = useState(null);
-  const [scheduled, setScheduled] = useState([]);
+  const [smartLink, setSmartLink]   = useState(null);
+  const [scheduled, setScheduled]   = useState([]);
   const [followLoading, setFollowLoading] = useState(false);
   const [certLoading, setCertLoading]     = useState(false);
-  const [tab, setTab]             = useState('songs'); // 'songs' | 'albums' | 'featurings'
+  const [tab, setTab]               = useState('songs');
+
+  // Feedback visuel du bouton "Lire tout"
+  const [playAllActive, setPlayAllActive] = useState(false);
+  const [shuffleActive, setShuffleActive] = useState(false);
 
   const isOwnProfile = isArtist && String(userArtistId) === String(id);
   const canManage    = isAdmin || isOwnProfile;
@@ -84,12 +88,44 @@ const ArtistView = ({
       setFeaturings(Array.isArray(feats) ? feats : []);
       if (sl?.artist) setSmartLink(sl);
     });
-    // Planning (si proprio ou admin)
     if (canManage && token) {
       fetch(`${API}/artists/${id}/schedule`, { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json()).then(d => setScheduled(Array.isArray(d) ? d : [])).catch(() => {});
     }
   }, [id]);
+
+  // Réinitialiser le feedback visuel quand l'artiste change
+  useEffect(() => {
+    setPlayAllActive(false);
+    setShuffleActive(false);
+  }, [id]);
+
+  // Détecter si la lecture de l'artiste est toujours active
+  const isCurrentArtistPlaying =
+    currentSong && data?.songs?.some(s => String(s._id) === String(currentSong._id)) && isPlaying;
+
+  // ── Lire tout ────────────────────────────────────────────────────
+  const handlePlayAll = () => {
+    if (!data?.songs?.length) return;
+    const [first, ...rest] = data.songs;
+    setCurrentSong(first);
+    setIsPlaying(true);
+    if (setQueue) setQueue(rest);
+    setPlayAllActive(true);
+    setShuffleActive(false);
+  };
+
+  // ── Lire en mode aléatoire ───────────────────────────────────────
+  const handleShuffle = () => {
+    if (!data?.songs?.length) return;
+    const shuffled = [...data.songs].sort(() => Math.random() - 0.5);
+    const [first, ...rest] = shuffled;
+    setCurrentSong(first);
+    setIsPlaying(true);
+    if (setQueue) setQueue(rest);
+    setShuffleActive(true);
+    setPlayAllActive(false);
+  };
 
   const handleFollow = async () => {
     if (!isLoggedIn) return;
@@ -133,8 +169,11 @@ const ArtistView = ({
       {/* ── Hero ── */}
       <div className="flex flex-col md:flex-row items-start md:items-end gap-5 md:gap-6 mb-8 bg-gradient-to-t from-zinc-900/50 to-red-900/20 p-5 md:p-7 rounded-3xl">
         <div className="w-28 h-28 md:w-44 md:h-44 bg-zinc-800 rounded-2xl shadow-2xl flex items-center justify-center border border-white/5 overflow-hidden shrink-0">
-          {artist.image ? <img src={artist.image} className="w-full h-full object-cover" alt="" /> : <Mic2 size={48} className="text-red-600" />}
+          {artist.image
+            ? <img src={artist.image} className="w-full h-full object-cover" alt="" />
+            : <Mic2 size={48} className="text-red-600" />}
         </div>
+
         <div className="flex-1 min-w-0">
           <p className="text-xs font-bold uppercase tracking-widest text-red-500 mb-1">Artiste</p>
           <div className="flex items-center gap-2 flex-wrap mb-2">
@@ -146,25 +185,76 @@ const ArtistView = ({
           {artist.bio && <p className="text-zinc-400 text-sm mb-3 max-w-xl line-clamp-2">{artist.bio}</p>}
 
           {/* Stats */}
-          <div className="flex items-center gap-4 text-xs text-zinc-500 mb-3 flex-wrap">
+          <div className="flex items-center gap-4 text-xs text-zinc-500 mb-4 flex-wrap">
             <span className="flex items-center gap-1.5"><Music size={12}/> {songs.length} titre{songs.length > 1 ? 's' : ''}</span>
             <span className="flex items-center gap-1.5"><Disc3 size={12}/> {albums.length} album{albums.length > 1 ? 's' : ''}</span>
             <span className="flex items-center gap-1.5 font-bold text-zinc-300"><Users size={12}/> {followInfo.count.toLocaleString()} abonné{followInfo.count > 1 ? 's' : ''}</span>
           </div>
 
-          {/* Actions */}
+          {/* ── Boutons Lire tout + Aléatoire ── */}
+          {songs.length > 0 && (
+            <div className="flex items-center gap-2 mb-4">
+
+              {/* Lire tout */}
+              <button
+                onClick={isCurrentArtistPlaying ? () => setIsPlaying(false) : handlePlayAll}
+                className={`group flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm transition-all active:scale-95 shadow-lg ${
+                  isCurrentArtistPlaying
+                    ? 'bg-white text-zinc-950 shadow-white/20 hover:bg-zinc-100'
+                    : 'bg-red-600 hover:bg-red-500 text-white shadow-red-500/30 hover:shadow-red-500/50'
+                }`}
+              >
+                {isCurrentArtistPlaying
+                  ? <><Pause size={16} fill="currentColor"/> Pause</>
+                  : <><Play  size={16} fill="currentColor"/> Lire tout</>
+                }
+              </button>
+
+              {/* Aléatoire */}
+              <button
+                onClick={handleShuffle}
+                title="Lecture aléatoire"
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border transition-all active:scale-95 ${
+                  shuffleActive
+                    ? 'bg-red-500/15 border-red-500/40 text-red-400'
+                    : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:border-white/20 hover:bg-white/8'
+                }`}
+              >
+                <Shuffle size={15}/>
+                <span className="hidden sm:inline">Aléatoire</span>
+              </button>
+
+              {/* Ajouter tout à la file */}
+              {addToQueue && (
+                <button
+                  onClick={() => {
+                    songs.forEach(s => addToQueue(s));
+                  }}
+                  title="Ajouter tous les titres à la file d'attente"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:border-white/20 hover:bg-white/8 transition-all active:scale-95"
+                >
+                  <ListMusic size={15}/>
+                  <span className="hidden sm:inline">File d'attente</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Autres actions */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Suivre */}
             {isLoggedIn && !isOwnProfile && (
-              < >
+              <>
                 <button onClick={handleFollow} disabled={followLoading}
                   className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl transition active:scale-95 ${
                     followInfo.following
                       ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
-                      : 'bg-red-600 hover:bg-red-500 text-white'
+                      : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-white/10'
                   }`}>
-                  {followLoading ? <Loader2 size={13} className="animate-spin"/>
-                    : followInfo.following ? <><UserCheck size={13}/> Abonné</> : <><UserPlus size={13}/> S'abonner</>
+                  {followLoading
+                    ? <Loader2 size={13} className="animate-spin"/>
+                    : followInfo.following
+                      ? <><UserCheck size={13}/> Abonné</>
+                      : <><UserPlus size={13}/> S'abonner</>
                   }
                 </button>
 
@@ -177,7 +267,6 @@ const ArtistView = ({
               </>
             )}
 
-            {/* Smart link */}
             {smartLink && (
               <a href={`${window.location.origin}/a/${smartLink.slug || id}`} target="_blank" rel="noreferrer"
                 className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition">
@@ -185,7 +274,6 @@ const ArtistView = ({
               </a>
             )}
 
-            {/* Demande certification */}
             {isOwnProfile && !artist.certified && cert?.status !== 'approved' && cert?.status !== 'pending' && (
               <button onClick={handleRequestCert} disabled={certLoading}
                 className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-blue-600/20 border border-blue-600/30 text-blue-400 hover:bg-blue-600/30 transition">
@@ -199,7 +287,6 @@ const ArtistView = ({
               </span>
             )}
 
-            {/* Réseaux sociaux du smart link */}
             {smartLink?.socialLinks && Object.entries(smartLink.socialLinks).filter(([,v]) => v).map(([k, url]) => (
               <a key={k} href={url} target="_blank" rel="noreferrer"
                 className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-xl transition"
@@ -211,7 +298,7 @@ const ArtistView = ({
         </div>
       </div>
 
-      {/* ── Planning (sorties programmées - proprio/admin) ── */}
+      {/* ── Planning ── */}
       {canManage && scheduled.length > 0 && (
         <div className="mb-8 bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5">
           <h3 className="font-black text-sm mb-4 flex items-center gap-2 text-zinc-300">
@@ -235,9 +322,9 @@ const ArtistView = ({
       {/* ── Tabs ── */}
       <div className="flex gap-1 bg-zinc-900/40 rounded-xl p-1 mb-6 border border-zinc-800/50">
         {[
-          ['songs',     `Titres (${songs.length})`],
-          ['albums',    `Albums (${albums.length})`],
-          ['featurings',`Featurings (${featurings.length})`],
+          ['songs',      `Titres (${songs.length})`],
+          ['albums',     `Albums (${albums.length})`],
+          ['featurings', `Featurings (${featurings.length})`],
         ].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${tab === k ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-white'}`}>

@@ -6,7 +6,7 @@ import {
   LogIn, LogOut, Repeat, Repeat1, Timer, Gauge, BarChart2,
   Users, Mic2, X, Disc3, Globe, Lock, ChevronDown, Settings,
   Maximize2, Eye, TrendingUp, Flame, Sparkles, Dices, History, Bell, WifiOff,
-  CheckCircle, Star, Crown, Ticket, ShoppingCart, DollarSign, Radio
+  CheckCircle, Star, Crown, Ticket, ShoppingCart, DollarSign, Radio, Zap, Shield
 } from 'lucide-react';
 
 import { API } from './config/api';
@@ -52,6 +52,9 @@ import ArtistAnalyticsView from './views/ArtistAnalyticsView.jsx';
 import AdminLibraryView from './views/AdminLibraryView';
 import FullPlayerPage, { initEQ12, EQ_PRESETS_12 } from './components/player/FullPlayerPage';
 import RadioView from './views/RadioView';
+import AdminArtistView from './views/AdminArtistView';
+import AdminTeamView from './views/AdminTeamView';
+
 
 
 const DashboardView     = lazy(() => import('./views/EnhancedDashboardView'));
@@ -603,6 +606,9 @@ const AppInner = () => {
     { to: '/admin-users',          icon: <Users size={17}/>,      label: 'Utilisateurs' },
     { to: '/admin-certifications', icon: <CheckCircle size={17}/>,label: 'Certifications' },
     { to: '/admin-monetisation',   icon: <DollarSign size={17}/>, label: 'Monétisation' },
+    { to: '/admin-studio', icon: <Zap size={17}/>, label: 'Admin Studio' },
+    { to: '/admin-team', icon: <Shield size={17}/>, label: 'Équipe Admin' }
+
   ] : [];
 
   const songProps = {
@@ -949,6 +955,17 @@ const AppInner = () => {
               playAll={playAll} onInfiniteRadio={handleInfiniteRadio}
             />
           } />
+
+          <Route path="/admin-studio" element={isAdmin 
+            ? <AdminArtistView token={token} adminId={userId} adminNom={userNom}/> 
+            : <div className="p-8 text-zinc-600">Accès refusé</div>} 
+          />
+          <Route path="/admin-team"
+            element={isAdmin
+              ? <AdminTeamView token={token} currentAdminId={userId} isPrimary={isPrimary}/>
+              : <div className="p-8 text-zinc-600">Accès refusé</div>}
+          />
+
         </Routes>
       </main>
 
