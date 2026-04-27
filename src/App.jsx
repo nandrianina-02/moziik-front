@@ -1203,9 +1203,14 @@ const AppInner = () => {
       />
 
       {showRadio && (
-        <div className="fixed inset-0 z-70 flex items-start justify-end">
-          <div className="absolute inset-0 bg-black/60 " onClick={() => setShowRadio(false)}/>
-          <div className="relative w-full max-w-lg h-full bg-zinc-950 border-l border-zinc-800/60 overflow-y-auto p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex">
+          {/* Overlay */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowRadio(false)}
+          />
+          {/* Panneau plein écran */}
+          <div className="relative ml-auto w-full h-full bg-zinc-950 border-l border-zinc-800/60 shadow-2xl flex flex-col overflow-hidden">
             <RadioView
               token={token}
               currentSong={currentSong}
