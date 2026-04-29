@@ -255,18 +255,55 @@ const AppInner = () => {
   // ── DATA ──────────────────────────────────────────────────────
   const chargerMusiques = async () => {
     try {
-      let allSongs = []; let page = 1; let totalPages = 1;
+      let allSongs = [];
+      let page = 1;
+      let totalPages = 1;
+  
       do {
         const data = await fetch(`${API}/songs?page=${page}&limit=50`).then(r => r.json());
         if (Array.isArray(data)) { allSongs = data; break; }
         allSongs = [...allSongs, ...(data.songs || [])];
-        totalPages = data.pagination?.pages || 1; page++;
+        totalPages = data.pagination?.pages || 1;
+        page++;
       } while (page <= totalPages);
+  
       setMusiques(allSongs);
-      if (allSongs.length > 0) setCurrentSong(prev => prev ?? allSongs[0]);
-    } catch (e) { console.error('Erreur musiques:', e); }
-    finally { setIsLoading(false); }
+  
+      if (allSongs.length === 0) return;
+  
+      // ── Sélection initiale (seulement si rien n'est déjà en cours) ──
+      setCurrentSong(prev => {
+        if (prev) return prev; // déjà une chanson en cours → ne pas toucher
+  
+        // 1. Dernière lecture sauvegardée
+        const lastId = localStorage.getItem('moozik_last_song_id');
+        if (lastId) {
+          const lastSong = allSongs.find(s => s._id === lastId);
+          if (lastSong) return lastSong;
+        }
+  
+        // 2. Aucune dernière lecture → chanson du jour (aléatoire stable)
+        return getDailySong(allSongs);
+      });
+  
+    } catch (e) {
+      console.error('Erreur musiques:', e);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+
+  const getDailySong = (songs) => {
+    const today = new Date().toISOString().slice(0, 10); // "2026-04-29"
+    // Hash déterministe de la date → index stable dans le tableau
+    let hash = 0;
+    for (let i = 0; i < today.length; i++) {
+      hash = (hash * 31 + today.charCodeAt(i)) >>> 0; // entier 32-bit non signé
+    }
+    return songs[hash % songs.length];
+  };
+
   const chargerPlaylists     = async () => { try { setPlaylists(await fetch(`${API}/playlists`).then(r => r.json())); } catch {} };
   const chargerArtists       = async () => { try { setArtists(await fetch(`${API}/artists`).then(r => r.json())); } catch {} };
   const chargerAlbums        = async () => { try { const d = await fetch(`${API}/albums`).then(r => r.json()); setAlbums(Array.isArray(d) ? d : []); } catch {} };
@@ -569,6 +606,13 @@ const AppInner = () => {
     }
     return () => clearInterval(sleepRef.current);
   }, [sleepTimer]);
+
+  useEffect(() => {
+    if (currentSong?._id) {
+      localStorage.setItem('moozik_last_song_id', currentSong._id);
+    }
+  }, [currentSong?._id]);
+
 
   const formatTime = (t) => isNaN(t) ? '0:00' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 

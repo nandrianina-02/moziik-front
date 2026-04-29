@@ -466,7 +466,7 @@ const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
             </div>
             {!isPast && (
               <div className="flex-1 flex justify-end">
-                <a href={`/events/${ev._id}`}
+                <a href={`/events/`}
                   className="inline-flex items-center gap-1.5 bg-purple-700 hover:bg-purple-600 text-white font-black rounded-xl transition-all active:scale-95"
                   style={{ fontSize: 'clamp(9px,1.8vw,11px)', padding: '7px 14px', letterSpacing: '0.04em' }}>
                   RÉSERVER
