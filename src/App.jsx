@@ -61,6 +61,26 @@ const DashboardView     = lazy(() => import('./views/EnhancedDashboardView'));
 const PublicProfileView = lazy(() => import('./views/PublicProfileView'));
 const ViewLoader = () => <div className="p-6"><SongListSkeleton count={6} /></div>;
 
+// ── Utilitaire : score trending ───────────────────────────────────────────────
+/**
+ * Calcule un score de popularité pour une chanson.
+ * plays      : nombre d'écoutes totales
+ * likes      : nombre de likes (poids ×3)
+ * createdAt  : boost +15 si ajoutée dans les 7 derniers jours
+ */
+const getTrendingScore = (song) => {
+  const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
+  const isRecent = song.createdAt && (Date.now() - new Date(song.createdAt).getTime()) < ONE_WEEK;
+  return (song.plays || 0) + (song.likes || 0) * 3 + (isRecent ? 15 : 0);
+};
+
+/**
+ * Trie un tableau de chansons par score trending décroissant.
+ * Ne modifie PAS le tableau d'origine (retourne une copie).
+ */
+const sortByTrending = (songs) =>
+  [...songs].sort((a, b) => getTrendingScore(b) - getTrendingScore(a));
+
 // ── Composant interne pour avoir accès à useNavigate ──────────
 const AppInner = () => {
   const navigate  = useNavigate();
@@ -75,7 +95,7 @@ const AppInner = () => {
 
   // ── Player ────────────────────────────────────────────────────
   const [queue, setQueue]               = useState([]);
-  const [playedIds, setPlayedIds]       = useState(new Set()); // FIX: "Lire tout" sans répétition
+  const [playedIds, setPlayedIds]       = useState(new Set());
   const [showQueue, setShowQueue]       = useState(false);
   const [currentSong, setCurrentSong]   = useState(null);
   const [isPlaying, setIsPlaying]       = useState(false);
@@ -86,6 +106,13 @@ const AppInner = () => {
   const [volume, setVolume]             = useState(100);
   const [showFullPlayer, setShowFullPlayer] = useState(false);
   const [showListenParty, setShowListenParty] = useState(false);
+
+  // ── NOUVEAU : contexte de lecture ─────────────────────────────
+  // 'trending'         → lecture dans l'ordre trending global
+  // 'category:xxx'     → lecture dans la catégorie xxx triée trending
+  // 'playlist'         → lecture depuis une playlist (ordre fixe)
+  // 'all'              → toute la bibliothèque triée trending
+  const [playContext, setPlayContext]   = useState('trending');
 
   // ── EQ ────────────────────────────────────────────────────────
   const [bassGain, setBassGain]         = useState(0);
@@ -127,7 +154,7 @@ const AppInner = () => {
   const audioContextRef = useRef(null);
   const sleepRef        = useRef(null);
   const playCountedRef  = useRef(false);
-  const queueRef        = useRef(queue); // FIX: évite les closures dans handleNext
+  const queueRef        = useRef(queue);
   const shuffleHistoryRef = useRef(new Set());
   const [cachedIds, setCachedIds] = useState([]);
   const [eqGains, setEqGains] = useState(Array(12).fill(0));
@@ -149,7 +176,7 @@ const AppInner = () => {
   const { isPremium } = useSubscription(token);
   const [showRadio, setShowRadio] = useState(false);
 
-  // ── FIX: Recherche → redirection automatique ──────────────────
+  // ── Recherche → redirection automatique ──────────────────────
   const prevSearchRef = useRef('');
   useEffect(() => {
     const hadTerm = prevSearchRef.current.trim().length > 0;
@@ -161,12 +188,12 @@ const AppInner = () => {
 
   const [activePreset, setActivePreset] = useState('Flat');
   const setEqBand = useCallback((idx, value) => {
-  setEqGains(prev => {
-    const n = prev.length === 12 ? [...prev] : Array(12).fill(0);
-    n[idx] = value;
-    return n;
-  });
-  if (eqFiltersRef.current[idx]) eqFiltersRef.current[idx].gain.value = value;
+    setEqGains(prev => {
+      const n = prev.length === 12 ? [...prev] : Array(12).fill(0);
+      n[idx] = value;
+      return n;
+    });
+    if (eqFiltersRef.current[idx]) eqFiltersRef.current[idx].gain.value = value;
     setActivePreset('');
   }, [setEqGains]);
 
@@ -181,8 +208,7 @@ const AppInner = () => {
 
   const resetEQ = useCallback(() => applyPreset('Flat'), [applyPreset]);
 
-
-  // ── FIX: Titre dynamique ──────────────────────────────────────
+  // ── Titre dynamique ───────────────────────────────────────────
   useEffect(() => {
     if (!currentSong) { document.title = 'MooZik'; return; }
     document.title = `${currentSong.titre} — ${currentSong.artiste}`;
@@ -258,7 +284,7 @@ const AppInner = () => {
       let allSongs = [];
       let page = 1;
       let totalPages = 1;
-  
+
       do {
         const data = await fetch(`${API}/songs?page=${page}&limit=50`).then(r => r.json());
         if (Array.isArray(data)) { allSongs = data; break; }
@@ -266,26 +292,32 @@ const AppInner = () => {
         totalPages = data.pagination?.pages || 1;
         page++;
       } while (page <= totalPages);
-  
-      setMusiques(allSongs);
-  
-      if (allSongs.length === 0) return;
-  
-      // ── Sélection initiale (seulement si rien n'est déjà en cours) ──
+
+      // ── CORRECTION : tri intelligent par popularité ────────────
+      // Les chansons sont maintenant triées par score trending au lieu
+      // de l'ordre d'insertion MongoDB.
+      // Score = plays + likes×3 + boost nouveauté (7 jours)
+      const sortedSongs = sortByTrending(allSongs);
+      // ───────────────────────────────────────────────────────────
+
+      setMusiques(sortedSongs);
+
+      if (sortedSongs.length === 0) return;
+
       setCurrentSong(prev => {
-        if (prev) return prev; // déjà une chanson en cours → ne pas toucher
-  
+        if (prev) return prev;
+
         // 1. Dernière lecture sauvegardée
         const lastId = localStorage.getItem('moozik_last_song_id');
         if (lastId) {
-          const lastSong = allSongs.find(s => s._id === lastId);
+          const lastSong = sortedSongs.find(s => s._id === lastId);
           if (lastSong) return lastSong;
         }
-  
-        // 2. Aucune dernière lecture → chanson du jour (aléatoire stable)
-        return getDailySong(allSongs);
+
+        // 2. Chanson du jour (déterministe par date)
+        return getDailySong(sortedSongs);
       });
-  
+
     } catch (e) {
       console.error('Erreur musiques:', e);
     } finally {
@@ -293,13 +325,11 @@ const AppInner = () => {
     }
   };
 
-
   const getDailySong = (songs) => {
-    const today = new Date().toISOString().slice(0, 10); // "2026-04-29"
-    // Hash déterministe de la date → index stable dans le tableau
+    const today = new Date().toISOString().slice(0, 10);
     let hash = 0;
     for (let i = 0; i < today.length; i++) {
-      hash = (hash * 31 + today.charCodeAt(i)) >>> 0; // entier 32-bit non signé
+      hash = (hash * 31 + today.charCodeAt(i)) >>> 0;
     }
     return songs[hash % songs.length];
   };
@@ -369,8 +399,10 @@ const AppInner = () => {
     await fetch(`${API}/songs/reorder`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify({ orderedIds: r.map(s => s._id) }) });
   };
 
-  // ── FIX: "Lire tout" — jouer une liste sans répétition ───────
-  // Appelé depuis ArtistView, AlbumView, PlaylistView, FavoritesView
+  // ── CORRECTION : playAll — jouer une liste triée trending ─────
+  // Quand on clique "Lire tout" depuis ArtistView, AlbumView, etc.
+  // la liste passée est jouée telle quelle (déjà triée par la vue).
+  // On définit aussi le contexte pour que handleNext suive le bon ordre.
   const playAll = useCallback((songs, startIndex = 0) => {
     if (!songs?.length) return;
     const start = songs[startIndex];
@@ -379,16 +411,41 @@ const AppInner = () => {
     setIsPlaying(true);
     setQueue(rest);
     setPlayedIds(new Set(songs.map(s => s._id)));
+    setPlayContext('playlist'); // contexte playlist = respecter l'ordre passé
   }, []);
 
-  // ── FIX: Radio infinie ────────────────────────────────────────
+  // ── NOUVEAU : playByCategory ───────────────────────────────────
+  // Joue une chanson et remplit la file avec les chansons de la même
+  // catégorie triées par trending. Appelé depuis HomeView au clic.
+  const playByCategory = useCallback((song, allSongs) => {
+    const cat = song.categorie || song.category || song.genre || null;
 
-  const handleInfiniteRadio = useCallback( async (song) => {
+    let siblings;
+    if (cat) {
+      // Chansons de la même catégorie, triées par trending, sans la chanson actuelle
+      siblings = sortByTrending(
+        allSongs.filter(s => (s.categorie || s.category || s.genre) === cat && s._id !== song._id)
+      );
+      setPlayContext(`category:${cat}`);
+    } else {
+      // Pas de catégorie connue → trending global
+      siblings = sortByTrending(allSongs.filter(s => s._id !== song._id));
+      setPlayContext('trending');
+    }
+
+    setCurrentSong(song);
+    setIsPlaying(true);
+    setQueue(siblings);
+  }, []);
+
+  // ── Radio infinie ─────────────────────────────────────────────
+  const handleInfiniteRadio = useCallback(async (song) => {
     setShowRadio(true);
     try {
       const similar = await fetch(`${API}/songs/${song._id}/similar`).then(r => r.json());
       if (Array.isArray(similar) && similar.length > 0) {
         setCurrentSong(song); setIsPlaying(true); setQueue(similar);
+        setPlayContext('radio');
       }
     } catch {}
   }, []);
@@ -399,8 +456,8 @@ const AppInner = () => {
     audioRef.current = audio;
     return () => { audio.pause(); audio.src = ''; };
   }, []);
-  // ── AUDIO ENGINE ─────────────────────────────────────────────
 
+  // ── AUDIO ENGINE ──────────────────────────────────────────────
   const eqGainsRef = useRef(eqGains);
   const [audioReady, setAudioReady] = useState(false);
 
@@ -459,27 +516,36 @@ const AppInner = () => {
     };
     draw();
     return () => cancelAnimationFrame(rafId);
-  }, [audioContextRef.current]); // se déclenche quand initEQ12 initialise le contexte
+  }, [audioContextRef.current]);
 
-    
-  // ── FIX: handleNext — file d'attente + shuffle + auto-queue ──
-  const musiquesRef = useRef(musiques);
-  const currentSongRef = useRef(currentSong);
-  const isShuffleRef = useRef(isShuffle);
-  const repeatModeRef = useRef(repeatMode);
-  useEffect(() => { musiquesRef.current = musiques; }, [musiques]);
-  useEffect(() => { currentSongRef.current = currentSong; }, [currentSong]);
-  useEffect(() => { isShuffleRef.current = isShuffle; }, [isShuffle]);
-  useEffect(() => { repeatModeRef.current = repeatMode; }, [repeatMode]);
+  // ── CORRECTION : handleNext ────────────────────────────────────
+  // Priorités :
+  //   1. File d'attente manuelle
+  //   2. Répétition d'une chanson (repeat=2)
+  //   3. Shuffle sans répétition
+  //   4. Suivant dans la file (contexte playlist/catégorie/trending)
+  //   5. Si file vide → reconstruire depuis le contexte courant
+  const musiquesRef     = useRef(musiques);
+  const currentSongRef  = useRef(currentSong);
+  const isShuffleRef    = useRef(isShuffle);
+  const repeatModeRef   = useRef(repeatMode);
+  const playContextRef  = useRef(playContext);
+
+  useEffect(() => { musiquesRef.current     = musiques;     }, [musiques]);
+  useEffect(() => { currentSongRef.current  = currentSong;  }, [currentSong]);
+  useEffect(() => { isShuffleRef.current    = isShuffle;    }, [isShuffle]);
+  useEffect(() => { repeatModeRef.current   = repeatMode;   }, [repeatMode]);
+  useEffect(() => { playContextRef.current  = playContext;  }, [playContext]);
 
   const handleNext = useCallback(() => {
-    const q   = queueRef.current;
-    const mus = musiquesRef.current;
-    const cur = currentSongRef.current;
+    const q    = queueRef.current;
+    const mus  = musiquesRef.current;
+    const cur  = currentSongRef.current;
     const shuf = isShuffleRef.current;
     const rep  = repeatModeRef.current;
+    const ctx  = playContextRef.current;
 
-    // 1. File d'attente manuelle en premier
+    // 1. File d'attente manuelle
     if (q.length > 0) {
       const [next, ...rest] = q;
       setQueue(rest);
@@ -491,7 +557,10 @@ const AppInner = () => {
     if (!mus.length) return;
 
     // 2. Répétition d'une chanson
-    if (rep === 2) { if (audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play(); } return; }
+    if (rep === 2) {
+      if (audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play(); }
+      return;
+    }
 
     // 3. Shuffle sans répétition
     if (shuf) {
@@ -504,30 +573,61 @@ const AppInner = () => {
       return;
     }
 
-    // 4. Suivant dans la liste (avec répétition playlist)
-    const idx = mus.findIndex(s => s._id === cur?._id);
-    if (rep === 1 || idx < mus.length - 1) {
-      setCurrentSong(mus[(idx + 1) % mus.length]);
+    // 4. File vide → reconstruire selon le contexte
+    // CORRECTION : au lieu de chercher l'index dans musiques (ordre d'insertion),
+    // on reconstruit la file selon le contexte de lecture actif.
+    let pool = [];
+
+    if (ctx.startsWith('category:')) {
+      // Catégorie courante → suivant dans le top de cette catégorie
+      const cat = ctx.replace('category:', '');
+      pool = sortByTrending(
+        mus.filter(s => (s.categorie || s.category || s.genre) === cat)
+      );
+    } else if (ctx === 'playlist') {
+      // Contexte playlist : musiques dans l'ordre actuel du state
+      pool = mus;
+    } else {
+      // Trending global (ctx === 'trending' ou 'all')
+      pool = mus; // déjà trié par trending dans chargerMusiques
+    }
+
+    const idx = pool.findIndex(s => s._id === cur?._id);
+
+    if (rep === 1 || idx < pool.length - 1) {
+      // Chanson suivante dans le pool
+      const next = pool[(idx + 1) % pool.length];
+      setCurrentSong(next);
       setIsPlaying(true);
     }
-    // Si rep === 0 et dernier titre : s'arrêter
+    // Si rep === 0 et dernier titre → s'arrêter (ne rien faire)
   }, []);
 
   const handlePrev = useCallback(() => {
     const mus = musiquesRef.current;
     const cur = currentSongRef.current;
+    const ctx = playContextRef.current;
     if (!mus.length) return;
-    // Si > 3s de lecture, revenir au début de la chanson
+
+    // Si > 3s de lecture → revenir au début
     if (audioRef.current && audioRef.current.currentTime > 3) {
       audioRef.current.currentTime = 0;
       return;
     }
-    const idx = mus.findIndex(s => s._id === cur?._id);
-    setCurrentSong(mus[(idx - 1 + mus.length) % mus.length]);
+
+    // Reconstruire le pool selon le contexte (même logique que handleNext)
+    let pool = [];
+    if (ctx.startsWith('category:')) {
+      const cat = ctx.replace('category:', '');
+      pool = sortByTrending(mus.filter(s => (s.categorie || s.category || s.genre) === cat));
+    } else {
+      pool = mus;
+    }
+
+    const idx = pool.findIndex(s => s._id === cur?._id);
+    setCurrentSong(pool[(idx - 1 + pool.length) % pool.length]);
     setIsPlaying(true);
   }, []);
-
-
 
   useMediaSession(currentSong, isPlaying, { onPlay: () => setIsPlaying(true), onPause: () => setIsPlaying(false), onNext: handleNext, onPrev: handlePrev });
 
@@ -560,34 +660,33 @@ const AppInner = () => {
     if (currentTime > 30 && !playCountedRef.current && currentSong) {
       playCountedRef.current = true;
 
-    const reportPlay = async () => {
-      // Check if currentSong exists and has an _id
-      if (!currentSong || !currentSong._id) {
-        console.warn('Report play skipped: currentSong is not defined');
-        return;
-      }
-
-      try {
-        const headers = { 
-          'Content-Type': 'application/json', 
-          ...(tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {}) 
-        };
-        
-        const res = await fetch(`${API}/songs/${currentSong._id}/play`, { 
-          method: 'PUT', 
-          headers 
-        });
-
-        if (!res.ok) {
-          const text = await res.text();
-          console.error('Report play failed', { status: res.status, body: text });
-        } else {
-          console.debug('Report play succeeded');
+      const reportPlay = async () => {
+        if (!currentSong || !currentSong._id) {
+          console.warn('Report play skipped: currentSong is not defined');
+          return;
         }
-      } catch (err) {
-        console.error('Report play error', err);
-      }
-    };
+        try {
+          const headers = {
+            'Content-Type': 'application/json',
+            ...(tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {})
+          };
+          const res = await fetch(`${API}/songs/${currentSong._id}/play`, { method: 'PUT', headers });
+          if (!res.ok) {
+            const text = await res.text();
+            console.error('Report play failed', { status: res.status, body: text });
+          } else {
+            // CORRECTION : mettre à jour le score trending en local après un play
+            // pour que le tri reste cohérent sans recharger toutes les musiques
+            setMusiques(prev =>
+              sortByTrending(
+                prev.map(s => s._id === currentSong._id ? { ...s, plays: (s.plays || 0) + 1 } : s)
+              )
+            );
+          }
+        } catch (err) {
+          console.error('Report play error', err);
+        }
+      };
 
       reportPlay();
     }
@@ -612,7 +711,6 @@ const AppInner = () => {
       localStorage.setItem('moozik_last_song_id', currentSong._id);
     }
   }, [currentSong?._id]);
-
 
   const formatTime = (t) => isNaN(t) ? '0:00' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
@@ -652,9 +750,9 @@ const AppInner = () => {
     { to: '/admin-monetisation',   icon: <DollarSign size={17}/>, label: 'Monétisation' },
     { to: '/admin-studio', icon: <Zap size={17}/>, label: 'Admin Studio' },
     { to: '/admin-team', icon: <Shield size={17}/>, label: 'Équipe Admin' }
-
   ] : [];
 
+  // ── songProps — CORRECTION : ajout de playByCategory ─────────
   const songProps = {
     currentSong, setCurrentSong, setIsPlaying, isPlaying,
     toggleLike, addToQueue, token, isLoggedIn, userNom,
@@ -667,6 +765,8 @@ const AppInner = () => {
     onTogglePlaylistVisibility: togglePlaylistVisibility,
     onInfiniteRadio: handleInfiniteRadio,
     playAll,
+    // NOUVEAU : permet aux vues de démarrer une lecture par catégorie
+    playByCategory: (song) => playByCategory(song, musiques),
   };
 
   const fullPlayerProps = {
@@ -679,11 +779,10 @@ const AppInner = () => {
     onClose: () => setShowFullPlayer(false),
     onOpenListenParty: () => setShowListenParty(true),
   };
-  
+
   return (
     <div className="flex h-screen bg-black text-white font-sans overflow-hidden">
 
-      {/* ── FIX: OfflineBanner en haut avec padding-top pour ne pas cacher le contenu ── */}
       <OfflineBanner isOnline={isOnline} wasOffline={wasOffline} />
 
       {/* Modals */}
@@ -700,9 +799,7 @@ const AppInner = () => {
         />
       )}
 
-      {/* ════════════════════════════════════════════
-          SIDEBAR DESKTOP
-      ════════════════════════════════════════════ */}
+      {/* ════════ SIDEBAR DESKTOP ════════ */}
       <nav className="hidden md:flex w-64 bg-zinc-950 p-5 flex-col gap-3 border-r border-zinc-800/50 shrink-0 overflow-y-auto">
         <div className="flex items-center gap-2 mb-1">
           <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center shadow-lg shadow-red-600/30"><Music size={16} className="text-white"/></div>
@@ -710,7 +807,6 @@ const AppInner = () => {
           {!isOnline && <WifiOff size={13} className="text-zinc-600 ml-auto"/>}
         </div>
 
-        {/* FIX: Barre de recherche avec bouton X */}
         <div className="relative">
           <Search className="absolute left-3 top-2.5 text-zinc-600" size={14}/>
           <input type="text" placeholder="Rechercher..." value={searchTerm}
@@ -728,7 +824,7 @@ const AppInner = () => {
             <Link key={link.to} to={link.to} className="flex items-center gap-3 text-zinc-400 hover:text-white transition px-3 py-2 rounded-xl hover:bg-zinc-900/80 text-sm active:scale-[0.98]">
               {link.icon} {link.label}
             </Link>
-          ))} 
+          ))}
           {isLoggedIn && navLinksUser.length > 0 && (
             <>
               <p className="text-[9px] font-bold text-zinc-700 uppercase tracking-widest px-3 pt-3 pb-0.5">Mon espace</p>
@@ -764,7 +860,6 @@ const AppInner = () => {
               <Plus size={16}/> <span className="text-xs font-semibold">Ajouter musique</span>
             </button>
           )}
-          {/* FIX: Listen Party dans la sidebar */}
           {isLoggedIn && (
             <button onClick={() => setShowListenParty(true)} className="flex items-center gap-3 text-zinc-500 hover:text-blue-400 transition px-3 py-2 rounded-xl hover:bg-zinc-900/80 text-sm mt-1">
               <Radio size={16} className="text-blue-400"/> Listen Party
@@ -838,16 +933,13 @@ const AppInner = () => {
         </div>
       </nav>
 
-      {/* ════════════════════════════════════════════
-          HEADER MOBILE
-      ════════════════════════════════════════════ */}
+      {/* ════════ HEADER MOBILE ════════ */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-zinc-950/98 backdrop-blur-xl border-b border-zinc-800/60 flex flex-col">
         <div className="flex items-center h-14 px-4 gap-3">
           <div className="flex items-center gap-1.5 shrink-0">
             <div className="w-7 h-7 bg-red-600 rounded-lg flex items-center justify-center"><Music size={14}/></div>
             <span className="text-lg font-black italic">MOOZIK</span>
           </div>
-          {/* FIX: Barre recherche mobile avec bouton X et valeur contrôlée */}
           <div className="flex-1 relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-600" size={12}/>
             <input type="text" placeholder="Rechercher..." value={searchTerm}
@@ -880,7 +972,6 @@ const AppInner = () => {
             )}
           </div>
         </div>
-        {/* Nav tabs mobile */}
         <div className="flex overflow-x-auto px-2 pb-2 gap-1" style={{ scrollbarWidth: 'none' }}>
           {[...navLinksCommon, ...(isLoggedIn ? [{ to: '/listen-party-btn', icon: <Radio size={14}/>, label: 'Party', onClick: () => setShowListenParty(true) }] : [])].map(link => (
             link.onClick ? (
@@ -948,9 +1039,7 @@ const AppInner = () => {
         </>
       )}
 
-      {/* ════════════════════════════════════════════
-          MAIN
-      ════════════════════════════════════════════ */}
+      {/* ════════ MAIN ════════ */}
       <main
         className={`flex-1 overflow-y-auto bg-linear-to-b from-zinc-900 to-black p-4 md:p-7 pb-40 pt-28 md:pt-7 lg:pb-40 md:pb-40 transition-all ${showQueue ? 'md:mr-72' : ''}`}
         onClick={() => setActiveMenu(null)}
@@ -979,7 +1068,7 @@ const AppInner = () => {
           <Route path="/account" element={isLoggedIn ? <AccountView token={token} userNom={userNom} userEmail={userEmail} userRole={userRole} userId={userId} userArtistId={userArtistId} isAdmin={isAdmin} isArtist={isArtist} isUser={isUser} musiques={musiques} userPlaylists={userPlaylists} onUpdateProfile={handleUpdateProfile} isLoggedIn={isLoggedIn}/> : <div className="p-8 text-zinc-600">Connectez-vous</div>} />
           <Route path="/premium" element={<SubscriptionView token={token} isLoggedIn={isLoggedIn}/>} />
           <Route path="/events"  element={<EventsView token={token} isLoggedIn={isLoggedIn} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} currentSong={currentSong}/>} />
-          <Route path="/trending" element={<TrendingView setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} currentSong={currentSong} isPlaying={isPlaying} token={token}/>} />
+          <Route path="/trending" element={<TrendingView setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} currentSong={currentSong} isPlaying={isPlaying} token={token} musiques={musiques}/>} />
           <Route path="/a/:slug" element={<SmartLinkPage token={token} isLoggedIn={isLoggedIn} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} currentSong={currentSong} isPlaying={isPlaying}/>} />
           <Route path="/artist-dashboard" element={isArtist ? <ArtistDashboard token={token} userArtistId={userArtistId} userNom={userNom}/> : <div className="p-8 text-zinc-600">Accès refusé</div>} />
           <Route path="/" element={
@@ -999,26 +1088,15 @@ const AppInner = () => {
               playAll={playAll} onInfiniteRadio={handleInfiniteRadio}
             />
           } />
-
-          <Route path="/admin-studio" element={isAdmin 
-            ? <AdminArtistView token={token} adminId={userId} adminNom={userNom}/> 
-            : <div className="p-8 text-zinc-600">Accès refusé</div>} 
-          />
-          <Route path="/admin-team"
-            element={isAdmin
-              ? <AdminTeamView token={token} currentAdminId={userId} isPrimary={isPrimary}/>
-              : <div className="p-8 text-zinc-600">Accès refusé</div>}
-          />
-
+          <Route path="/admin-studio" element={isAdmin ? <AdminArtistView token={token} adminId={userId} adminNom={userNom}/> : <div className="p-8 text-zinc-600">Accès refusé</div>} />
+          <Route path="/admin-team"   element={isAdmin ? <AdminTeamView token={token} currentAdminId={userId} isPrimary={isPrimary}/> : <div className="p-8 text-zinc-600">Accès refusé</div>} />
         </Routes>
       </main>
 
-      {/* EQ Modal */}
+      {/* ════════ EQ Modal ════════ */}
       {showEQ && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-150 flex items-center justify-center p-4">
           <div className="bg-zinc-900 border border-zinc-800 p-6 md:p-8 rounded-3xl w-full max-w-2xl shadow-2xl">
-
-            {/* En-tête */}
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-black italic flex items-center gap-2">
                 <Sliders className="text-red-600"/> ÉGALISEUR
@@ -1027,67 +1105,37 @@ const AppInner = () => {
                 <X size={20}/>
               </button>
             </div>
-
-            {/* Presets */}
             <div className="flex gap-2 flex-wrap mb-6">
               {Object.keys(EQ_PRESETS_12).map(name => (
-                <button
-                  key={name}
-                  onClick={() => applyPreset(name)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition active:scale-95 ${
-                    activePreset === name
-                      ? 'bg-red-600 text-white'
-                      : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                  }`}
-                >
+                <button key={name} onClick={() => applyPreset(name)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition active:scale-95 ${activePreset === name ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>
                   {name}
                 </button>
               ))}
             </div>
-
-            {/* 12 bandes EQ */}
             {(() => {
               const BANDS = [
-                { label: '32',   hz: '32 Hz'   },
-                { label: '64',   hz: '64 Hz'   },
-                { label: '125',  hz: '125 Hz'  },
-                { label: '250',  hz: '250 Hz'  },
-                { label: '500',  hz: '500 Hz'  },
-                { label: '1k',   hz: '1 kHz'   },
-                { label: '2k',   hz: '2 kHz'   },
-                { label: '4k',   hz: '4 kHz'   },
-                { label: '8k',   hz: '8 kHz'   },
-                { label: '10k',  hz: '10 kHz'  },
-                { label: '14k',  hz: '14 kHz'  },
-                { label: '16k',  hz: '16 kHz'  },
+                { label: '32', hz: '32 Hz' }, { label: '64', hz: '64 Hz' },
+                { label: '125', hz: '125 Hz' }, { label: '250', hz: '250 Hz' },
+                { label: '500', hz: '500 Hz' }, { label: '1k', hz: '1 kHz' },
+                { label: '2k', hz: '2 kHz' }, { label: '4k', hz: '4 kHz' },
+                { label: '8k', hz: '8 kHz' }, { label: '10k', hz: '10 kHz' },
+                { label: '14k', hz: '14 kHz' }, { label: '16k', hz: '16 kHz' },
               ];
               return (
                 <div className="flex items-end justify-between gap-1 mb-2" style={{ height: 160 }}>
                   {BANDS.map((band, idx) => {
                     const gain = eqGains[idx] ?? 0;
-                    // Hauteur : gain va de -12 à +12, on mappe sur 0%–100% avec 0dB au centre
-                    const pct = ((gain + 12) / 24) * 100;
                     return (
                       <div key={idx} className="flex flex-col items-center gap-1 flex-1">
-                        <span className="text-zinc-500 text-[10px] font-mono tabular-nums"
-                          style={{ minWidth: 28, textAlign: 'center' }}>
+                        <span className="text-zinc-500 text-[10px] font-mono tabular-nums" style={{ minWidth: 28, textAlign: 'center' }}>
                           {gain > 0 ? `+${gain}` : gain}
                         </span>
                         <div className="relative flex-1 w-full flex justify-center" style={{ height: 108 }}>
-                          <input
-                            type="range"
-                            orient="vertical"
-                            min="-12" max="12" step="1"
-                            value={gain}
-                            onChange={e => setEqBand(idx, parseInt(e.target.value))}
+                          <input type="range" orient="vertical" min="-12" max="12" step="1"
+                            value={gain} onChange={e => setEqBand(idx, parseInt(e.target.value))}
                             className="appearance-none cursor-pointer accent-red-600"
-                            style={{
-                              writingMode: 'vertical-lr',
-                              direction: 'rtl',
-                              width: 20,
-                              height: 108,
-                              background: 'transparent',
-                            }}
+                            style={{ writingMode: 'vertical-lr', direction: 'rtl', width: 20, height: 108, background: 'transparent' }}
                           />
                         </div>
                         <span className="text-zinc-500 text-[10px] font-bold">{band.label}</span>
@@ -1097,13 +1145,9 @@ const AppInner = () => {
                 </div>
               );
             })()}
-
-            {/* Repères dB */}
             <div className="flex justify-between text-[10px] text-zinc-600 font-mono mb-6 px-1">
               <span>+12</span><span>0</span><span>−12</span>
             </div>
-
-            {/* Vitesse + Timer */}
             <div className="grid grid-cols-2 gap-4 border-t border-zinc-800 pt-4">
               <div>
                 <div className="flex justify-between text-xs font-bold mb-2 uppercase tracking-widest">
@@ -1118,38 +1162,27 @@ const AppInner = () => {
                 <div className="flex justify-between text-xs font-bold mb-2 uppercase tracking-widest">
                   <span className="flex items-center gap-1"><Timer size={12}/> Timer</span>
                   {sleepRemaining && (
-                    <span className="text-green-400">
-                      {Math.floor(sleepRemaining/60)}:{String(sleepRemaining%60).padStart(2,'0')}
-                    </span>
+                    <span className="text-green-400">{Math.floor(sleepRemaining/60)}:{String(sleepRemaining%60).padStart(2,'0')}</span>
                   )}
                 </div>
                 <div className="flex gap-1 flex-wrap">
                   {[0,15,30,45,60].map(m => (
                     <button key={m} onClick={() => setSleepTimer(m)}
-                      className={`px-2 py-1 rounded-lg text-xs font-bold transition active:scale-95 ${
-                        sleepTimer===m ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                      }`}>
+                      className={`px-2 py-1 rounded-lg text-xs font-bold transition active:scale-95 ${sleepTimer===m ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>
                       {m===0 ? 'Off' : `${m}m`}
                     </button>
                   ))}
                 </div>
               </div>
             </div>
-
-            {/* Reset */}
-            <button
-              onClick={resetEQ}
-              className="w-full mt-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-xs font-bold rounded-xl transition"
-            >
+            <button onClick={resetEQ} className="w-full mt-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-xs font-bold rounded-xl transition">
               Réinitialiser
             </button>
           </div>
         </div>
       )}
 
-      {/* ════════════════════════════════════════════
-          FIX: FILE D'ATTENTE — overflow-y-auto + scroll stable
-      ════════════════════════════════════════════ */}
+      {/* ════════ FILE D'ATTENTE ════════ */}
       {showQueue && (
         <aside className="w-72 bg-zinc-950 border-l border-zinc-800/50 p-5 fixed right-0 top-0 bottom-0 z-60 flex flex-col">
           <div className="flex justify-between items-center mb-4 shrink-0">
@@ -1163,7 +1196,6 @@ const AppInner = () => {
               <button onClick={() => setShowQueue(false)} className="text-xs text-zinc-600 hover:text-white px-2 py-1 hover:bg-zinc-800 rounded-lg transition">Fermer</button>
             </div>
           </div>
-          {/* FIX: overflow-y-auto sur le conteneur exact, pas scroll-area parente */}
           <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5" style={{ overscrollBehavior: 'contain' }}>
             {queue.length === 0
               ? <p className="text-xs text-zinc-700 italic text-center mt-8">File vide — les musiques jouées s'ajoutent ici</p>
@@ -1186,11 +1218,9 @@ const AppInner = () => {
         </aside>
       )}
 
-      {/* ════════════════════════════════════════════
-          PLAYER BAR DESKTOP
-      ════════════════════════════════════════════ */}
+      {/* ════════ PLAYER BAR DESKTOP ════════ */}
       {currentSong && (
-        <footer className="hidden md:flex fixed bottom-0 left-0 right-0 md:bottom-3 md:left-67 md:right-3 md:rounded-2xl bg-zinc-950/98 border-t border-zinc-800/60 md:border md:border-zinc-800/60 h-20 md:h-24 px-3 md:px-5 items-center justify-between backdrop-blur-xl shadow-2xl z-50" >
+        <footer className="hidden md:flex fixed bottom-0 left-0 right-0 md:bottom-3 md:left-67 md:right-3 md:rounded-2xl bg-zinc-950/98 border-t border-zinc-800/60 md:border md:border-zinc-800/60 h-20 md:h-24 px-3 md:px-5 items-center justify-between backdrop-blur-xl shadow-2xl z-50">
           <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-0.5 opacity-70 pointer-events-none" width="1000" height="4"/>
           <button onClick={() => setShowFullPlayer(true)} className="flex items-center gap-3 w-1/3 min-w-0 hover:opacity-80 transition text-left">
             <div className="relative shrink-0">
@@ -1203,7 +1233,6 @@ const AppInner = () => {
             </div>
           </button>
           <div className="flex flex-col items-center w-1/3 gap-1.5">
-
             <div className="flex items-center gap-3 md:gap-5">
               <Shuffle onClick={() => setIsShuffle(!isShuffle)} size={15} className={`cursor-pointer transition ${isShuffle ? 'text-red-500' : 'text-zinc-600 hover:text-white'}`}/>
               <SkipBack onClick={handlePrev} size={19} className="text-zinc-400 cursor-pointer hover:text-white transition"/>
@@ -1224,7 +1253,7 @@ const AppInner = () => {
               <span className="text-[9px] text-zinc-600 w-7 shrink-0">{formatTime(duration)}</span>
             </div>
           </div>
-          <div className="items-center justify-end gap-2 md:gap-3 lg:block w-1/3 ">
+          <div className="items-center justify-end gap-2 md:gap-3 lg:block w-1/3">
             {listeners.length > 0 && <div className="hidden lg:block"><ListenersWidget listeners={listeners} connected={connected}/></div>}
             <div className="xl:flex lg:block items-center gap-2 lg:pt-1">
               <div className="flex items-center justify-left md:justify-end md:pb-1 gap-1">
@@ -1232,7 +1261,6 @@ const AppInner = () => {
                   <Heart size={15} fill={currentSong.liked ? '#ef4444' : 'none'} className={currentSong.liked ? 'text-red-500' : 'text-zinc-600 hover:text-white transition'}/>
                 </button>
                 <CacheButton song={currentSong} cacheAudio={cacheAudio} removeCached={removeCached} isAudioCached={isAudioCached}/>
-                {/* FIX: Bouton Listen Party dans le player */}
                 <button onClick={() => setShowListenParty(true)} className="hidden sm:block p-1.5 hover:bg-zinc-800 rounded-lg transition text-zinc-600 hover:text-blue-400" title="Listen Party">
                   <Radio size={15}/>
                 </button>
@@ -1247,9 +1275,6 @@ const AppInner = () => {
                 <input type="range" value={volume} className="w-14 md:w-18 accent-red-600 h-0.5 cursor-pointer bg-zinc-800 rounded-lg appearance-none hidden md:block"
                   onChange={e => setVolume(parseInt(e.target.value))}/>
               </div>
-              
-
-              
             </div>
           </div>
         </footer>
@@ -1265,21 +1290,12 @@ const AppInner = () => {
 
       {showRadio && (
         <div className="fixed inset-0 z-50 flex">
-          {/* Overlay */}
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowRadio(false)}
-          />
-          {/* Panneau plein écran */}
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowRadio(false)}/>
           <div className="relative ml-auto w-full h-full bg-zinc-950 border-l border-zinc-800/60 shadow-2xl flex flex-col overflow-hidden">
             <RadioView
-              token={token}
-              currentSong={currentSong}
-              setCurrentSong={setCurrentSong}
-              isPlaying={isPlaying}
-              setIsPlaying={setIsPlaying}
-              musiques={musiques}
-              onClose={() => setShowRadio(false)}
+              token={token} currentSong={currentSong} setCurrentSong={setCurrentSong}
+              isPlaying={isPlaying} setIsPlaying={setIsPlaying}
+              musiques={musiques} onClose={() => setShowRadio(false)}
             />
           </div>
         </div>
