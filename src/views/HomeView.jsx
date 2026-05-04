@@ -5,7 +5,7 @@ import {
   Users, AlertTriangle, Share2, Clock, WifiOff,
   Star, Radio, Gem, Trophy, Zap, Sun, Bell, Ticket, Calendar, MapPin, ChevronLeft,
   ChevronDown, ChevronUp,
-  Section, Plus
+  Plus
 } from 'lucide-react';
 import SongRow from '../components/music/SongRow';
 import GlobalSearchView from './GlobalSearchView';
@@ -57,15 +57,9 @@ const ShowMoreButton = ({ expanded, onToggle, total, shown, className = '' }) =>
 // ════════════════════════════════════════════
 // SCROLL HORIZONTAL AVEC BOUTONS DESKTOP
 // ════════════════════════════════════════════
-/**
- * HorizontalScrollContainer
- * Wraps a horizontal scroll area and adds prev/next arrow buttons
- * visible only on non-touch devices (md+).
- * Optionally shows a "Voir plus" card at the END of the scroll.
- */
 const HorizontalScrollContainer = ({
   children,
-  showMoreProps,   // { total, shown, expanded, onToggle } — optional
+  showMoreProps,
   className = '',
 }) => {
   const scrollRef = useRef(null);
@@ -97,7 +91,6 @@ const HorizontalScrollContainer = ({
 
   return (
     <div className={`relative group/hscroll ${className}`}>
-      {/* ← bouton gauche (desktop seulement) */}
       <button
         onClick={() => scroll(-1)}
         aria-label="Défiler à gauche"
@@ -114,7 +107,6 @@ const HorizontalScrollContainer = ({
         <ChevronLeft size={16} />
       </button>
 
-      {/* → bouton droit (desktop seulement) */}
       <button
         onClick={() => scroll(1)}
         aria-label="Défiler à droite"
@@ -131,7 +123,6 @@ const HorizontalScrollContainer = ({
         <ChevronRight size={16} />
       </button>
 
-      {/* Zone de scroll */}
       <div
         ref={scrollRef}
         className="flex gap-3 md:gap-4 overflow-x-auto pb-3 scroll-smooth"
@@ -139,7 +130,6 @@ const HorizontalScrollContainer = ({
       >
         {children}
 
-        {/* Carte "Voir plus / Voir moins" en fin de scroll */}
         {showMoreProps && showMoreProps.total > showMoreProps.shown && (
           <button
             onClick={showMoreProps.onToggle}
@@ -161,7 +151,6 @@ const HorizontalScrollContainer = ({
           </button>
         )}
 
-        {/* Carte "Voir moins" si expanded */}
         {showMoreProps && showMoreProps.expanded && showMoreProps.total <= showMoreProps.shown && (
           <button
             onClick={showMoreProps.onToggle}
@@ -201,11 +190,19 @@ const SectionHeader = ({ icon, title, subtitle, noMargin }) => (
   </div>
 );
 
-const TopTrack = ({ song, rank, isActive, isPlaying, onClick }) => {
+// ════════════════════════════════════════════
+// BUG FIX #1 : TopTrack
+// Le song passé depuis top24h peut être un objet sans `src`.
+// On reçoit maintenant `onPlay` qui résout la chanson complète
+// depuis `musiques` via son `_id` avant de jouer.
+// ════════════════════════════════════════════
+const TopTrack = ({ song, rank, isActive, isPlaying, onPlay }) => {
   const rankColors = ['text-yellow-400', 'text-zinc-300', 'text-amber-600', 'text-zinc-600', 'text-zinc-700'];
   return (
-    <div onClick={onClick}
-      className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer group transition-all duration-200 ${isActive ? 'bg-white/8 ring-1 ring-white/10' : 'hover:bg-white/5'}`}>
+    <div
+      onClick={onPlay}
+      className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer group transition-all duration-200 ${isActive ? 'bg-white/8 ring-1 ring-white/10' : 'hover:bg-white/5'}`}
+    >
       <span className={`font-black text-lg w-6 text-right shrink-0 tabular-nums ${rankColors[rank] || 'text-zinc-700'}`}>{rank + 1}</span>
       <div className="relative shrink-0">
         <img src={song.image} className="w-11 h-11 rounded-xl object-cover" alt="" />
@@ -298,7 +295,7 @@ const AdminAlertBanner = ({ token, isAdmin }) => {
 };
 
 // ── Section partages récents ─────────────────
-const RecentSharesSection = ({ token, setCurrentSong, setIsPlaying, currentSong }) => {
+const RecentSharesSection = ({ token, setCurrentSong, setIsPlaying, currentSong, musiques }) => {
   const [shares, setShares] = useState([]);
   const { expanded, limit, toggle } = useShowMore(8);
 
@@ -312,6 +309,12 @@ const RecentSharesSection = ({ token, setCurrentSong, setIsPlaying, currentSong 
   if (!validShares.length) return null;
 
   const visibleShares = expanded ? validShares : validShares.slice(0, limit);
+
+  // BUG FIX: Résoudre la chanson complète depuis musiques
+  const resolveAndPlay = (songId) => {
+    const fullSong = musiques?.find(m => m._id === (songId?._id || songId));
+    if (fullSong) { setCurrentSong(fullSong); setIsPlaying(true); }
+  };
 
   return (
     <section>
@@ -333,7 +336,7 @@ const RecentSharesSection = ({ token, setCurrentSong, setIsPlaying, currentSong 
           return (
             <div
               key={share._id}
-              onClick={() => { if (!expired) { setCurrentSong(song); setIsPlaying(true); } }}
+              onClick={() => { if (!expired) resolveAndPlay(song._id); }}
               className={`shrink-0 w-28 md:w-32 group cursor-pointer ${expired ? 'opacity-40' : ''}`}
             >
               <div className="relative aspect-square mb-2">
@@ -482,17 +485,14 @@ const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
 };
 
 // ════════════════════════════════════════════
-// SECTION HORS-LIGNE — grille 2 cols, max 3 lignes (6 items),
-// scroll horizontal sur mobile si débordement,
-// puis ShowMoreButton en bas
+// SECTION HORS-LIGNE
 // ════════════════════════════════════════════
 const OfflineSection = ({ musiques, setCurrentSong, setIsPlaying, currentSong, isPlaying, isAudioCached }) => {
   const cached = useMemo(() => musiques.filter(s => isAudioCached && isAudioCached(s._id)), [musiques, isAudioCached]);
 
-  // 2 colonnes × 3 lignes = 6 items par page
   const COLS = 2;
   const ROWS = 3;
-  const PAGE = COLS * ROWS; // 6
+  const PAGE = COLS * ROWS;
   const { expanded, limit, toggle } = useShowMore(PAGE);
 
   if (!cached.length) return null;
@@ -507,19 +507,11 @@ const OfflineSection = ({ musiques, setCurrentSong, setIsPlaying, currentSong, i
         subtitle={`${cached.length} titre${cached.length > 1 ? 's' : ''} téléchargé${cached.length > 1 ? 's' : ''}`}
       />
 
-      {/*
-        Sur mobile  : grille 2 colonnes, scrollable horizontalement
-                      (chaque "colonne" de 3 lignes = un groupe de 3)
-        Sur desktop : grille 2 cols, flow normal
-      */}
-
-      {/* ── MOBILE : scroll horizontal par groupes de ROWS items ── */}
       <div className="block md:hidden">
         <div
           className="flex gap-3 overflow-x-auto pb-2"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          {/* On group les items par ROWS pour former des colonnes */}
           {Array.from({ length: Math.ceil(visible.length / ROWS) }, (_, colIdx) => {
             const colItems = visible.slice(colIdx * ROWS, (colIdx + 1) * ROWS);
             return (
@@ -547,7 +539,6 @@ const OfflineSection = ({ musiques, setCurrentSong, setIsPlaying, currentSong, i
         )}
       </div>
 
-      {/* ── DESKTOP : grille 2 colonnes classique ── */}
       <div className="hidden md:block">
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {visible.map(song => (
@@ -573,7 +564,6 @@ const OfflineSection = ({ musiques, setCurrentSong, setIsPlaying, currentSong, i
   );
 };
 
-// Carte individuelle hors-ligne
 const OfflineSongCard = ({ song, isActive, isPlaying, onClick }) => (
   <div
     onClick={onClick}
@@ -621,7 +611,7 @@ const HomeView = ({
   const { isPremium } = useSubscription(token);
   const { subscribed, subscribe, unsubscribe, loading: pushLoading } = usePushNotifications(token);
 
-  // ── "Voir plus" hooks — un par section ──
+  // ── "Voir plus" hooks ──
   const top24hShowMore     = useShowMore(5);
   const nouveautesShowMore = useShowMore(8);
   const artistesShowMore   = useShowMore(8);
@@ -631,30 +621,17 @@ const HomeView = ({
   const favorisShowMore    = useShowMore(5);
   const moodShowMore       = useShowMore(5);
 
-  // Pub audio
   const [showAd, setShowAd] = useState(false);
   const [adCount, setAdCount] = useState(0);
   const adCountRef = useRef(adCount);
   adCountRef.current = adCount;
 
-  // Mood filter
   const [selectedMood, setSelectedMood] = useState(null);
-
-  // "Reprendre où vous en étiez"
   const [lastPlayed, setLastPlayed] = useState(null);
-
-  // Hero "Titre du jour"
   const [heroSong, setHeroSong] = useState(null);
-
-  // Top 24h
   const [top24h, setTop24h] = useState([]);
-
-  // Albums récents
   const [recentAlbums, setRecentAlbums] = useState([]);
-
-  // Classement amis
   const [friendRanking, setFriendRanking] = useState([]);
-
   const [downloadingId, setDownloadingId] = useState(null);
   const [downloadedId, setDownloadedId] = useState(null);
 
@@ -690,8 +667,19 @@ const HomeView = ({
     fetch(`${API}/trending?limit=20`)
       .then(r => r.ok ? r.json() : [])
       .then(d => {
+        // BUG FIX: Les objets de trending peuvent ne pas avoir `src`.
+        // On stocke les IDs et on résout depuis `songs` (qui a le src complet).
         const list = Array.isArray(d) ? d.filter(s => s.songId).map(s => s.songId) : [];
-        setTop24h(list.length ? list : [...songs].sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 20));
+        if (list.length) {
+          // Enrichir avec les données complètes de songs si possible
+          const enriched = list.map(t => {
+            const full = songs.find(s => s._id === (t._id || t));
+            return full || t;
+          });
+          setTop24h(enriched);
+        } else {
+          setTop24h([...songs].sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 20));
+        }
       })
       .catch(() => setTop24h([...songs].sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 20)));
   }, [songs.length]);
@@ -802,6 +790,20 @@ const HomeView = ({
       isPlaying={isPlaying} toggleLike={toggleLike} />
   );
 
+  // ════════════════════════════════════════════
+  // BUG FIX #1 : Résolution chanson complète pour Top 24h
+  // Quand on clique sur un TopTrack, on cherche la chanson
+  // complète (avec `src`) dans `songs` via son `_id`.
+  // ════════════════════════════════════════════
+  const playFullSong = useCallback((songOrId) => {
+    const id = songOrId?._id || songOrId;
+    const full = songs.find(s => s._id === id);
+    if (full) {
+      setCurrentSong(full);
+      setIsPlaying(true);
+    }
+  }, [songs, setCurrentSong, setIsPlaying]);
+
   // ── Slices pour chaque section ──
   const visibleTop24h     = top24hShowMore.expanded     ? top24h            : top24h.slice(0, top24hShowMore.limit);
   const visibleNouveautes = nouveautesShowMore.expanded  ? recentMusiques    : recentMusiques.slice(0, nouveautesShowMore.limit);
@@ -815,10 +817,8 @@ const HomeView = ({
   return (
     <div className="flex flex-col gap-10 md:gap-14">
 
-      {/* ══ ALERTES ADMIN ══ */}
       {isAdmin && <AdminAlertBanner token={token} isAdmin={isAdmin} />}
 
-      {/* ══ NOTIFICATIONS PUSH ══ */}
       {isLoggedIn && !subscribed && (
         <button onClick={subscribe} disabled={pushLoading}
           className="flex items-center gap-3 px-4 py-2 rounded-xl border border-white/10 bg-white/5 hover:border-white/20 text-white/60 hover:text-white/80 text-sm font-medium transition disabled:opacity-50">
@@ -834,7 +834,7 @@ const HomeView = ({
         <section>
           <SectionHeader icon={<Sun size={18} className="text-yellow-400" />} title="Titre du jour" subtitle="Sélectionné pour vous aujourd'hui" />
           <div
-            onClick={() => { setCurrentSong(heroSong); setIsPlaying(true); }}
+            onClick={() => playFullSong(heroSong._id)}
             className="relative overflow-hidden rounded-3xl cursor-pointer group">
             <div className="absolute inset-0">
               <img src={heroSong.image} className="w-full h-full object-cover scale-110 blur-xl opacity-40" alt="" />
@@ -878,8 +878,8 @@ const HomeView = ({
         <section>
           <SectionHeader icon={<Clock size={18} className="text-blue-400" />} title="Reprendre où vous en étiez" />
           <div onClick={() => {
-            setCurrentSong(lastPlayed.song);
-            setIsPlaying(true);
+            // BUG FIX: Résoudre depuis songs pour avoir le src complet
+            playFullSong(lastPlayed.song._id);
             setTimeout(() => {
               const audio = document.querySelector('audio');
               if (audio && lastPlayed.timestamp > 0) audio.currentTime = lastPlayed.timestamp;
@@ -994,9 +994,15 @@ const HomeView = ({
           <SectionHeader icon={<Flame size={18} className="text-orange-500" />} title="Top du moment" subtitle="Mis à jour toutes les heures" />
           <div className="flex flex-col gap-1">
             {visibleTop24h.map((song, i) => (
-              <TopTrack key={song._id} song={song} rank={i}
-                isActive={currentSong?._id === song._id} isPlaying={isPlaying}
-                onClick={() => { setCurrentSong(song); setIsPlaying(true); }} />
+              <TopTrack
+                key={song._id || i}
+                song={song}
+                rank={i}
+                isActive={currentSong?._id === song._id}
+                isPlaying={isPlaying}
+                // BUG FIX: onPlay résout la chanson complète depuis songs
+                onPlay={() => playFullSong(song._id)}
+              />
             ))}
           </div>
           {top24h.length > 5 && (
@@ -1014,7 +1020,7 @@ const HomeView = ({
       {discoveryToday && (
         <section>
           <SectionHeader icon={<Compass size={18} className="text-violet-400" />} title="Découverte du jour" subtitle="Un artiste émergent · change chaque jour" />
-          <div onClick={() => { setCurrentSong(discoveryToday); setIsPlaying(true); }}
+          <div onClick={() => playFullSong(discoveryToday._id)}
             className="relative overflow-hidden rounded-2xl cursor-pointer group">
             <div className="absolute inset-0">
               <img src={discoveryToday.image} className="w-full h-full object-cover opacity-30 blur-lg scale-110" alt="" />
@@ -1036,7 +1042,7 @@ const HomeView = ({
         </section>
       )}
 
-      {/* ══ 6. NOUVEAUTÉS — scroll horizontal + "Voir plus" en fin de scroll ══ */}
+      {/* ══ 6. NOUVEAUTÉS ══ */}
       <section>
         <SectionHeader icon={<Sparkles size={18} className="text-blue-400" />} title="Nouveautés" />
         <HorizontalScrollContainer
@@ -1054,18 +1060,17 @@ const HomeView = ({
           {visibleNouveautes.map(song => (
             <HorizontalCard key={song._id} song={song}
               isActive={currentSong?._id === song._id} isPlaying={isPlaying}
-              onClick={() => { setCurrentSong(song); setIsPlaying(true); }}
+              onClick={() => playFullSong(song._id)}
               badge={isNewSong(song) ? 'NEW' : null} badgeColor="bg-blue-500" />
           ))}
         </HorizontalScrollContainer>
       </section>
 
-      {/* ══ PUB AUDIO (free users) ══ */}
       {showAd && (
         <AudioAdPlayer isPremium={isPremium} token={token} onAdEnd={() => setShowAd(false)} />
       )}
 
-      {/* ══ 7. ARTISTES TENDANCE — scroll horizontal ══ */}
+      {/* ══ 7. ARTISTES TENDANCE ══ */}
       {trendingArtistsMemo.length > 0 && (
         <section>
           <SectionHeader icon={<Users size={18} className="text-pink-400" />} title="Artistes tendance" subtitle="Classés par vélocité d'écoutes" />
@@ -1083,7 +1088,7 @@ const HomeView = ({
           >
             {visibleArtistes.map(({ nom, plays, song }) => (
               <div key={nom} className="shrink-0 w-24 text-center group cursor-pointer"
-                onClick={() => { if (song) { setCurrentSong(song); setIsPlaying(true); } }}>
+                onClick={() => { if (song) playFullSong(song._id); }}>
                 <div className="w-20 h-20 rounded-full mx-auto mb-2 overflow-hidden bg-zinc-800 border-2 border-zinc-700 group-hover:border-red-500/50 transition">
                   {song?.image
                     ? <img src={song.image} className="w-full h-full object-cover" alt="" />
@@ -1098,7 +1103,7 @@ const HomeView = ({
         </section>
       )}
 
-      {/* ══ 8. ALBUMS RÉCENTS — scroll horizontal ══ */}
+      {/* ══ 8. ALBUMS RÉCENTS ══ */}
       {recentAlbums.length > 0 && (
         <section>
           <SectionHeader icon={<Disc3 size={18} className="text-indigo-400" />} title="Albums récents" />
@@ -1135,7 +1140,7 @@ const HomeView = ({
             {visibleGems.map(song => (
               <DiscoveryCard key={song._id} song={song}
                 isActive={currentSong?._id === song._id} isPlaying={isPlaying}
-                onClick={() => { setCurrentSong(song); setIsPlaying(true); }} />
+                onClick={() => playFullSong(song._id)} />
             ))}
           </div>
           {hiddenGems.length > 4 && (
@@ -1211,6 +1216,7 @@ const HomeView = ({
       {isLoggedIn && (
         <RecentSharesSection
           token={token}
+          musiques={songs}
           setCurrentSong={setCurrentSong}
           setIsPlaying={setIsPlaying}
           currentSong={currentSong}

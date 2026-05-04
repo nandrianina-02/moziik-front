@@ -6,7 +6,7 @@ import {
   LogIn, LogOut, Repeat, Repeat1, Timer, Gauge, BarChart2,
   Users, Mic2, X, Disc3, Globe, Lock, ChevronDown, Settings,
   Maximize2, Eye, TrendingUp, Flame, Sparkles, Dices, History, Bell, WifiOff,
-  CheckCircle, Star, Crown, Ticket, ShoppingCart, DollarSign, Radio, Zap, Shield
+  CheckCircle, Star, Crown, Ticket, ShoppingCart, DollarSign, Radio, Zap, Shield, Download
 } from 'lucide-react';
 
 import { API } from './config/api';
@@ -54,6 +54,7 @@ import FullPlayerPage, { initEQ12, EQ_PRESETS_12 } from './components/player/Ful
 import RadioView from './views/RadioView';
 import AdminArtistView from './views/AdminArtistView';
 import AdminTeamView from './views/AdminTeamView';
+import OfflineLibraryView from './views/OfflineLibraryView.jsx';
 
 
 
@@ -729,6 +730,7 @@ const AppInner = () => {
     { to: '/trending',         icon: <Flame size={17}/>,   label: 'Trending' },
     { to: '/events',           icon: <Ticket size={17}/>,  label: 'Événements' },
     { to: '/premium',          icon: <Crown size={17}/>,   label: isPremium ? '✨ Premium' : 'Premium' },
+    { to: '/library',          icon: <Download size={17}/>,    label: 'Téléchargements' },
   ];
   const navLinksUser = isLoggedIn ? [
     { to: '/history',         icon: <History size={17}/>,  label: 'Historique' },
@@ -1090,6 +1092,7 @@ const AppInner = () => {
           } />
           <Route path="/admin-studio" element={isAdmin ? <AdminArtistView token={token} adminId={userId} adminNom={userNom}/> : <div className="p-8 text-zinc-600">Accès refusé</div>} />
           <Route path="/admin-team"   element={isAdmin ? <AdminTeamView token={token} currentAdminId={userId} isPrimary={isPrimary}/> : <div className="p-8 text-zinc-600">Accès refusé</div>} />
+          <Route path="/library"   element={<OfflineLibraryView musiques={musiques} currentSong={currentSong} setIsPlaying={setIsPlaying} setCurrentSong={setCurrentSong} isPlaying={isPlaying} isAudioCached={isAudioCached} removeCached={removeCached} />} />
         </Routes>
       </main>
 

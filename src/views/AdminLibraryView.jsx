@@ -1,5 +1,6 @@
 // ════════════════════════════════════════════════════════════════
 // AdminLibraryView.jsx — Bibliothèque complète admin
+// AJOUT: Bouton "Ajouter une musique" avec modal d'upload inline
 // FIX: Tags/moods enregistrés, upload image dans la modal,
 //      édition complète (titre, artiste, album, pochette, moods)
 // ════════════════════════════════════════════════════════════════
@@ -10,7 +11,7 @@ import {
   Loader2, SortAsc, SortDesc, Bell,
   Image as ImageIcon, Tag, Play, Pause, Eye,
   ArrowUpDown, AlertCircle, Check, Camera,
-  MoreVertical, Plus
+  MoreVertical, Plus, Upload, FileAudio, Link2
 } from 'lucide-react';
 import { API } from '../config/api';
 
@@ -35,8 +36,383 @@ const StatusBadge = ({ song }) => {
 };
 
 // ════════════════════════════════════════════
+// MODAL UPLOAD NOUVELLE MUSIQUE
+// ════════════════════════════════════════════
+const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
+  const [titre, setTitre]         = useState('');
+  const [artiste, setArtiste]     = useState('');
+  const [artisteId, setArtisteId] = useState('');
+  const [albumId, setAlbumId]     = useState('');
+  const [genre, setGenre]         = useState('');
+  const [annee, setAnnee]         = useState(new Date().getFullYear().toString());
+  const [selectedMoods, setSelectedMoods] = useState([]);
+  const [audioFile, setAudioFile] = useState(null);
+  const [imgFile, setImgFile]     = useState(null);
+  const [imgPreview, setImgPreview] = useState('');
+  const [audioUrl, setAudioUrl]   = useState(''); // Alternative: URL externe
+  const [inputMode, setInputMode] = useState('file'); // 'file' | 'url'
+  const [saving, setSaving]       = useState(false);
+  const [error, setError]         = useState('');
+  const [artistSearch, setArtistSearch] = useState('');
+  const [showArtistDd, setShowArtistDd] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const audioRef = useRef();
+  const imgRef   = useRef();
+
+  const filteredArtists = useMemo(() =>
+    artists.filter(a => !artistSearch || a.nom.toLowerCase().includes(artistSearch.toLowerCase())),
+    [artists, artistSearch]
+  );
+
+  const artistAlbums = useMemo(() =>
+    albums.filter(a => String(a.artisteId?._id || a.artisteId) === String(artisteId)),
+    [albums, artisteId]
+  );
+
+  const toggleMood = (mood) =>
+    setSelectedMoods(prev => prev.includes(mood) ? prev.filter(m => m !== mood) : [...prev, mood]);
+
+  const handleImg = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    setImgFile(f);
+    const reader = new FileReader();
+    reader.onload = () => setImgPreview(reader.result);
+    reader.readAsDataURL(f);
+  };
+
+  const handleAudio = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    setAudioFile(f);
+    // Auto-remplir le titre depuis le nom du fichier
+    if (!titre) {
+      const name = f.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+      setTitre(name.charAt(0).toUpperCase() + name.slice(1));
+    }
+  };
+
+  const selectArtist = (a) => {
+    setArtisteId(a._id); setArtiste(a.nom);
+    setArtistSearch(''); setShowArtistDd(false); setAlbumId('');
+  };
+
+  const handleSave = async () => {
+    if (!titre.trim()) return setError('Le titre est requis');
+    if (inputMode === 'file' && !audioFile) return setError('Veuillez sélectionner un fichier audio');
+    if (inputMode === 'url' && !audioUrl.trim()) return setError('Veuillez saisir une URL audio');
+
+    setSaving(true); setError(''); setUploadProgress(0);
+    try {
+      const fd = new FormData();
+      fd.append('titre',   titre.trim());
+      fd.append('artiste', artiste.trim());
+      if (artisteId) fd.append('artisteId', artisteId);
+      if (albumId)   fd.append('albumId',   albumId);
+      if (genre)     fd.append('genre',     genre);
+      if (annee)     fd.append('annee',     annee);
+      fd.append('moods', JSON.stringify(selectedMoods));
+      if (imgFile)   fd.append('image',     imgFile);
+
+      if (inputMode === 'file' && audioFile) {
+        fd.append('audio', audioFile);
+      } else if (inputMode === 'url') {
+        fd.append('src', audioUrl.trim());
+      }
+
+      // Upload avec suivi de progression via XMLHttpRequest
+      const result = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            setUploadProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        });
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); }
+            catch { reject(new Error('Réponse invalide du serveur')); }
+          } else {
+            try {
+              const err = JSON.parse(xhr.responseText);
+              reject(new Error(err.message || `Erreur ${xhr.status}`));
+            } catch {
+              reject(new Error(`Erreur serveur (${xhr.status})`));
+            }
+          }
+        });
+        xhr.addEventListener('error', () => reject(new Error('Erreur réseau')));
+        xhr.open('POST', `${API}/songs`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.send(fd);
+      });
+
+      onAdded(result);
+      onClose();
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); setUploadProgress(0); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-500 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[94vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-600/20 border border-red-600/30 flex items-center justify-center">
+              <Plus size={18} className="text-red-400" />
+            </div>
+            <div>
+              <h3 className="font-black text-sm">Ajouter une musique</h3>
+              <p className="text-[10px] text-zinc-500">Importer depuis un fichier ou une URL</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition">
+            <X size={16}/>
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+
+          {/* Zone pochette + audio */}
+          <div className="flex gap-3">
+            {/* Pochette */}
+            <div
+              onClick={() => imgRef.current?.click()}
+              className="relative shrink-0 w-20 h-20 rounded-2xl overflow-hidden bg-zinc-800 border-2 border-dashed border-zinc-700 hover:border-red-500 cursor-pointer transition flex items-center justify-center group"
+            >
+              {imgPreview
+                ? <img src={imgPreview} className="w-full h-full object-cover" alt="" />
+                : <div className="flex flex-col items-center gap-1 text-zinc-600 group-hover:text-zinc-400 transition">
+                    <ImageIcon size={20} />
+                    <span className="text-[8px] font-bold text-center leading-tight">POCHETTE</span>
+                  </div>
+              }
+              <div className="absolute bottom-1 right-1 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center">
+                <Camera size={9} className="text-white" />
+              </div>
+              <input ref={imgRef} type="file" accept="image/*" className="hidden" onChange={handleImg} />
+            </div>
+
+            {/* Infos rapides */}
+            <div className="flex-1 space-y-2">
+              <input
+                value={titre}
+                onChange={e => setTitre(e.target.value)}
+                placeholder="Titre de la chanson *"
+                className="w-full bg-zinc-800 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input value={genre} onChange={e => setGenre(e.target.value)}
+                  placeholder="Genre"
+                  className="bg-zinc-800 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600" />
+                <input value={annee} onChange={e => setAnnee(e.target.value)} type="number" min="1900" max="2099"
+                  placeholder="Année"
+                  className="bg-zinc-800 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600" />
+              </div>
+            </div>
+          </div>
+
+          {/* Source audio */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Source audio *</label>
+              <div className="flex gap-1 ml-auto">
+                {[
+                  { key: 'file', icon: <FileAudio size={11}/>, label: 'Fichier' },
+                  { key: 'url',  icon: <Link2 size={11}/>,     label: 'URL' },
+                ].map(({ key, icon, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setInputMode(key)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition border ${
+                      inputMode === key
+                        ? 'bg-red-600/20 border-red-500/40 text-red-300'
+                        : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-white'
+                    }`}
+                  >
+                    {icon} {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {inputMode === 'file' ? (
+              <div
+                onClick={() => audioRef.current?.click()}
+                className={`
+                  flex items-center gap-3 p-4 rounded-xl border-2 border-dashed cursor-pointer transition
+                  ${audioFile
+                    ? 'border-green-500/40 bg-green-500/8'
+                    : 'border-zinc-700 hover:border-zinc-500 bg-zinc-800/50 hover:bg-zinc-800'
+                  }
+                `}
+              >
+                {audioFile ? (
+                  <>
+                    <div className="w-9 h-9 rounded-xl bg-green-500/20 flex items-center justify-center shrink-0">
+                      <Check size={16} className="text-green-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-green-300 truncate">{audioFile.name}</p>
+                      <p className="text-[10px] text-zinc-500">{(audioFile.size / 1024 / 1024).toFixed(1)} Mo</p>
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); setAudioFile(null); }}
+                      className="text-zinc-500 hover:text-red-400 p-1 shrink-0"
+                    >
+                      <X size={13} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-9 h-9 rounded-xl bg-zinc-700 flex items-center justify-center shrink-0">
+                      <Upload size={16} className="text-zinc-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-zinc-300">Choisir un fichier audio</p>
+                      <p className="text-[10px] text-zinc-600">MP3, WAV, AAC, FLAC, OGG…</p>
+                    </div>
+                  </>
+                )}
+                <input ref={audioRef} type="file" accept="audio/*" className="hidden" onChange={handleAudio} />
+              </div>
+            ) : (
+              <div className="relative">
+                <Link2 size={13} className="absolute left-3.5 top-3 text-zinc-500" />
+                <input
+                  value={audioUrl}
+                  onChange={e => setAudioUrl(e.target.value)}
+                  placeholder="https://example.com/audio.mp3"
+                  className="w-full bg-zinc-800 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Artiste */}
+          <div className="relative">
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+              <Mic2 size={9}/> Artiste
+            </label>
+            {artisteId ? (
+              <div className="flex items-center gap-2 bg-purple-600/10 border border-purple-600/30 rounded-xl px-3 py-2.5">
+                <div className="w-6 h-6 rounded-full bg-purple-600/30 flex items-center justify-center text-[9px] font-black text-purple-300 shrink-0">
+                  {artiste[0]?.toUpperCase()}
+                </div>
+                <span className="text-sm font-bold text-purple-300 flex-1 truncate">{artiste}</span>
+                <button onClick={() => { setArtisteId(''); setArtiste(''); setAlbumId(''); }} className="text-zinc-500 hover:text-white">
+                  <X size={12}/>
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="relative">
+                  <Search size={13} className="absolute left-3 top-2.5 text-zinc-500"/>
+                  <input
+                    value={artistSearch}
+                    onChange={e => { setArtistSearch(e.target.value); setArtiste(e.target.value); setShowArtistDd(true); }}
+                    onFocus={() => setShowArtistDd(true)}
+                    placeholder="Rechercher ou saisir un artiste..."
+                    className="w-full bg-zinc-800 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600"
+                  />
+                </div>
+                {showArtistDd && artistSearch && (
+                  <div className="absolute z-20 left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl max-h-40 overflow-y-auto">
+                    {filteredArtists.length === 0 ? (
+                      <button onClick={() => { setArtiste(artistSearch); setShowArtistDd(false); }}
+                        className="w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-700 text-left flex items-center gap-2">
+                        <Plus size={12} className="text-zinc-500"/> Utiliser "{artistSearch}" (libre)
+                      </button>
+                    ) : filteredArtists.slice(0, 6).map(a => (
+                      <button key={a._id} onClick={() => selectArtist(a)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-700 transition text-left">
+                        <div className="w-7 h-7 rounded-full bg-zinc-700 overflow-hidden shrink-0 flex items-center justify-center">
+                          {a.image ? <img src={a.image} className="w-full h-full object-cover" alt=""/> : <Mic2 size={11} className="text-zinc-500"/>}
+                        </div>
+                        <span className="text-sm text-zinc-200">{a.nom}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Album */}
+          <div>
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+              <Disc3 size={9}/> Album (optionnel)
+            </label>
+            <select value={albumId} onChange={e => setAlbumId(e.target.value)}
+              className="w-full bg-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white">
+              <option value="">— Aucun album —</option>
+              {(artisteId ? artistAlbums : albums).map(a => (
+                <option key={a._id} value={a._id}>{a.titre} ({a.annee})</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Moods */}
+          <div>
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+              <Tag size={9}/> Ambiances / Moods
+              {selectedMoods.length > 0 && <span className="text-green-400 ml-auto">{selectedMoods.length} sélectionné{selectedMoods.length > 1 ? 's' : ''}</span>}
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {MOOD_OPTIONS.map(mood => (
+                <button key={mood} type="button" onClick={() => toggleMood(mood)}
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition border ${
+                    selectedMoods.includes(mood)
+                      ? 'bg-red-600/20 border-red-500/50 text-red-300'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-white hover:border-zinc-500'
+                  }`}>
+                  {mood}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Barre de progression */}
+          {saving && uploadProgress > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wide">Upload en cours</span>
+                <span className="text-[10px] text-red-400 font-bold">{uploadProgress}%</span>
+              </div>
+              <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-red-600 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <p className="text-xs text-red-400 bg-red-500/10 px-3 py-2 rounded-xl flex items-center gap-2">
+              <AlertCircle size={12}/> {error}
+            </p>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <button onClick={handleSave} disabled={saving}
+              className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-50">
+              {saving ? <Loader2 size={14} className="animate-spin"/> : <Plus size={14}/>}
+              {saving ? (uploadProgress > 0 ? `Upload ${uploadProgress}%` : 'Envoi...') : 'Ajouter la musique'}
+            </button>
+            <button onClick={onClose} className="px-4 py-2.5 text-zinc-400 hover:text-white text-sm rounded-xl hover:bg-zinc-800 transition">
+              Annuler
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ════════════════════════════════════════════
 // MODAL ÉDITION COMPLÈTE
-// FIX: FormData pour image + moods enregistrés
 // ════════════════════════════════════════════
 const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
   const [titre, setTitre]         = useState(song.titre || '');
@@ -45,9 +421,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
   const [albumId, setAlbumId]     = useState(song.albumId?._id || song.albumId || '');
   const [genre, setGenre]         = useState(song.genre || '');
   const [annee, setAnnee]         = useState(song.annee || '');
-  // FIX: Moods initialisés depuis la chanson existante
   const [selectedMoods, setSelectedMoods] = useState(song.moods || []);
-  // FIX: Upload image
   const [imgFile, setImgFile]     = useState(null);
   const [imgPreview, setImgPreview] = useState(song.image || '');
   const [saving, setSaving]       = useState(false);
@@ -77,7 +451,6 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
     reader.readAsDataURL(f);
   };
 
-  // FIX: Utilise FormData pour envoyer l'image + les moods
   const handleSave = async () => {
     if (!titre.trim()) return setError('Le titre est requis');
     setSaving(true); setError('');
@@ -89,14 +462,12 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
       if (albumId)               fd.append('albumId',   albumId);
       if (genre)                 fd.append('genre',     genre);
       if (annee)                 fd.append('annee',     annee);
-      // FIX: moods envoyés en JSON string
       fd.append('moods', JSON.stringify(selectedMoods));
-      // FIX: image envoyée si choisie
       if (imgFile)               fd.append('image',     imgFile);
 
       const res = await fetch(`${API}/songs/${song._id}`, {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` }, // PAS Content-Type avec FormData
+        headers: { Authorization: `Bearer ${token}` },
         body: fd,
       });
       const data = await res.json();
@@ -117,10 +488,8 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[92vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}>
 
-        {/* Header sticky */}
         <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
           <div className="flex items-center gap-3">
-            {/* FIX: Image cliquable pour changer la pochette */}
             <div className="relative shrink-0 cursor-pointer" onClick={() => imgRef.current?.click()}>
               <div className="w-12 h-12 rounded-xl overflow-hidden bg-zinc-800 border-2 border-zinc-700 hover:border-red-500 transition">
                 {imgPreview
@@ -142,7 +511,6 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
           </button>
         </div>
 
-        {/* Statut */}
         <div className="px-5 pt-4">
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <StatusBadge song={{ ...song, artiste, artisteId, albumId, moods: selectedMoods }}/>
@@ -151,8 +519,6 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
         </div>
 
         <div className="p-5 pt-0 space-y-4">
-
-          {/* Titre */}
           <div>
             <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
               <Tag size={9}/> Titre *
@@ -162,7 +528,6 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
               placeholder="Titre de la chanson"/>
           </div>
 
-          {/* Artiste */}
           <div className="relative">
             <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
               <Mic2 size={9}/> Artiste
@@ -210,7 +575,6 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
             )}
           </div>
 
-          {/* Album */}
           <div>
             <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
               <Disc3 size={9}/> Album (optionnel)
@@ -224,7 +588,6 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
             </select>
           </div>
 
-          {/* Genre + Année */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Genre</label>
@@ -240,7 +603,6 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
             </div>
           </div>
 
-          {/* FIX: Moods — tags cliquables enregistrés via FormData */}
           <div>
             <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-1">
               <Tag size={9}/> Ambiances / Moods
@@ -261,7 +623,6 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
             <p className="text-[9px] text-zinc-600 mt-1.5">Les moods permettent le filtrage par ambiance sur l'accueil</p>
           </div>
 
-          {/* Pochette — aperçu de la nouvelle image */}
           {imgFile && (
             <div className="flex items-center gap-3 bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
               <img src={imgPreview} className="w-10 h-10 rounded-lg object-cover shrink-0" alt=""/>
@@ -361,6 +722,7 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
   const [sortBy, setSortBy]         = useState('createdAt');
   const [sortDir, setSortDir]       = useState('desc');
   const [editingSong, setEditingSong] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false); // NOUVEAU
   const [deleting, setDeleting]     = useState(null);
   const [notifDismissed, setNotifDismissed] = useState(false);
   const [page, setPage]             = useState(1);
@@ -411,7 +773,10 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
     list.sort((a, b) => {
       let va = a[sortBy] || ''; let vb = b[sortBy] || '';
       if (sortBy === 'createdAt') { va = new Date(va); vb = new Date(vb); }
-      else if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+      else if (typeof va === 'string') {
+         va = va.toLowerCase()
+         vb = vb.toLowerCase()
+      }
       if (va < vb) return sortDir === 'asc' ? -1 : 1;
       if (va > vb) return sortDir === 'asc' ? 1 : -1;
       return 0;
@@ -442,6 +807,11 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
     setSongs(prev => prev.map(s => s._id === updated._id ? { ...s, ...updated } : s));
   };
 
+  // NOUVEAU : ajout d'une musique à la liste locale
+  const handleAdded = (newSong) => {
+    setSongs(prev => [newSong, ...prev]);
+  };
+
   const SortIcon = ({ col }) => {
     if (sortBy !== col) return <ArrowUpDown size={11} className="text-zinc-700"/>;
     return sortDir === 'asc' ? <SortAsc size={11} className="text-red-400"/> : <SortDesc size={11} className="text-red-400"/>;
@@ -450,8 +820,8 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
 
-      {/* Titre */}
-      <div className="flex items-center justify-between">
+      {/* Titre + bouton Ajouter */}
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black flex items-center gap-3">
             <div className="w-9 h-9 bg-red-600/20 border border-red-600/30 rounded-xl flex items-center justify-center">
@@ -465,11 +835,20 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
             {noMoodCount > 0 && <span className="text-zinc-600 ml-2">· {noMoodCount} sans mood</span>}
           </p>
         </div>
-        <button onClick={load} disabled={loading}
-          className="flex items-center gap-2 text-xs font-bold text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-3 py-2 rounded-xl transition disabled:opacity-50">
-          <RefreshCw size={13} className={loading ? 'animate-spin' : ''}/>
-          Actualiser
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* NOUVEAU : bouton Ajouter une musique */}
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 text-xs font-bold text-white bg-red-600 hover:bg-red-500 px-4 py-2 rounded-xl transition active:scale-95 shadow-lg shadow-red-600/20"
+          >
+            <Plus size={14}/> Ajouter une musique
+          </button>
+          <button onClick={load} disabled={loading}
+            className="flex items-center gap-2 text-xs font-bold text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-3 py-2 rounded-xl transition disabled:opacity-50">
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''}/>
+            Actualiser
+          </button>
+        </div>
       </div>
 
       {/* Notifications incomplètes */}
@@ -492,7 +871,6 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
         </div>
 
         <div className="flex gap-2 flex-wrap items-center">
-          {/* Filtre statut */}
           {[
             ['all', 'Tout', songs.length],
             ['incomplete', '⚠️ Sans artiste', incompleteCount],
@@ -506,7 +884,6 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
             </button>
           ))}
 
-          {/* Filtre mood */}
           <select value={moodFilter} onChange={e => { setMoodFilter(e.target.value); setPage(1); }}
             className="bg-zinc-900/60 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-400 outline-none focus:ring-1 ring-red-600">
             <option value="">Tous les moods</option>
@@ -522,7 +899,6 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
         </div>
       ) : (
         <>
-          {/* En-têtes */}
           <div className="hidden md:grid grid-cols-[auto_1fr_1fr_1fr_auto_auto_auto] gap-3 px-4 py-2 text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
             <div className="w-10"/>
             <button onClick={() => toggleSort('titre')} className="flex items-center gap-1 hover:text-zinc-300 transition text-left">Titre <SortIcon col="titre"/></button>
@@ -538,6 +914,12 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
               <div className="text-center py-12 text-zinc-600">
                 <Music size={36} className="mx-auto mb-2 opacity-20"/>
                 <p className="text-sm">Aucune musique ne correspond aux filtres</p>
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-red-400 bg-red-600/10 hover:bg-red-600/20 border border-red-600/20 px-4 py-2 rounded-xl transition"
+                >
+                  <Plus size={13}/> Ajouter la première musique
+                </button>
               </div>
             ) : paginated.map(song => {
               const isActive = currentSong?._id === song._id;
@@ -546,7 +928,6 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
                 <div key={song._id}
                   className={`group flex items-center gap-3 p-3 rounded-xl transition cursor-pointer ${isActive ? 'bg-red-600/8 border border-red-600/15' : 'hover:bg-zinc-900/60 border border-transparent'}`}
                   onClick={() => { setCurrentSong(song); setIsPlaying(true); }}>
-                  {/* Cover */}
                   <div className="w-10 h-10 rounded-lg overflow-hidden bg-zinc-800 shrink-0 relative">
                     {song.image ? <img src={song.image} className="w-full h-full object-cover" alt=""/> : <Music size={14} className="text-zinc-600 m-auto mt-3"/>}
                     {isActive && isPlaying && (
@@ -556,13 +937,11 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
                     )}
                   </div>
 
-                  {/* Titre + artiste */}
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-bold truncate ${isActive ? 'text-red-400' : 'text-zinc-100'}`}>{song.titre || 'Sans titre'}</p>
                     <p className="text-[10px] text-zinc-500 truncate uppercase">{song.artiste || <span className="text-orange-400">⚠️ Sans artiste</span>}</p>
                   </div>
 
-                  {/* Moods */}
                   <div className="hidden md:flex items-center gap-1 flex-wrap max-w-35">
                     {song.moods?.length > 0
                       ? song.moods.slice(0, 2).map(m => (
@@ -572,17 +951,14 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
                     }
                   </div>
 
-                  {/* Plays */}
                   <div className="hidden md:flex items-center gap-1 text-[10px] text-zinc-600 w-14 shrink-0">
                     <Eye size={9}/> {song.plays?.toLocaleString() || 0}
                   </div>
 
-                  {/* Statut */}
                   <div className="hidden md:block shrink-0">
                     <StatusBadge song={song}/>
                   </div>
 
-                  {/* Actions */}
                   <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition shrink-0" onClick={e => e.stopPropagation()}>
                     <button onClick={() => setEditingSong(song)}
                       className="p-1.5 hover:bg-zinc-700 text-zinc-500 hover:text-white rounded-lg transition" title="Modifier">
@@ -632,6 +1008,15 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
           song={editingSong} token={token} artists={artists} albums={albums}
           onClose={() => setEditingSong(null)}
           onSaved={updated => { handleSaved(updated); setEditingSong(null); }}
+        />
+      )}
+
+      {/* NOUVEAU : Modal ajout musique */}
+      {showAddModal && (
+        <AddSongModal
+          token={token} artists={artists} albums={albums}
+          onClose={() => setShowAddModal(false)}
+          onAdded={(newSong) => { handleAdded(newSong); setShowAddModal(false); }}
         />
       )}
     </div>
