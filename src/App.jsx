@@ -658,6 +658,45 @@ const AppInner = () => {
   }, [isPlaying]);
 
   useEffect(() => {
+    const handleKeyDown = (e) => {
+      // ❌ Ne pas interférer avec les inputs
+      const tag = e.target.tagName;
+      if (["INPUT", "TEXTAREA"].includes(tag) || e.target.isContentEditable) return;
+
+      switch (e.code) {
+        case "Space":
+          e.preventDefault();
+          setIsPlaying((p) => !p);
+          break;
+
+        case "ArrowRight":
+          handleNext();
+          break;
+
+        case "ArrowLeft":
+          handlePrev();
+          break;
+
+        case "ArrowUp":
+          e.preventDefault();
+          setVolume((v) => Math.min(v + 0.1, 1));
+          break;
+
+        case "ArrowDown":
+          e.preventDefault();
+          setVolume((v) => Math.max(v - 0.1, 0));
+          break;
+
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleNext, handlePrev]);
+
+  useEffect(() => {
     if (currentTime > 30 && !playCountedRef.current && currentSong) {
       playCountedRef.current = true;
 

@@ -5,7 +5,7 @@ import {
   Users, AlertTriangle, Share2, Clock, WifiOff,
   Star, Radio, Gem, Trophy, Zap, Sun, Bell, Ticket, Calendar, MapPin, ChevronLeft,
   ChevronDown, ChevronUp,
-  Plus
+  Plus, ListMusic
 } from 'lucide-react';
 import SongRow from '../components/music/SongRow';
 import GlobalSearchView from './GlobalSearchView';
@@ -190,12 +190,6 @@ const SectionHeader = ({ icon, title, subtitle, noMargin }) => (
   </div>
 );
 
-// ════════════════════════════════════════════
-// BUG FIX #1 : TopTrack
-// Le song passé depuis top24h peut être un objet sans `src`.
-// On reçoit maintenant `onPlay` qui résout la chanson complète
-// depuis `musiques` via son `_id` avant de jouer.
-// ════════════════════════════════════════════
 const TopTrack = ({ song, rank, isActive, isPlaying, onPlay }) => {
   const rankColors = ['text-yellow-400', 'text-zinc-300', 'text-amber-600', 'text-zinc-600', 'text-zinc-700'];
   return (
@@ -308,9 +302,10 @@ const RecentSharesSection = ({ token, setCurrentSong, setIsPlaying, currentSong,
   const validShares = shares.filter(s => s.songId);
   if (!validShares.length) return null;
 
-  const visibleShares = expanded ? validShares : validShares.slice(0, limit);
+  // MODIF: cap à 20 max
+  const cappedShares = validShares.slice(0, 20);
+  const visibleShares = expanded ? cappedShares : cappedShares.slice(0, limit);
 
-  // BUG FIX: Résoudre la chanson complète depuis musiques
   const resolveAndPlay = (songId) => {
     const fullSong = musiques?.find(m => m._id === (songId?._id || songId));
     if (fullSong) { setCurrentSong(fullSong); setIsPlaying(true); }
@@ -321,12 +316,12 @@ const RecentSharesSection = ({ token, setCurrentSong, setIsPlaying, currentSong,
       <SectionHeader
         icon={<Share2 size={18} className="text-blue-400" />}
         title="Mes partages récents"
-        subtitle={`${validShares.length} lien${validShares.length > 1 ? 's' : ''} actif${validShares.length > 1 ? 's' : ''}`}
+        subtitle={`${cappedShares.length} lien${cappedShares.length > 1 ? 's' : ''} actif${cappedShares.length > 1 ? 's' : ''}`}
       />
       <HorizontalScrollContainer
         showMoreProps={
-          validShares.length > 8
-            ? { total: validShares.length, shown: visibleShares.length, expanded, onToggle: toggle }
+          cappedShares.length > 8
+            ? { total: cappedShares.length, shown: visibleShares.length, expanded, onToggle: toggle }
             : undefined
         }
       >
@@ -493,6 +488,7 @@ const OfflineSection = ({ musiques, setCurrentSong, setIsPlaying, currentSong, i
   const COLS = 2;
   const ROWS = 3;
   const PAGE = COLS * ROWS;
+  // NOTE: Section offline — pas de cap à 20, comportement original conservé
   const { expanded, limit, toggle } = useShowMore(PAGE);
 
   if (!cached.length) return null;
@@ -591,6 +587,110 @@ const OfflineSongCard = ({ song, isActive, isPlaying, onClick }) => (
 );
 
 // ════════════════════════════════════════════
+// SECTION PLAYLISTS PUBLIQUES (NOUVELLE)
+// ════════════════════════════════════════════
+const PublicPlaylistsSection = ({ token, setCurrentSong, setIsPlaying, currentSong, isPlaying, musiques }) => {
+  const [playlists, setPlaylists] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { expanded, limit, toggle } = useShowMore(8);
+
+  useEffect(() => {
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    fetch(`${API}/user-playlists/public?limit=20`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setPlaylists(Array.isArray(d) ? d.slice(0, 20) : []))
+      .catch(() => setPlaylists([]))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  if (loading || !playlists.length) return null;
+
+  const visiblePlaylists = expanded ? playlists : playlists.slice(0, limit);
+
+  const playPlaylist = (playlist) => {
+    const firstSongId = playlist.musiques?.[0]?._id || playlist.musiques?.[0];
+    if (!firstSongId) return;
+    const full = musiques?.find(m => m._id === firstSongId);
+    if (full) { setCurrentSong(full); setIsPlaying(true); }
+  };
+
+  return (
+    <section>
+      <SectionHeader
+        icon={<ListMusic size={18} className="text-teal-400" />}
+        title="Playlists publiques"
+        subtitle={`${playlists.length} playlist${playlists.length > 1 ? 's' : ''} disponible${playlists.length > 1 ? 's' : ''}`}
+      />
+      <HorizontalScrollContainer
+        showMoreProps={
+          playlists.length > 8
+            ? { total: playlists.length, shown: visiblePlaylists.length, expanded, onToggle: toggle }
+            : undefined
+        }
+      >
+        {visiblePlaylists.map(playlist => {
+          const coverImage = playlist.image || playlist.musiques?.[0]?.image || '/icon-192.png';
+          const songCount = playlist.musiques?.length || 0;
+          const isActive = playlist.musiques?.some(s => (s._id || s) === currentSong?._id);
+
+          return (
+            <div
+              key={playlist._id}
+              onClick={() => playPlaylist(playlist)}
+              className="shrink-0 w-28 md:w-32 group cursor-pointer"
+            >
+              <div className="relative mb-2 aspect-square">
+                {/* Mosaïque 2x2 si 4+ chansons avec images */}
+                {playlist.songs?.filter(s => s.image).length >= 4 ? (
+                  <div className="w-full h-full rounded-2xl overflow-hidden grid grid-cols-2 gap-0.5 bg-zinc-800 shadow-lg">
+                    {playlist.songs.filter(s => s.image).slice(0, 4).map((s, i) => (
+                      <img key={i} src={s.image} className="w-full h-full object-cover" alt="" />
+                    ))}
+                  </div>
+                ) : (
+                  <img
+                    src={coverImage}
+                    className={`w-full h-full rounded-2xl object-cover shadow-lg transition-all duration-300 ${isActive ? 'ring-2 ring-teal-400/40 scale-[0.98]' : ''}`}
+                    alt=""
+                  />
+                )}
+
+                {/* Overlay play */}
+                <div className={`absolute inset-0 rounded-2xl flex items-center justify-center bg-black/50 transition ${isActive && isPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                  <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
+                    {isActive && isPlaying
+                      ? <Pause fill="white" size={15} />
+                      : <Play fill="white" size={15} className="ml-0.5" />
+                    }
+                  </div>
+                </div>
+
+                {/* Compteur de titres */}
+                <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full">
+                  {songCount} titre{songCount !== 1 ? 's' : ''}
+                </span>
+
+                {/* Badge officielle */}
+                {playlist.isOfficial && (
+                  <span className="absolute top-2 left-2 bg-teal-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+                    Officielle
+                  </span>
+                )}
+              </div>
+
+              <p className="text-xs font-bold truncate text-zinc-200">{playlist.nom || playlist.title || 'Playlist'}</p>
+              <p className="text-[10px] text-zinc-600 truncate mt-0.5 uppercase tracking-wide">
+                {playlist.createdBy?.nom || playlist.userId?.nom || 'Anonyme'}
+              </p>
+            </div>
+          );
+        })}
+      </HorizontalScrollContainer>
+    </section>
+  );
+};
+
+// ════════════════════════════════════════════
 // HOME VIEW
 // ════════════════════════════════════════════
 const HomeView = ({
@@ -667,11 +767,8 @@ const HomeView = ({
     fetch(`${API}/trending?limit=20`)
       .then(r => r.ok ? r.json() : [])
       .then(d => {
-        // BUG FIX: Les objets de trending peuvent ne pas avoir `src`.
-        // On stocke les IDs et on résout depuis `songs` (qui a le src complet).
         const list = Array.isArray(d) ? d.filter(s => s.songId).map(s => s.songId) : [];
         if (list.length) {
-          // Enrichir avec les données complètes de songs si possible
           const enriched = list.map(t => {
             const full = songs.find(s => s._id === (t._id || t));
             return full || t;
@@ -707,10 +804,31 @@ const HomeView = ({
     return () => clearInterval(t);
   }, [currentSong, isLoggedIn]);
 
-  const recentMusiques = useMemo(() =>
-    [...songs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), [songs]);
+  // ══ MODIF 1 : Nouveautés triées par date de sortie (annee + mois) ══
+  const recentMusiques = useMemo(() => {
+    return [...songs].sort((a, b) => {
+      // Priorité : champ `annee` (année de sortie) + `mois` si présents
+      const getReleaseDateValue = (song) => {
+        if (song.annee) {
+          const year = parseInt(song.annee) || 0;
+          const month = parseInt(song.mois) || 0;
+          return year * 100 + month; // ex: 2024*100+5 = 202405
+        }
+        // Fallback sur createdAt
+        return new Date(song.createdAt).getTime() / 1000000;
+      };
+      return getReleaseDateValue(b) - getReleaseDateValue(a);
+    });
+  }, [songs]);
 
   const isNewSong = (song) => {
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    if (song.annee) {
+      const songYear = parseInt(song.annee) || 0;
+      const songMonth = parseInt(song.mois) || 0;
+      if (songYear === currentYear && (!songMonth || songMonth >= currentMonth - 1)) return true;
+    }
     const diff = Date.now() - new Date(song.createdAt).getTime();
     return diff < 7 * 86400000;
   };
@@ -783,12 +901,6 @@ const HomeView = ({
     { label: 'Gospel',    color: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300', activeColor: 'bg-emerald-500/30 border-emerald-400 text-emerald-200' },
   ];
 
-
-  // ════════════════════════════════════════════
-  // BUG FIX #1 : Résolution chanson complète pour Top 24h
-  // Quand on clique sur un TopTrack, on cherche la chanson
-  // complète (avec `src`) dans `songs` via son `_id`.
-  // ════════════════════════════════════════════
   const playFullSong = useCallback((songOrId) => {
     const id = songOrId?._id || songOrId;
     const full = songs.find(s => s._id === id);
@@ -805,15 +917,25 @@ const HomeView = ({
     isPlaying={isPlaying} toggleLike={toggleLike} />
   );
 
-  // ── Slices pour chaque section ──
-  const visibleTop24h     = top24hShowMore.expanded     ? top24h            : top24h.slice(0, top24hShowMore.limit);
-  const visibleNouveautes = nouveautesShowMore.expanded  ? recentMusiques    : recentMusiques.slice(0, nouveautesShowMore.limit);
-  const visibleArtistes   = artistesShowMore.expanded    ? trendingArtistsMemo : trendingArtistsMemo.slice(0, artistesShowMore.limit);
-  const visibleAlbums     = albumsShowMore.expanded      ? recentAlbums      : recentAlbums.slice(0, albumsShowMore.limit);
-  const visibleGems       = gemsShowMore.expanded        ? hiddenGems        : hiddenGems.slice(0, gemsShowMore.limit);
-  const visibleRanking    = rankingShowMore.expanded     ? friendRanking     : friendRanking.slice(0, rankingShowMore.limit);
-  const visibleFavoris    = favorisShowMore.expanded     ? favorites         : favorites.slice(0, favorisShowMore.limit);
-  const visibleMood       = moodShowMore.expanded        ? moodFiltered      : moodFiltered.slice(0, moodShowMore.limit);
+  // ══ MODIF 2 : Cap à 20 max pour toutes les sections (sauf offline) ══
+  const MAX = 20;
+  const top24hCapped       = top24h.slice(0, MAX);
+  const nouveautesCapped   = recentMusiques.slice(0, MAX);
+  const artistesCapped     = trendingArtistsMemo.slice(0, MAX);
+  const albumsCapped       = recentAlbums.slice(0, MAX);
+  const gemsCapped         = hiddenGems.slice(0, MAX);
+  const rankingCapped      = friendRanking.slice(0, MAX);
+  const favorisCapped      = favorites.slice(0, MAX);
+  const moodCapped         = moodFiltered.slice(0, MAX);
+
+  const visibleTop24h     = top24hShowMore.expanded     ? top24hCapped     : top24hCapped.slice(0, top24hShowMore.limit);
+  const visibleNouveautes = nouveautesShowMore.expanded  ? nouveautesCapped : nouveautesCapped.slice(0, nouveautesShowMore.limit);
+  const visibleArtistes   = artistesShowMore.expanded    ? artistesCapped   : artistesCapped.slice(0, artistesShowMore.limit);
+  const visibleAlbums     = albumsShowMore.expanded      ? albumsCapped     : albumsCapped.slice(0, albumsShowMore.limit);
+  const visibleGems       = gemsShowMore.expanded        ? gemsCapped       : gemsCapped.slice(0, gemsShowMore.limit);
+  const visibleRanking    = rankingShowMore.expanded     ? rankingCapped    : rankingCapped.slice(0, rankingShowMore.limit);
+  const visibleFavoris    = favorisShowMore.expanded     ? favorisCapped    : favorisCapped.slice(0, favorisShowMore.limit);
+  const visibleMood       = moodShowMore.expanded        ? moodCapped       : moodCapped.slice(0, moodShowMore.limit);
 
   return (
     <div className="flex flex-col gap-10 md:gap-14">
@@ -879,7 +1001,6 @@ const HomeView = ({
         <section>
           <SectionHeader icon={<Clock size={18} className="text-blue-400" />} title="Reprendre où vous en étiez" />
           <div onClick={() => {
-            // BUG FIX: Résoudre depuis songs pour avoir le src complet
             playFullSong(lastPlayed.song._id);
             setTimeout(() => {
               const audio = document.querySelector('audio');
@@ -969,28 +1090,28 @@ const HomeView = ({
             </button>
           )}
         </div>
-        {selectedMood && moodFiltered.length > 0 && (
+        {selectedMood && moodCapped.length > 0 && (
           <>
             <div className="mt-4 flex flex-col gap-1">
               {visibleMood.map((song, i) => <SongRow key={song._id} song={song} index={i} {...songRowProps} />)}
             </div>
-            {moodFiltered.length > 5 && (
+            {moodCapped.length > 5 && (
               <ShowMoreButton
                 expanded={moodShowMore.expanded}
                 onToggle={moodShowMore.toggle}
-                total={moodFiltered.length}
+                total={moodCapped.length}
                 shown={visibleMood.length}
               />
             )}
           </>
         )}
-        {selectedMood && moodFiltered.length === 0 && (
+        {selectedMood && moodCapped.length === 0 && (
           <p className="text-sm text-zinc-600 text-center py-6 italic">Aucun titre avec ce mood — ajoutez des tags depuis le menu d'édition</p>
         )}
       </section>
 
       {/* ══ 4. TOP DU MOMENT ══ */}
-      {top24h.length > 0 && (
+      {top24hCapped.length > 0 && (
         <section>
           <SectionHeader icon={<Flame size={18} className="text-orange-500" />} title="Top du moment" subtitle="Mis à jour toutes les heures" />
           <div className="flex flex-col gap-1">
@@ -1001,16 +1122,15 @@ const HomeView = ({
                 rank={i}
                 isActive={currentSong?._id === song._id}
                 isPlaying={isPlaying}
-                // BUG FIX: onPlay résout la chanson complète depuis songs
                 onPlay={() => playFullSong(song._id)}
               />
             ))}
           </div>
-          {top24h.length > 5 && (
+          {top24hCapped.length > 5 && (
             <ShowMoreButton
               expanded={top24hShowMore.expanded}
               onToggle={top24hShowMore.toggle}
-              total={top24h.length}
+              total={top24hCapped.length}
               shown={visibleTop24h.length}
             />
           )}
@@ -1043,14 +1163,14 @@ const HomeView = ({
         </section>
       )}
 
-      {/* ══ 6. NOUVEAUTÉS ══ */}
+      {/* ══ 6. NOUVEAUTÉS (triées par date de sortie : annee + mois) ══ */}
       <section>
-        <SectionHeader icon={<Sparkles size={18} className="text-blue-400" />} title="Nouveautés" />
+        <SectionHeader icon={<Sparkles size={18} className="text-blue-400" />} title="Nouveautés" subtitle="Triées par date de sortie" />
         <HorizontalScrollContainer
           showMoreProps={
-            recentMusiques.length > 8
+            nouveautesCapped.length > 8
               ? {
-                  total: recentMusiques.length,
+                  total: nouveautesCapped.length,
                   shown: visibleNouveautes.length,
                   expanded: nouveautesShowMore.expanded,
                   onToggle: nouveautesShowMore.toggle,
@@ -1072,14 +1192,14 @@ const HomeView = ({
       )}
 
       {/* ══ 7. ARTISTES TENDANCE ══ */}
-      {trendingArtistsMemo.length > 0 && (
+      {artistesCapped.length > 0 && (
         <section>
           <SectionHeader icon={<Users size={18} className="text-pink-400" />} title="Artistes tendance" subtitle="Classés par vélocité d'écoutes" />
           <HorizontalScrollContainer
             showMoreProps={
-              trendingArtistsMemo.length > 8
+              artistesCapped.length > 8
                 ? {
-                    total: trendingArtistsMemo.length,
+                    total: artistesCapped.length,
                     shown: visibleArtistes.length,
                     expanded: artistesShowMore.expanded,
                     onToggle: artistesShowMore.toggle,
@@ -1105,14 +1225,14 @@ const HomeView = ({
       )}
 
       {/* ══ 8. ALBUMS RÉCENTS ══ */}
-      {recentAlbums.length > 0 && (
+      {albumsCapped.length > 0 && (
         <section>
           <SectionHeader icon={<Disc3 size={18} className="text-indigo-400" />} title="Albums récents" />
           <HorizontalScrollContainer
             showMoreProps={
-              recentAlbums.length > 8
+              albumsCapped.length > 8
                 ? {
-                    total: recentAlbums.length,
+                    total: albumsCapped.length,
                     shown: visibleAlbums.length,
                     expanded: albumsShowMore.expanded,
                     onToggle: albumsShowMore.toggle,
@@ -1133,8 +1253,18 @@ const HomeView = ({
         </section>
       )}
 
+      {/* ══ PLAYLISTS PUBLIQUES (NOUVELLE SECTION) ══ */}
+      <PublicPlaylistsSection
+        token={token}
+        setCurrentSong={setCurrentSong}
+        setIsPlaying={setIsPlaying}
+        currentSong={currentSong}
+        isPlaying={isPlaying}
+        musiques={songs}
+      />
+
       {/* ══ INCONNUS MAIS EXCELLENTS ══ */}
-      {hiddenGems.length > 0 && (
+      {gemsCapped.length > 0 && (
         <section>
           <SectionHeader icon={<Gem size={18} className="text-cyan-400" />} title="Inconnus mais excellents" subtitle="Moins de 100 écoutes · très aimés" />
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -1144,11 +1274,11 @@ const HomeView = ({
                 onClick={() => playFullSong(song._id)} />
             ))}
           </div>
-          {hiddenGems.length > 4 && (
+          {gemsCapped.length > 4 && (
             <ShowMoreButton
               expanded={gemsShowMore.expanded}
               onToggle={gemsShowMore.toggle}
-              total={hiddenGems.length}
+              total={gemsCapped.length}
               shown={visibleGems.length}
             />
           )}
@@ -1156,7 +1286,7 @@ const HomeView = ({
       )}
 
       {/* ══ CLASSEMENT DES FANS ══ */}
-      {isLoggedIn && friendRanking.length > 0 && (
+      {isLoggedIn && rankingCapped.length > 0 && (
         <section>
           <SectionHeader icon={<Trophy size={18} className="text-yellow-400" />} title="Classement des fans" subtitle="Les plus actifs cette semaine" />
           <div className="bg-zinc-900/60 border border-zinc-800/50 rounded-2xl p-4 space-y-2">
@@ -1174,11 +1304,11 @@ const HomeView = ({
               </div>
             ))}
           </div>
-          {friendRanking.length > 5 && (
+          {rankingCapped.length > 5 && (
             <ShowMoreButton
               expanded={rankingShowMore.expanded}
               onToggle={rankingShowMore.toggle}
-              total={friendRanking.length}
+              total={rankingCapped.length}
               shown={visibleRanking.length}
             />
           )}
@@ -1186,17 +1316,17 @@ const HomeView = ({
       )}
 
       {/* ══ FAVORIS ══ */}
-      {isLoggedIn && favorites.length > 0 && (
+      {isLoggedIn && favorisCapped.length > 0 && (
         <section>
           <SectionHeader icon={<Heart size={18} className="text-red-500" fill="red" />} title="Aimés" />
           <div className="flex flex-col gap-1">
             {visibleFavoris.map((song, i) => <SongRow key={song._id} song={song} index={i} {...songRowProps} />)}
           </div>
-          {favorites.length > 5 && (
+          {favorisCapped.length > 5 && (
             <ShowMoreButton
               expanded={favorisShowMore.expanded}
               onToggle={favorisShowMore.toggle}
-              total={favorites.length}
+              total={favorisCapped.length}
               shown={visibleFavoris.length}
             />
           )}

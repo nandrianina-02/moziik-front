@@ -812,7 +812,7 @@ const InfosPanel = React.memo(({ currentSong, currentTime, duration, audioRef, a
 // ════════════════════════════════════════════
 // COMMENTS PANEL
 // ════════════════════════════════════════════
-const CommentsPanel = React.memo(({ songId, currentTime, duration, onSeek, token, isLoggedIn, userId, isAdmin, userNom, onMarkersReady, accentColor, API=API }) => {
+const CommentsPanel = React.memo(({ songId, currentTime, duration, onSeek, token, isLoggedIn, userId, isAdmin, userNom, onMarkersReady, accentColor}) => {
   const [comments, setComments] = useState([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
@@ -912,7 +912,6 @@ const FullPlayerPage = ({
   token, isLoggedIn, userId, isAdmin,
   onOpenListenParty,
   smartMode, setSmartMode,
-  API=API,
 }) => {
   const [activeTab, setActiveTab] = useState('player');
   const [activePreset, setActivePreset] = useState('Flat');
