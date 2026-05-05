@@ -170,12 +170,10 @@ export const useAudioCache = () => {
   useEffect(() => { syncWithCacheAPI(); }, [syncWithCacheAPI]);
 
   // ── Mettre en cache une chanson ────────────
-  const cacheAudio = useCallback(async (song) => {
+const cacheAudio = useCallback(async (song) => {
     if (!('caches' in window) || !song?.src || !song?._id) return false;
-
     try {
       const cache = await caches.open(CACHE_NAME);
-
       // Vérifier si déjà en cache
       const existing = await cache.match(song.src);
       if (existing) {
@@ -188,18 +186,26 @@ export const useAudioCache = () => {
         }
         return true;
       }
-
       // Télécharger et mettre en cache
-      const response = await fetch(song.src, { mode: 'cors' });
-      if (!response.ok) return false;
+      const response = await fetch(song.src, { 
+        mode: 'cors',
+        headers: { 'Range': 'bytes=0-' }, // force réponse complète
+      });
 
-      await cache.put(song.src, response.clone());
+      if (!response.ok && response.status !== 206) return false;
 
-      // FIX: Sauvegarder dans l'index localStorage
+      // Reconstruire une réponse 200 pour éviter l'erreur Cache + 206
+      const blob = await response.blob();
+      const fullResponse = new Response(blob, {
+        status: 200,
+        headers: { 'Content-Type': response.headers.get('Content-Type') || 'audio/mpeg' },
+      });
+
+      await cache.put(song.src, fullResponse);
+      // Sauvegarder dans l'index localStorage
       const index = readIndex();
       index[song._id] = song.src;
       writeIndex(index);
-
       setCachedIds(prev => new Set([...prev, song._id]));
       return true;
     } catch (e) {

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   ChevronDown, Play, Pause, SkipBack, SkipForward,
   Shuffle, Repeat, Repeat1, Heart, Volume2, VolumeX,
@@ -6,7 +6,15 @@ import {
   GripVertical, RotateCcw, Radio, Sparkles, Tag,
   MessageCircle, Download, Share2, Moon,
   Mic2, Info, Zap, Music2, Plus, Search,
+  Check, Copy, Link, ExternalLink, Loader2
 } from 'lucide-react';
+
+import { FaWhatsapp, FaFacebookF } from "react-icons/fa";
+import { SiX } from "react-icons/si"; // pour Twitter (X)
+import { useMediaSession, useWakeLock, useAppBadge, useOfflineDetection, useAudioCache } from '../../hooks/usePWA';
+
+const API = 'https://moozik-gft1.onrender.com';
+
 
 // ════════════════════════════════════════════
 // EQ CONFIG
@@ -67,7 +75,7 @@ export const initEQ12 = (audioRef, eqFiltersRef, audioContextRef, onReady) => {
 };
 
 // ════════════════════════════════════════════
-// COLOR EXTRACTOR — adapte les couleurs à la cover
+// COLOR EXTRACTOR
 // ════════════════════════════════════════════
 const extractDominantColor = (imgSrc, callback) => {
   const img = new Image();
@@ -88,11 +96,8 @@ const extractDominantColor = (imgSrc, callback) => {
           r += pr; g += pg; b += pb; count++;
         }
       }
-      if (count > 0) {
-        callback({ r: Math.round(r/count), g: Math.round(g/count), b: Math.round(b/count) });
-      } else {
-        callback({ r: 180, g: 30, b: 30 });
-      }
+      if (count > 0) callback({ r: Math.round(r/count), g: Math.round(g/count), b: Math.round(b/count) });
+      else callback({ r: 180, g: 30, b: 30 });
     } catch { callback({ r: 180, g: 30, b: 30 }); }
   };
   img.onerror = () => callback({ r: 180, g: 30, b: 30 });
@@ -100,7 +105,7 @@ const extractDominantColor = (imgSrc, callback) => {
 };
 
 // ════════════════════════════════════════════
-// STYLES GLOBAUX
+// STYLES GLOBAUX — animations fluides améliorées
 // ════════════════════════════════════════════
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
@@ -117,81 +122,108 @@ const STYLES = `
   .fp-root { font-family: var(--fp-font); }
 
   @keyframes fp-spin        { to { transform: rotate(360deg); } }
-  @keyframes fp-float       { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-8px) scale(1.02)} }
-  @keyframes fp-fade-in     { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-  @keyframes fp-fade-slide  { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
-  @keyframes fp-pulse       { 0%,100%{opacity:0.6;transform:scale(1)} 50%{opacity:1;transform:scale(1.06)} }
+  @keyframes fp-float       { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-10px) scale(1.025)} }
+  @keyframes fp-fade-in     { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes fp-fade-slide  { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
+  @keyframes fp-slide-up    { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes fp-scale-in    { from{opacity:0;transform:scale(.88)} to{opacity:1;transform:scale(1)} }
+  @keyframes fp-pulse       { 0%,100%{opacity:.55;transform:scale(1)} 50%{opacity:1;transform:scale(1.08)} }
   @keyframes fp-eq-dance    { 0%,100%{height:3px} 50%{height:100%} }
+  @keyframes fp-wave-bounce { 0%,100%{transform:scaleY(.3)} 40%{transform:scaleY(1)} }
+  @keyframes fp-ripple      { to{transform:scale(3);opacity:0} }
+  @keyframes fp-heartbeat   { 0%,100%{transform:scale(1)} 20%{transform:scale(1.5)} 40%{transform:scale(1.2)} 60%{transform:scale(1.35)} }
   @keyframes fp-shimmer     { 0%{background-position:-400% 0} 100%{background-position:400% 0} }
-  @keyframes fp-wave-bounce { 0%,100%{transform:scaleY(.35)} 40%{transform:scaleY(1)} }
-  @keyframes fp-ripple      { to{transform:scale(2.5);opacity:0} }
-  @keyframes fp-heartbeat   { 0%,100%{transform:scale(1)} 25%{transform:scale(1.35)} 50%{transform:scale(1.15)} }
-  @keyframes fp-bg-shift    { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
-  @keyframes fp-glow-pulse  { 0%,100%{opacity:.4} 50%{opacity:.8} }
+  @keyframes fp-bg-breathe  { 0%,100%{opacity:.28} 50%{opacity:.42} }
+  @keyframes fp-ring-expand { 0%{transform:scale(1);opacity:.8} 100%{transform:scale(1.6);opacity:0} }
+  @keyframes fp-modal-in    { from{opacity:0;transform:translateY(20px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)} }
+  @keyframes fp-toast-in    { from{opacity:0;transform:translateX(100%)} to{opacity:1;transform:translateX(0)} }
+  @keyframes fp-toast-out   { from{opacity:1;transform:translateX(0)} to{opacity:0;transform:translateX(120%)} }
 
-  /* Cover animation */
-  .fp-playing .fp-cover-wrap { animation: fp-float 7s ease-in-out infinite; }
-  .fp-cover-shadow {
-    position: absolute; inset: 20px; border-radius: 22px;
-    background: rgba(var(--fp-accent), 0.5);
-    filter: blur(40px); transform: scale(.95) translateY(16px);
-    transition: all .8s ease; pointer-events: none;
+  /* Cover animation — more organic */
+  .fp-playing .fp-cover-wrap { animation: fp-float 6s cubic-bezier(.45,0,.55,1) infinite; }
+  .fp-cover-inner {
+    position: relative; width: 100%; height: 100%;
+    transition: transform .6s cubic-bezier(.34,1.56,.64,1), opacity .5s ease, box-shadow .5s ease;
   }
-  .fp-playing .fp-cover-shadow { filter: blur(52px); opacity: .9; }
+  .fp-playing .fp-cover-inner { transform: scale(1); opacity: 1; }
+  .fp-paused .fp-cover-inner  { transform: scale(.88); opacity: .65; }
+
+  /* Multi-layer glow */
+  .fp-glow-layer-1 {
+    position: absolute; inset: 8px; border-radius: 28px;
+    filter: blur(55px) saturate(1.8);
+    opacity: .7; transform: scale(.9) translateY(20px);
+    transition: opacity .8s ease, transform .8s ease; pointer-events: none;
+    animation: fp-bg-breathe 4s ease-in-out infinite;
+  }
+  .fp-glow-layer-2 {
+    position: absolute; inset: 22px; border-radius: 24px;
+    background: rgba(var(--fp-accent), .4);
+    filter: blur(35px); transform: scale(.85) translateY(28px);
+    opacity: .5; pointer-events: none; transition: all .8s ease;
+  }
+  .fp-playing .fp-glow-layer-1, .fp-playing .fp-glow-layer-2 { opacity: .85; }
 
   /* Progress */
   .fp-prog-track {
-    position: relative; height: 5px; background: rgba(255,255,255,.1);
+    position: relative; height: 4px; background: rgba(255,255,255,.1);
     border-radius: 99px; cursor: pointer; overflow: visible;
-    transition: height .2s;
+    transition: height .25s cubic-bezier(.34,1.56,.64,1);
   }
   .fp-prog-track:hover { height: 7px; }
   .fp-prog-fill {
     height: 100%; border-radius: 99px; position: relative;
     background: linear-gradient(90deg, rgba(var(--fp-accent),1), rgba(var(--fp-accent2),1));
-    transition: width .08s linear;
+    transition: width .09s linear;
+    box-shadow: 0 0 12px rgba(var(--fp-accent), .5);
   }
   .fp-prog-thumb {
     position: absolute; right: -7px; top: 50%;
     transform: translateY(-50%) scale(0);
     width: 14px; height: 14px; border-radius: 50%;
-    background: #fff; box-shadow: 0 0 14px var(--fp-glow);
-    transition: transform .2s; pointer-events: none;
+    background: #fff; box-shadow: 0 0 16px var(--fp-glow);
+    transition: transform .2s cubic-bezier(.34,1.56,.64,1); pointer-events: none;
   }
   .fp-prog-track:hover .fp-prog-thumb { transform: translateY(-50%) scale(1); }
 
   /* Volume */
-  .fp-vol-track { flex: 1; height: 3px; background: rgba(255,255,255,.1); border-radius: 99px; position: relative; cursor: pointer; }
-  .fp-vol-fill  { height: 100%; border-radius: 99px; background: rgba(255,255,255,.45); pointer-events: none; transition: width .05s; }
+  .fp-vol-track { flex: 1; height: 3px; background: rgba(255,255,255,.1); border-radius: 99px; position: relative; cursor: pointer; transition: height .2s; }
+  .fp-vol-track:hover { height: 5px; }
+  .fp-vol-fill  { height: 100%; border-radius: 99px; background: rgba(255,255,255,.5); pointer-events: none; transition: width .06s; }
   .fp-vol-input { position: absolute; inset: -12px 0; opacity: 0; cursor: pointer; width: 100%; height: calc(100% + 24px); }
 
-  /* Play button */
+  /* Play button — premium */
   .fp-play-btn {
     position: relative; border-radius: 50%; border: none; cursor: pointer;
-    background: rgba(var(--fp-accent), 1);
-    box-shadow: 0 8px 32px rgba(var(--fp-accent), .55), 0 2px 8px rgba(0,0,0,.4);
-    transition: transform .15s cubic-bezier(.34,1.56,.64,1), box-shadow .2s;
+    background: linear-gradient(135deg, rgba(var(--fp-accent2),1) 0%, rgba(var(--fp-accent),1) 100%);
+    box-shadow: 0 8px 36px rgba(var(--fp-accent), .6), 0 2px 8px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.15);
+    transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .25s ease;
     display: flex; align-items: center; justify-content: center;
   }
-  .fp-play-btn:hover { transform: scale(1.07); box-shadow: 0 12px 40px rgba(var(--fp-accent), .7); }
-  .fp-play-btn:active { transform: scale(.94); }
-  .fp-play-ring {
-    position: absolute; inset: -3px; border-radius: 50%;
-    border: 2px solid rgba(var(--fp-accent), .4);
-    opacity: 0; transition: opacity .4s;
+  .fp-play-btn:hover { transform: scale(1.08); box-shadow: 0 14px 44px rgba(var(--fp-accent), .75), 0 2px 8px rgba(0,0,0,.5); }
+  .fp-play-btn:active { transform: scale(.93); transition-duration: .1s; }
+
+  /* Expanding rings when playing */
+  .fp-ring {
+    position: absolute; inset: -6px; border-radius: 50%;
+    border: 1.5px solid rgba(var(--fp-accent), .5);
+    opacity: 0; pointer-events: none;
   }
-  .fp-playing .fp-play-ring { opacity: 1; animation: fp-pulse 2.5s ease-in-out infinite; }
+  .fp-playing .fp-ring-1 { animation: fp-ring-expand 2s ease-out infinite; }
+  .fp-playing .fp-ring-2 { animation: fp-ring-expand 2s ease-out infinite .66s; }
+  .fp-playing .fp-ring-3 { animation: fp-ring-expand 2s ease-out infinite 1.33s; }
 
   /* EQ */
-  .fp-eq-wrap { position: relative; border-radius: 6px; overflow: hidden; background: rgba(255,255,255,.04); flex: 1; }
-  .fp-eq-fill  { position: absolute; left: 0; right: 0; border-radius: 4px; }
-  .fp-eq-zero  { position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,.12); top: 50%; }
+  .fp-eq-wrap { position: relative; border-radius: 6px; overflow: hidden; background: rgba(255,255,255,.04); flex: 1; transition: background .2s; }
+  .fp-eq-wrap:hover { background: rgba(255,255,255,.07); }
+  .fp-eq-fill  { position: absolute; left: 0; right: 0; border-radius: 4px; transition: height .1s ease; }
+  .fp-eq-zero  { position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,.1); top: 50%; }
   .fp-eq-thumb {
     position: absolute; left: 50%; transform: translateX(-50%);
-    width: 11px; height: 11px; border-radius: 50%;
-    background: #fff; border: 2px solid rgba(255,255,255,.3);
-    box-shadow: 0 2px 8px rgba(0,0,0,.5); pointer-events: none; z-index: 2;
-    transition: top .1s;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #fff; border: 2px solid rgba(255,255,255,.4);
+    box-shadow: 0 2px 10px rgba(0,0,0,.6); pointer-events: none; z-index: 2;
+    transition: top .12s cubic-bezier(.34,1.56,.64,1);
   }
   .fp-eq-input { position: absolute; inset: 0; opacity: 0; cursor: ns-resize; writing-mode: vertical-lr; direction: rtl; width: 100%; height: 100%; }
 
@@ -199,7 +231,7 @@ const STYLES = `
   .fp-tab {
     flex: 1; padding: 14px 4px; font-family: var(--fp-font);
     font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-    color: rgba(255,255,255,.3); transition: color .2s; border: none; background: none; cursor: pointer;
+    color: rgba(255,255,255,.28); transition: color .2s; border: none; background: none; cursor: pointer;
     display: flex; flex-direction: column; align-items: center; gap: 5px; position: relative;
   }
   .fp-tab.on { color: rgba(255,255,255,.92); }
@@ -207,70 +239,83 @@ const STYLES = `
     content: ''; position: absolute; bottom: 0; left: 20%; right: 20%;
     height: 2px; border-radius: 99px;
     background: linear-gradient(90deg, rgba(var(--fp-accent),1), rgba(var(--fp-accent2),1));
+    box-shadow: 0 0 8px rgba(var(--fp-accent), .6);
   }
 
   /* Ctrl buttons */
   .fp-ctrl {
     display: flex; align-items: center; justify-content: center;
     border-radius: 50%; border: none; background: transparent;
-    cursor: pointer; transition: transform .15s, background .15s;
+    cursor: pointer; transition: transform .18s cubic-bezier(.34,1.56,.64,1), background .15s;
   }
-  .fp-ctrl:hover  { background: rgba(255,255,255,.08); }
+  .fp-ctrl:hover  { background: rgba(255,255,255,.09); transform: scale(1.1); }
   .fp-ctrl:active { transform: scale(.85); }
+
+  /* Skip buttons special */
+  .fp-skip { transition: transform .15s cubic-bezier(.34,1.56,.64,1) !important; }
+  .fp-skip:hover { transform: scale(1.12) !important; }
+  .fp-skip:active { transform: scale(.88) !important; }
 
   /* Queue items */
   .fp-qi {
     display: flex; align-items: center; gap: 10px;
-    padding: 9px 10px; border-radius: 12px;
+    padding: 9px 10px; border-radius: 14px;
     background: rgba(255,255,255,.03); border: 1px solid transparent;
-    cursor: grab; transition: background .15s, border-color .15s;
+    cursor: grab; transition: background .18s, border-color .18s, transform .15s;
   }
-  .fp-qi:hover     { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.07); }
+  .fp-qi:hover     { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.07); transform: translateX(3px); }
   .fp-qi.active    { background: rgba(var(--fp-accent),.12); border-color: rgba(var(--fp-accent),.3); }
-  .fp-qi.drop-over { background: rgba(var(--fp-accent),.2); border-color: rgba(var(--fp-accent),.5); }
+  .fp-qi.drop-over { background: rgba(var(--fp-accent),.2); border-color: rgba(var(--fp-accent),.5); transform: scale(.98); }
 
   /* Preset pills */
   .fp-preset {
     padding: 5px 12px; border-radius: 99px; font-size: 10px; font-weight: 700;
     letter-spacing: .04em; border: 1px solid rgba(255,255,255,.09);
     background: rgba(255,255,255,.04); color: rgba(255,255,255,.35);
-    cursor: pointer; transition: all .15s; font-family: var(--fp-font);
+    cursor: pointer; transition: all .18s cubic-bezier(.34,1.56,.64,1); font-family: var(--fp-font);
   }
-  .fp-preset:hover  { background: rgba(255,255,255,.1); color: rgba(255,255,255,.8); }
-  .fp-preset.on     { background: rgba(var(--fp-accent),.22); border-color: rgba(var(--fp-accent),.5); color: #fff; box-shadow: 0 2px 12px rgba(var(--fp-accent),.35); }
+  .fp-preset:hover  { background: rgba(255,255,255,.1); color: rgba(255,255,255,.8); transform: scale(1.06); }
+  .fp-preset.on     { background: rgba(var(--fp-accent),.22); border-color: rgba(var(--fp-accent),.5); color: #fff; box-shadow: 0 2px 14px rgba(var(--fp-accent),.4); transform: scale(1.04); }
 
   /* Action pills */
   .fp-pill {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 7px 14px; border-radius: 99px; font-size: 11px; font-weight: 600;
-    border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05);
-    color: rgba(255,255,255,.45); cursor: pointer; transition: all .15s;
+    padding: 8px 16px; border-radius: 99px; font-size: 11px; font-weight: 700;
+    border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.06);
+    color: rgba(255,255,255,.5); cursor: pointer;
+    transition: all .2s cubic-bezier(.34,1.56,.64,1);
     font-family: var(--fp-font);
   }
-  .fp-pill:hover { background: rgba(255,255,255,.12); color: rgba(255,255,255,.85); border-color: rgba(255,255,255,.18); }
-  .fp-pill.liked { background: rgba(239,68,68,.15); border-color: rgba(239,68,68,.4); color: #fca5a5; }
-  .fp-pill.sleep-on { background: rgba(59,130,246,.12); border-color: rgba(59,130,246,.35); color: #93c5fd; }
+  .fp-pill:hover { background: rgba(255,255,255,.14); color: rgba(255,255,255,.9); border-color: rgba(255,255,255,.2); transform: scale(1.04) translateY(-1px); }
+  .fp-pill:active { transform: scale(.96); }
+  .fp-pill.liked { background: rgba(239,68,68,.18); border-color: rgba(239,68,68,.45); color: #fca5a5; }
+  .fp-pill.sleep-on { background: rgba(59,130,246,.14); border-color: rgba(59,130,246,.38); color: #93c5fd; }
+  .fp-pill.downloading { opacity: .6; pointer-events: none; }
 
   /* Mood tag */
   .fp-mood {
     display: inline-flex; align-items: center; gap: 4px;
-    font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 99px;
+    font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 99px;
     background: rgba(var(--fp-accent),.14); color: rgba(var(--fp-accent2),1);
     border: 1px solid rgba(var(--fp-accent),.25);
+    transition: all .18s; cursor: default;
   }
+  .fp-mood:hover { background: rgba(var(--fp-accent),.25); transform: scale(1.06); }
 
-  /* Dancing bars */
+  /* Dancing bars — smoother */
   .fp-bar { width: 3px; border-radius: 2px; background: rgba(var(--fp-accent),1); transform-origin: bottom; }
-  .fp-bar:nth-child(1) { animation: fp-eq-dance .7s ease-in-out infinite; }
-  .fp-bar:nth-child(2) { animation: fp-eq-dance .7s ease-in-out infinite .14s; }
-  .fp-bar:nth-child(3) { animation: fp-eq-dance .7s ease-in-out infinite .28s; }
+  .fp-bar:nth-child(1) { animation: fp-eq-dance .65s cubic-bezier(.45,0,.55,1) infinite; }
+  .fp-bar:nth-child(2) { animation: fp-eq-dance .65s cubic-bezier(.45,0,.55,1) infinite .13s; }
+  .fp-bar:nth-child(3) { animation: fp-eq-dance .65s cubic-bezier(.45,0,.55,1) infinite .26s; }
+  .fp-bar:nth-child(4) { animation: fp-eq-dance .65s cubic-bezier(.45,0,.55,1) infinite .08s; }
 
   /* Waveform */
-  .fp-wave { width: 100%; height: 52px; cursor: pointer; border-radius: 8px; }
+  .fp-wave { width: 100%; height: 52px; cursor: pointer; border-radius: 10px; }
 
   /* Info card */
-  .fp-ic { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07); border-radius: 12px; padding: 11px 14px; }
-  .fp-ic-label { font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.22); margin-bottom: 3px; }
+  .fp-ic { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07); border-radius: 14px; padding: 12px 15px; transition: background .18s; }
+  .fp-ic:hover { background: rgba(255,255,255,.07); }
+  .fp-ic-label { font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.2); margin-bottom: 3px; }
   .fp-ic-val   { font-size: 14px; font-weight: 700; color: rgba(255,255,255,.8); font-family: var(--fp-mono); }
 
   /* Section label */
@@ -280,11 +325,10 @@ const STYLES = `
   .fp-scroll::-webkit-scrollbar { width: 3px; }
   .fp-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 99px; }
 
-  /* Desktop */
+  /* Desktop right panel */
   .fp-right { display: none !important; }
   @media(min-width: 768px) { .fp-right { display: flex !important; } .fp-mobile-tabs { display: none !important; } }
 
-  /* Cover number badge */
   .fp-badge {
     display: inline-flex; align-items: center; gap: 4px;
     font-size: 9px; font-weight: 800; letter-spacing: .08em;
@@ -292,18 +336,14 @@ const STYLES = `
     background: rgba(var(--fp-accent),1); color: #fff;
   }
 
-  /* Smart banner */
-  .fp-smart-banner {
-    background: rgba(var(--fp-accent),.1); border: 1px solid rgba(var(--fp-accent),.22);
-    border-radius: 12px; padding: 10px 14px;
-  }
-
   /* Comment item */
   .fp-comment {
-    display: flex; align-items: flex-start; gap: 10px; padding: 10px 0;
-    border-bottom: 1px solid rgba(255,255,255,.05);
+    display: flex; align-items: flex-start; gap: 10px; padding: 10px 16px;
+    border-bottom: 1px solid rgba(255,255,255,.04);
     animation: fp-fade-slide .2s ease both;
+    transition: background .15s;
   }
+  .fp-comment:hover { background: rgba(255,255,255,.03); }
   .fp-avatar {
     width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
@@ -315,26 +355,207 @@ const STYLES = `
     font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 5px;
     background: rgba(var(--fp-accent),.18); color: rgba(var(--fp-accent2),1);
     cursor: pointer; font-family: var(--fp-mono);
+    transition: all .15s;
   }
+  .fp-ts-pill:hover { background: rgba(var(--fp-accent),.32); transform: scale(1.05); }
 
   /* Ts markers on progress */
   .fp-ts-marker {
     position: absolute; top: 50%; transform: translate(-50%, -50%);
     border-radius: 50%; cursor: pointer; z-index: 5;
-    transition: all .15s;
+    transition: all .2s cubic-bezier(.34,1.56,.64,1);
   }
-  .fp-ts-marker:hover { box-shadow: 0 0 8px rgba(var(--fp-accent),.8); }
+  .fp-ts-marker:hover { transform: translate(-50%, -50%) scale(1.5); box-shadow: 0 0 10px rgba(var(--fp-accent),.9); }
 
-  /* EQ value */
   .fp-eq-val { font-size: 8px; font-family: var(--fp-mono); color: rgba(255,255,255,.3); text-align: center; height: 13px; }
   .fp-eq-label { font-size: 8px; font-family: var(--fp-mono); color: rgba(255,255,255,.22); text-align: center; margin-top: 3px; }
 
-  .fp-fade { animation: fp-fade-in .25s ease both; }
-  .fp-slide { animation: fp-fade-slide .2s ease both; }
+  .fp-fade { animation: fp-fade-in .28s cubic-bezier(.4,0,.2,1) both; }
+  .fp-slide { animation: fp-fade-slide .22s cubic-bezier(.4,0,.2,1) both; }
+  .fp-scale { animation: fp-scale-in .24s cubic-bezier(.34,1.56,.64,1) both; }
+
+  /* Share / Download modals */
+  .fp-modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.65);
+    backdrop-filter: blur(12px); z-index: 300;
+    display: flex; align-items: flex-end; justify-content: center;
+    animation: fp-fade-in .2s ease both;
+  }
+  @media(min-width: 500px) { .fp-modal-overlay { align-items: center; } }
+  .fp-modal-sheet {
+    background: rgba(22,22,26,.95); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 28px 28px 0 0; width: 100%; max-width: 480px;
+    padding: 8px 0 32px; animation: fp-modal-in .3s cubic-bezier(.34,1.56,.64,1) both;
+    max-height: 80vh; overflow-y: auto;
+  }
+  @media(min-width: 500px) { .fp-modal-sheet { border-radius: 28px; } }
+
+  /* Toast */
+  .fp-toast {
+    position: fixed; bottom: 90px; right: 16px; z-index: 400;
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(20,20,24,.96); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 16px; padding: 12px 18px;
+    font-family: var(--fp-font); font-size: 13px; font-weight: 600; color: #fff;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    animation: fp-toast-in .3s cubic-bezier(.34,1.56,.64,1) both;
+  }
+  .fp-toast.out { animation: fp-toast-out .3s ease both; }
+
+  /* Download progress */
+  .fp-dl-prog {
+    height: 3px; border-radius: 99px; background: rgba(255,255,255,.1);
+    overflow: hidden; margin-top: 8px;
+  }
+  .fp-dl-prog-fill {
+    height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, rgba(var(--fp-accent),1), rgba(var(--fp-accent2),1));
+    transition: width .3s ease;
+    box-shadow: 0 0 8px rgba(var(--fp-accent),.6);
+  }
+
+  /* Visualizer canvas bars */
+  .fp-viz-canvas { display: block; }
 `;
 
 // ════════════════════════════════════════════
-// EQ BAR
+// TOAST COMPONENT
+// ════════════════════════════════════════════
+const Toast = ({ message, icon, onDone }) => {
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => { setLeaving(true); setTimeout(onDone, 320); }, 2800);
+    return () => clearTimeout(t);
+  }, [onDone]);
+  return (
+    <div className={`fp-toast${leaving ? ' out' : ''}`}>
+      {icon && <span style={{ fontSize: 16 }}>{icon}</span>}
+      {message}
+    </div>
+  );
+};
+
+// ════════════════════════════════════════════
+// SHARE MODAL — liens sociaux + copie URL
+// ════════════════════════════════════════════
+const ShareModal = ({ song, onClose, onToast, token }) => {
+  const [state, setState] = useState('idle');
+  const [shareUrl, setShareUrl] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const generateLink = async () => {
+    if (shareUrl) return;
+    setState('loading');
+    try {
+      const data = await fetch(`${API}/songs/${song._id}/share`, { method: 'POST' }).then(r => r.json());
+      const frontendUrl = window.location.origin;
+      const shareToken = data.shareToken;
+      setShareUrl(`${frontendUrl}/share/${shareToken}`);
+      setState('idle');
+    } catch {
+      setState('error');
+      setTimeout(() => setState('idle'), 2000);
+    }
+  };
+
+  useEffect(() => { generateLink(); }, []);
+
+  const copyLink = async (e) => {
+    e?.stopPropagation();
+    const url = shareUrl || window.location.href;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const el = document.createElement('textarea');
+      el.value = url; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
+    }
+    setCopied(true);
+    onToast('Lien copié !', '✓');
+    setTimeout(() => setCopied(false), 2500);
+    onClose();
+  };
+
+  const shareNative = async () => {
+    const url = shareUrl || window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: song.titre, text: `Écoute "${song.titre}" par ${song.artiste}`, url });
+        onToast('Partagé avec succès', '✓');
+        onClose();
+      } catch (e) { if (e.name !== 'AbortError') copyLink(); }
+    } else { copyLink(); }
+  };
+
+  const openSocial = (platform) => {
+    const url = encodeURIComponent(shareUrl || window.location.href);
+    const text = encodeURIComponent(`🎵 Écoute "${song.titre}" par ${song.artiste}`);
+    const links = {
+      twitter: `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}`,
+      whatsapp: `https://wa.me/?text=${text}%20${url}`,
+    };
+    if (links[platform]) window.open(links[platform], '_blank', 'width=600,height=400');
+    onClose();
+  };
+
+  return (
+    <div className="fp-modal-overlay" onClick={onClose}>
+      <div className="fp-modal-sheet" onClick={e => e.stopPropagation()}>
+        {/* Handle */}
+        <div style={{ width: 40, height: 4, borderRadius: 99, background: 'rgba(255,255,255,.15)', margin: '0 auto 20px' }} />
+
+        {/* Song preview */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 20px', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
+          <img src={song.image} style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover' }} alt="" />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 14, fontWeight: 800, color: '#fff', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{song.titre}</p>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,.4)', margin: 0 }}>{song.artiste}</p>
+          </div>
+          <Share2 size={18} style={{ color: 'rgba(255,255,255,.25)', flexShrink: 0 }} />
+        </div>
+
+        {/* Share URL */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
+          <p className="fp-sec" style={{ marginBottom: 10 }}><Link size={10}/> Lien de partage</p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, padding: '10px 14px', fontSize: 11, color: 'rgba(255,255,255,.45)', fontFamily: 'var(--fp-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {state === 'loading' ? 'Génération du lien…' : state === 'error' ? 'Erreur de génération' : (shareUrl || 'Chargement…')}
+            </div>
+            <button onClick={copyLink} style={{ padding: '10px 16px', borderRadius: 12, background: copied ? 'rgba(34,197,94,.2)' : 'rgba(255,255,255,.1)', border: `1px solid ${copied ? 'rgba(34,197,94,.4)' : 'rgba(255,255,255,.15)'}`, color: copied ? '#4ade80' : '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, transition: 'all .2s', fontFamily: 'var(--fp-font)', flexShrink: 0 }}>
+              {copied ? <Check size={14}/> : <Copy size={14}/>} {copied ? 'Copié' : 'Copier'}
+            </button>
+          </div>
+        </div>
+
+        {/* Social buttons */}
+        <div style={{ padding: '16px 20px 8px' }}>
+          <p className="fp-sec" style={{ marginBottom: 12 }}><ExternalLink size={10}/> Partager sur</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 12 }}>
+            {[
+              { key: 'whatsapp', label: 'WhatsApp', bg: 'rgba(37,211,102,.15)', border: 'rgba(37,211,102,.3)', color: '#4ade80', icon: <FaWhatsapp /> },
+              { key: 'twitter',  label: 'Twitter',  bg: 'rgba(29,155,240,.15)', border: 'rgba(29,155,240,.3)', color: '#60a5fa', icon: <SiX /> },
+              { key: 'facebook', label: 'Facebook', bg: 'rgba(24,119,242,.15)', border: 'rgba(24,119,242,.3)', color: '#818cf8', icon: <FaFacebookF /> },
+            ].map(({ key, label, bg, border, color, icon }) => (
+              <button key={key} onClick={() => openSocial(key)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, padding: '14px 8px', borderRadius: 16, background: bg, border: `1px solid ${border}`, color, cursor: 'pointer', fontFamily: 'var(--fp-font)', fontSize: 12, fontWeight: 700, transition: 'all .2s' }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                <span style={{ fontSize: 22, lineHeight: 1 }}>{icon}</span>
+                {label}
+              </button>
+            ))}
+          </div>
+          <button onClick={shareNative} style={{ width: '100%', padding: '13px', borderRadius: 16, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.12)', color: 'rgba(255,255,255,.7)', cursor: 'pointer', fontFamily: 'var(--fp-font)', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all .2s' }}>
+            <Share2 size={16}/> Partager via l'appareil
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// ════════════════════════════════════════════
+// EQ BAR — with smoother transitions
 // ════════════════════════════════════════════
 const EQBar = React.memo(({ band, idx, value, onChange, accent }) => {
   const v = Math.max(-12, Math.min(12, isNaN(value) ? 0 : value));
@@ -344,12 +565,14 @@ const EQBar = React.memo(({ band, idx, value, onChange, accent }) => {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2, flex:1, minWidth:0 }}>
-      <div className="fp-eq-val">{v !== 0 ? (v > 0 ? `+${v}` : String(v)) : '·'}</div>
-      <div className="fp-eq-wrap" style={{ width:'100%', minHeight:88 }}>
+      <div className="fp-eq-val" style={{ color: v !== 0 ? color : 'rgba(255,255,255,.2)' }}>
+        {v !== 0 ? (v > 0 ? `+${v}` : String(v)) : '·'}
+      </div>
+      <div className="fp-eq-wrap" style={{ width:'100%', minHeight:92 }}>
         <div className="fp-eq-zero"/>
-        {v > 0 && <div className="fp-eq-fill" style={{ background:`linear-gradient(to top,${color}cc,${color}44)`, bottom:'50%', height:fillH, boxShadow:`0 0 8px ${color}40` }}/>}
-        {v < 0 && <div className="fp-eq-fill" style={{ background:`linear-gradient(to bottom,${color}66,${color}11)`, top:'50%', height:fillH }}/>}
-        <div className="fp-eq-thumb" style={{ top:`${thumbPct}%`, borderColor:`${color}44` }}/>
+        {v > 0 && <div className="fp-eq-fill" style={{ background:`linear-gradient(to top,${color}dd,${color}33)`, bottom:'50%', height:fillH, boxShadow:`0 0 12px ${color}40` }}/>}
+        {v < 0 && <div className="fp-eq-fill" style={{ background:`linear-gradient(to bottom,${color}77,${color}11)`, top:'50%', height:fillH }}/>}
+        <div className="fp-eq-thumb" style={{ top:`${thumbPct}%`, borderColor:`${color}55`, boxShadow:`0 0 8px ${color}44, 0 2px 8px rgba(0,0,0,.5)` }}/>
         <input type="range" min="-12" max="12" step="1" value={v} onChange={e => onChange(idx, parseInt(e.target.value,10))} className="fp-eq-input"/>
       </div>
       <div className="fp-eq-label">{band.label}</div>
@@ -362,31 +585,27 @@ const EQBar = React.memo(({ band, idx, value, onChange, accent }) => {
 // ════════════════════════════════════════════
 const EQPanel = React.memo(({ safeEqGains, activePreset, applyPreset, smartMode, setSmartMode, smartQueueCount, currentMoods, playbackRate, setPlaybackRate, sleepTimer, setSleepTimer, sleepRemaining, handleEqBand, accentColor }) => (
   <div style={{ display:'flex', flexDirection:'column', gap:20, padding:'16px 18px 28px' }}>
-
-    {/* Header */}
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
       <div className="fp-sec"><Sliders size={11} color={accentColor}/> Égaliseur 12 bandes</div>
       <div style={{ display:'flex', gap:6 }}>
-        <button onClick={() => setSmartMode?.(v => !v)} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:10, fontSize:10, fontWeight:700, border:`1px solid ${smartMode ? `rgba(${accentColor.replace('#','').match(/.{2}/g)?.map(h=>parseInt(h,16)).join(',')}, .4)` : 'rgba(255,255,255,.07)'}`, background: smartMode ? `rgba(${accentColor.replace('#','').match(/.{2}/g)?.map(h=>parseInt(h,16)).join(',')}, .15)` : 'rgba(255,255,255,.04)', color: smartMode ? accentColor : 'rgba(255,255,255,.35)', cursor:'pointer', fontFamily:'var(--fp-font)' }}>
+        <button onClick={()=>setSmartMode?.(v=>!v)} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:10, fontSize:10, fontWeight:700, border:'1px solid rgba(255,255,255,.07)', background: smartMode ? `rgba(255,255,255,.08)` : 'rgba(255,255,255,.04)', color: smartMode ? accentColor : 'rgba(255,255,255,.35)', cursor:'pointer', fontFamily:'var(--fp-font)', transition:'all .2s' }}>
           <Sparkles size={9}/> Smart{smartMode && smartQueueCount > 0 ? ` (${smartQueueCount})` : ''}
         </button>
-        <button onClick={() => applyPreset('Flat')} style={{ display:'flex', alignItems:'center', gap:4, padding:'5px 10px', borderRadius:10, fontSize:10, fontWeight:700, border:'1px solid rgba(255,255,255,.07)', background:'rgba(255,255,255,.04)', color:'rgba(255,255,255,.35)', cursor:'pointer', fontFamily:'var(--fp-font)' }}>
+        <button onClick={()=>applyPreset('Flat')} style={{ display:'flex', alignItems:'center', gap:4, padding:'5px 10px', borderRadius:10, fontSize:10, fontWeight:700, border:'1px solid rgba(255,255,255,.07)', background:'rgba(255,255,255,.04)', color:'rgba(255,255,255,.35)', cursor:'pointer', fontFamily:'var(--fp-font)', transition:'all .2s' }}>
           <RotateCcw size={9}/> Reset
         </button>
       </div>
     </div>
 
-    {/* Presets */}
     <div>
       <div className="fp-sec" style={{ marginBottom:8 }}><Zap size={10} color={accentColor}/> Presets</div>
       <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
-        {Object.keys(EQ_PRESETS_12).map(name => (
-          <button key={name} onClick={() => applyPreset(name)} className={`fp-preset${activePreset===name?' on':''}`}>{name}</button>
+        {Object.keys(EQ_PRESETS_12).map((name,i) => (
+          <button key={name} onClick={()=>applyPreset(name)} className={`fp-preset${activePreset===name?' on':''}`} style={{ animationDelay:`${i*0.04}s` }}>{name}</button>
         ))}
       </div>
     </div>
 
-    {/* Bars */}
     <div>
       <div className="fp-sec" style={{ marginBottom:10 }}><Music2 size={10} color={accentColor}/> Fréquences</div>
       <div style={{ display:'flex', gap:3, height:130 }}>
@@ -399,24 +618,22 @@ const EQPanel = React.memo(({ safeEqGains, activePreset, applyPreset, smartMode,
       </div>
     </div>
 
-    {/* Speed */}
     <div style={{ borderTop:'1px solid rgba(255,255,255,.06)', paddingTop:16 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
         <div className="fp-sec"><Gauge size={10} color="#4dc9f6"/> Vitesse</div>
         <span style={{ fontSize:13, fontWeight:700, color:'rgba(255,255,255,.55)', fontFamily:'var(--fp-mono)' }}>{playbackRate}×</span>
       </div>
       <div style={{ position:'relative' }}>
-        <div style={{ height:3, background:'rgba(255,255,255,.07)', borderRadius:99, overflow:'hidden' }}>
-          <div style={{ height:'100%', width:`${((playbackRate-.5)/1.5)*100}%`, background:'linear-gradient(90deg,#4dc9f6,#4d79f6)', borderRadius:99 }}/>
+        <div style={{ height:4, background:'rgba(255,255,255,.07)', borderRadius:99, overflow:'hidden' }}>
+          <div style={{ height:'100%', width:`${((playbackRate-.5)/1.5)*100}%`, background:'linear-gradient(90deg,#4dc9f6,#4d79f6)', borderRadius:99, transition:'width .2s ease', boxShadow:'0 0 8px rgba(77,201,246,.4)' }}/>
         </div>
         <input type="range" min=".5" max="2" step=".25" value={playbackRate} onChange={e=>setPlaybackRate(parseFloat(e.target.value))} style={{ position:'absolute', inset:'-9px 0', opacity:0, cursor:'pointer', width:'100%' }}/>
       </div>
-      <div style={{ display:'flex', justifyContent:'space-between', marginTop:5, fontSize:9, color:'rgba(255,255,255,.15)', fontFamily:'var(--fp-mono)' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', marginTop:6, fontSize:9, color:'rgba(255,255,255,.15)', fontFamily:'var(--fp-mono)' }}>
         {['0.5×','0.75×','1×','1.25×','1.5×','1.75×','2×'].map(v=><span key={v}>{v}</span>)}
       </div>
     </div>
 
-    {/* Sleep */}
     <div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
         <div className="fp-sec"><Timer size={10} color="#ffd93d"/> Minuterie veille</div>
@@ -424,7 +641,7 @@ const EQPanel = React.memo(({ safeEqGains, activePreset, applyPreset, smartMode,
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:6 }}>
         {[0,15,30,45,60].map(m=>(
-          <button key={m} onClick={()=>setSleepTimer(m)} style={{ padding:'9px 0', borderRadius:10, fontSize:10, fontWeight:700, cursor:'pointer', fontFamily:'var(--fp-font)', border:sleepTimer===m?'1px solid rgba(var(--fp-accent),.55)':'1px solid rgba(255,255,255,.07)', background:sleepTimer===m?'rgba(var(--fp-accent),.22)':'rgba(255,255,255,.04)', color:sleepTimer===m?accentColor:'rgba(255,255,255,.3)', transition:'all .15s' }}>
+          <button key={m} onClick={()=>setSleepTimer(m)} style={{ padding:'10px 0', borderRadius:12, fontSize:10, fontWeight:700, cursor:'pointer', fontFamily:'var(--fp-font)', border:sleepTimer===m?'1px solid rgba(var(--fp-accent),.55)':'1px solid rgba(255,255,255,.07)', background:sleepTimer===m?'rgba(var(--fp-accent),.22)':'rgba(255,255,255,.04)', color:sleepTimer===m?accentColor:'rgba(255,255,255,.3)', transition:'all .2s cubic-bezier(.34,1.56,.64,1)' }}>
             {m===0?'Off':`${m}'`}
           </button>
         ))}
@@ -442,7 +659,7 @@ const QueuePanel = React.memo(({ queue, setQueue, currentSong, setCurrentSong, s
       <div style={{ display:'flex', alignItems:'center', gap:8 }}>
         <ListMusic size={13} color={accentColor}/>
         <span className="fp-sec">File d'attente</span>
-        <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:99, background:'rgba(255,255,255,.07)', color:'rgba(255,255,255,.4)' }}>{queue.length}</span>
+        <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:99, background:'rgba(255,255,255,.07)', color:'rgba(255,255,255,.4)' }}>{queue.length}</span>
       </div>
       {queue.length > 0 && (
         <button onClick={()=>setQueue([])} style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,.22)', border:'none', background:'none', cursor:'pointer', padding:'4px 8px', borderRadius:8, transition:'color .15s', fontFamily:'var(--fp-font)' }}
@@ -454,25 +671,25 @@ const QueuePanel = React.memo(({ queue, setQueue, currentSong, setCurrentSong, s
     <div className="fp-scroll" style={{ flex:1, overflowY:'auto', padding:'10px 12px', display:'flex', flexDirection:'column', gap:4, overscrollBehavior:'contain' }}>
       {queue.length===0 ? (
         <div style={{ textAlign:'center', padding:'52px 16px', color:'rgba(255,255,255,.12)' }}>
-          <ListMusic size={36} style={{ margin:'0 auto 12px', display:'block', opacity:.2 }}/>
+          <ListMusic size={40} style={{ margin:'0 auto 12px', display:'block', opacity:.15 }}/>
           <p style={{ fontSize:14, margin:0, fontWeight:600 }}>File vide</p>
           <p style={{ fontSize:11, margin:'4px 0 0', opacity:.5 }}>Les titres à venir apparaîtront ici</p>
         </div>
       ) : queue.map((s,i)=>(
         <div key={`${s._id}-${i}`} draggable onDragStart={()=>onDragStart(i)} onDragOver={e=>onDragOver(e,i)} onDrop={()=>onDrop(i)}
           onClick={()=>{ setQueue(prev=>prev.filter((_,j)=>j!==i)); setCurrentSong(s); setIsPlaying(true); }}
-          className={`fp-qi${dragOver===i?' drop-over':''}`}>
+          className={`fp-qi${dragOver===i?' drop-over':''}`}
+          style={{ animationDelay:`${i*0.03}s` }}>
           <GripVertical size={12} style={{ color:'rgba(255,255,255,.12)', flexShrink:0 }}/>
           <div style={{ position:'relative', width:36, height:36, flexShrink:0 }}>
-            <img src={s.image} style={{ width:36, height:36, borderRadius:8, objectFit:'cover', display:'block' }} alt=""/>
-            <div style={{ position:'absolute', top:0, left:0, width:36, height:36, borderRadius:8, background:`rgba(${0},${0},${0},.0)` }}/>
+            <img src={s.image} style={{ width:36, height:36, borderRadius:9, objectFit:'cover', display:'block' }} alt=""/>
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <p style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,.82)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', margin:'0 0 2px' }}>{s.titre}</p>
             <p style={{ fontSize:10, color:'rgba(255,255,255,.3)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', margin:0 }}>{s.artiste}</p>
           </div>
           <button onClick={e=>{ e.stopPropagation(); setQueue(prev=>prev.filter((_,j)=>j!==i)); }}
-            style={{ padding:5, borderRadius:7, border:'none', background:'transparent', color:'rgba(255,255,255,.18)', cursor:'pointer', flexShrink:0, transition:'all .15s' }}
+            style={{ padding:5, borderRadius:8, border:'none', background:'transparent', color:'rgba(255,255,255,.18)', cursor:'pointer', flexShrink:0, transition:'all .15s' }}
             onMouseEnter={e=>{ e.currentTarget.style.background='rgba(239,68,68,.12)'; e.currentTarget.style.color='#f87171'; }}
             onMouseLeave={e=>{ e.currentTarget.style.background='transparent'; e.currentTarget.style.color='rgba(255,255,255,.18)'; }}>
             <X size={12}/>
@@ -484,32 +701,72 @@ const QueuePanel = React.memo(({ queue, setQueue, currentSong, setCurrentSong, s
 ));
 
 // ════════════════════════════════════════════
-// INFOS PANEL
+// INFOS PANEL — with better waveform
 // ════════════════════════════════════════════
 const InfosPanel = React.memo(({ currentSong, currentTime, duration, audioRef, accentColor }) => {
   const waveRef = useRef(null);
-  const [waveData] = useState(() => Array.from({ length:80 }, (_,i) => .12 + Math.abs(Math.sin(i*.3 + .5)) * .55 * Math.random() + .1));
+  const [waveData] = useState(() => Array.from({ length:80 }, (_,i) => .15 + Math.abs(Math.sin(i*.28+.7))*0.6*(.5+Math.random()*.5)));
+  const animRef = useRef(null);
 
-  useEffect(() => {
+  const draw = useCallback(() => {
     const canvas = waveRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const W = canvas.width = canvas.offsetWidth * window.devicePixelRatio;
-    const H = canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+    const W = canvas.width; const H = canvas.height;
     ctx.clearRect(0,0,W,H);
     const bw = W / waveData.length;
     const p = duration > 0 ? currentTime/duration : 0;
-    // Parse accent color for canvas
     const parsed = accentColor.replace('#','').match(/.{2}/g)?.map(h=>parseInt(h,16)) || [220,38,38];
+    const playedX = p * W;
+
+    // Draw shadow for played section
+    if (p > 0) {
+      const grad = ctx.createLinearGradient(0,0,playedX,0);
+      grad.addColorStop(0, `rgba(${parsed[0]},${parsed[1]},${parsed[2]},0)`);
+      grad.addColorStop(1, `rgba(${parsed[0]},${parsed[1]},${parsed[2]},.08)`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, playedX, H);
+    }
+
     waveData.forEach((v,i) => {
       const x = i*bw, h = v*H*.82;
       const played = i/waveData.length < p;
-      ctx.fillStyle = played ? `rgba(${parsed[0]},${parsed[1]},${parsed[2]},${.55+v*.45})` : `rgba(255,255,255,${.06+v*.08})`;
+      const alpha = played ? (.55+v*.45) : (.06+v*.07);
+      if (played) {
+        const g = ctx.createLinearGradient(0,(H-h)/2,0,(H+h)/2);
+        g.addColorStop(0, `rgba(${parsed[0]},${parsed[1]},${parsed[2]},${alpha})`);
+        g.addColorStop(1, `rgba(${parsed[0]},${parsed[1]},${parsed[2]},${alpha*.4})`);
+        ctx.fillStyle = g;
+      } else {
+        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+      }
       ctx.beginPath();
       ctx.roundRect(x+1,(H-h)/2,Math.max(2,bw-2),h,2);
       ctx.fill();
     });
+
+    // Playhead line
+    if (p > 0) {
+      ctx.strokeStyle = `rgba(${parsed[0]},${parsed[1]},${parsed[2]},0.8)`;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(playedX, 0);
+      ctx.lineTo(playedX, H);
+      ctx.stroke();
+    }
   }, [currentTime, duration, waveData, accentColor]);
+
+  useEffect(() => {
+    const canvas = waveRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = canvas.offsetWidth * dpr;
+    canvas.height = canvas.offsetHeight * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    draw();
+  }, [draw]);
 
   const seek = (e) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -528,13 +785,13 @@ const InfosPanel = React.memo(({ currentSong, currentTime, duration, audioRef, a
   return (
     <div style={{ padding:'16px 18px 28px', display:'flex', flexDirection:'column', gap:16 }}>
       <div className="fp-sec"><Info size={10} color={accentColor}/> Informations audio</div>
-      <div className="fp-ic">
-        <div className="fp-ic-label">Forme d'onde</div>
-        <canvas ref={waveRef} className="fp-wave" onClick={seek} style={{ marginTop:6 }}/>
+      <div className="fp-ic" style={{ cursor: 'pointer' }} onClick={seek}>
+        <div className="fp-ic-label">Forme d'onde · cliquer pour déplacer</div>
+        <canvas ref={waveRef} className="fp-wave" style={{ marginTop:8, height:56 }}/>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
-        {tags.map(t=>(
-          <div key={t.label} className="fp-ic">
+        {tags.map((t,i)=>(
+          <div key={t.label} className="fp-ic fp-fade" style={{ animationDelay:`${i*0.05}s` }}>
             <div className="fp-ic-label">{t.label}</div>
             <div className="fp-ic-val" style={{ fontSize:12 }}>{t.value}</div>
           </div>
@@ -553,9 +810,9 @@ const InfosPanel = React.memo(({ currentSong, currentTime, duration, audioRef, a
 });
 
 // ════════════════════════════════════════════
-// COMMENTS PANEL (inline, lightweight)
+// COMMENTS PANEL
 // ════════════════════════════════════════════
-const CommentsPanel = React.memo(({ songId, currentTime, duration, onSeek, token, isLoggedIn, userId, isAdmin, userNom, onMarkersReady, accentColor, API }) => {
+const CommentsPanel = React.memo(({ songId, currentTime, duration, onSeek, token, isLoggedIn, userId, isAdmin, userNom, onMarkersReady, accentColor, API=API }) => {
   const [comments, setComments] = useState([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
@@ -585,34 +842,35 @@ const CommentsPanel = React.memo(({ songId, currentTime, duration, onSeek, token
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
-      {/* Input */}
       {isLoggedIn && (
         <div style={{ padding:'12px 16px', borderBottom:'1px solid rgba(255,255,255,.06)', flexShrink:0 }}>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
             <input value={text} onChange={e=>setText(e.target.value)}
               onKeyDown={e=>e.key==='Enter'&&post()}
               placeholder={`Commenter à ${fmt(currentTime)}…`}
-              style={{ flex:1, background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.1)', borderRadius:10, padding:'9px 13px', fontSize:12, color:'rgba(255,255,255,.85)', outline:'none', fontFamily:'var(--fp-font)' }}
+              style={{ flex:1, background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.1)', borderRadius:12, padding:'9px 13px', fontSize:12, color:'rgba(255,255,255,.85)', outline:'none', fontFamily:'var(--fp-font)', transition:'border-color .2s' }}
+              onFocus={e=>e.target.style.borderColor='rgba(var(--fp-accent),.5)'}
+              onBlur={e=>e.target.style.borderColor='rgba(255,255,255,.1)'}
             />
-            <button onClick={post} style={{ width:36, height:36, borderRadius:10, background:`rgba(var(--fp-accent),1)`, border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'transform .15s' }}
-              onMouseEnter={e=>e.currentTarget.style.transform='scale(1.08)'} onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}>
+            <button onClick={post} style={{ width:36, height:36, borderRadius:10, background:`rgba(var(--fp-accent),1)`, border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .2s' }}
+              onMouseEnter={e=>{e.currentTarget.style.transform='scale(1.12)';e.currentTarget.style.boxShadow='0 4px 16px rgba(var(--fp-accent),.6)';}}
+              onMouseLeave={e=>{e.currentTarget.style.transform='scale(1)';e.currentTarget.style.boxShadow='none';}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             </button>
           </div>
         </div>
       )}
-      {/* List */}
       <div className="fp-scroll" style={{ flex:1, overflowY:'auto', overscrollBehavior:'contain' }}>
         {loading ? (
           <div style={{ textAlign:'center', padding:'40px', color:'rgba(255,255,255,.18)', fontSize:12 }}>Chargement…</div>
         ) : comments.length === 0 ? (
           <div style={{ textAlign:'center', padding:'52px 16px', color:'rgba(255,255,255,.12)' }}>
-            <MessageCircle size={36} style={{ margin:'0 auto 12px', display:'block', opacity:.2 }}/>
+            <MessageCircle size={40} style={{ margin:'0 auto 12px', display:'block', opacity:.15 }}/>
             <p style={{ fontSize:14, margin:0, fontWeight:600 }}>Aucun commentaire</p>
             <p style={{ fontSize:11, margin:'4px 0 0', opacity:.5 }}>Soyez le premier à commenter</p>
           </div>
         ) : comments.map(c => (
-          <div key={c._id} className="fp-comment" style={{ padding:'10px 16px' }}>
+          <div key={c._id} className="fp-comment">
             <div className="fp-avatar">{(c.userNom||'?').slice(0,2).toUpperCase()}</div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:3 }}>
@@ -623,9 +881,9 @@ const CommentsPanel = React.memo(({ songId, currentTime, duration, onSeek, token
                     {fmt(c.timestamp)}
                   </button>
                 )}
-                <span style={{ fontSize:10, color:'rgba(255,255,255,.22)', marginLeft:'auto' }}>{c.createdAt ? new Date(c.createdAt).toLocaleString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : ''}</span>
+                <span style={{ fontSize:10, color:'rgba(255,255,255,.18)', marginLeft:'auto' }}>{c.createdAt ? new Date(c.createdAt).toLocaleString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : ''}</span>
               </div>
-              <p style={{ fontSize:12, color:'rgba(255,255,255,.6)', margin:0, lineHeight:1.5 }}>{c.text}</p>
+              <p style={{ fontSize:12, color:'rgba(255,255,255,.55)', margin:0, lineHeight:1.5 }}>{c.text}</p>
             </div>
           </div>
         ))}
@@ -654,40 +912,42 @@ const FullPlayerPage = ({
   token, isLoggedIn, userId, isAdmin,
   onOpenListenParty,
   smartMode, setSmartMode,
-  API: apiBase,
+  API=API,
 }) => {
   const [activeTab, setActiveTab] = useState('player');
   const [activePreset, setActivePreset] = useState('Flat');
   const [tsComments, setTsComments] = useState([]);
   const [heartAnim, setHeartAnim] = useState(false);
   const [accentRGB, setAccentRGB] = useState({ r:220, g:38, b:38 });
+  const [showShare, setShowShare] = useState(false);
+  const [showDownload, setShowDownload] = useState(false);
+  const [toast, setToast] = useState(null);
   const dragIdx = useRef(null);
   const [dragOver, setDragOver] = useState(null);
   const prevImgRef = useRef('');
+  const rootRef = useRef(null);
 
   const prog = duration > 0 ? (currentTime/duration)*100 : 0;
   const role = typeof localStorage !== 'undefined' ? localStorage.getItem('moozik_role') : null;
   const isAdminLocal = isAdmin || role === 'admin';
-  const isArtist = role === 'artist';
-  const userArtistId = typeof localStorage !== 'undefined' ? localStorage.getItem('moozik_artisteId') : null;
   const userNom = typeof localStorage !== 'undefined' ? localStorage.getItem('moozik_nom') || '' : '';
 
-  // Derive accent color
   const accentHex = useMemo(() => {
     const { r,g,b } = accentRGB;
     return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
   }, [accentRGB]);
 
   const accentCSS = `${accentRGB.r}, ${accentRGB.g}, ${accentRGB.b}`;
+  const { cacheAudio, removeCached, isAudioCached } = useAudioCache();
 
-  // Extract cover color
+  // Extract color from cover
   useEffect(() => {
     if (!currentSong?.image || currentSong.image === prevImgRef.current) return;
     prevImgRef.current = currentSong.image;
-    extractDominantColor(currentSong.image, (col) => setAccentRGB(col));
+    extractDominantColor(currentSong.image, col => setAccentRGB(col));
   }, [currentSong?.image]);
 
-  // Inject styles + update CSS vars
+  // Inject styles
   useEffect(() => {
     if (!document.getElementById('fp-styles')) {
       const el = document.createElement('style');
@@ -696,8 +956,7 @@ const FullPlayerPage = ({
     }
   }, []);
 
-  // Update CSS vars dynamically
-  const rootRef = useRef(null);
+  // Update CSS vars
   useEffect(() => {
     if (!rootRef.current) return;
     rootRef.current.style.setProperty('--fp-accent', accentCSS);
@@ -713,14 +972,14 @@ const FullPlayerPage = ({
     return musiques.filter(s=>s._id!==currentSong?._id&&s.moods?.some(m=>currentMoods.includes(m))).length;
   }, [smartMode, musiques, currentSong, currentMoods]);
 
-  // Analytics retention
+  // Analytics
   const sentBuckets = useRef(new Set());
   useEffect(() => {
     if (!currentSong||!duration) return;
     const bucket = Math.floor((currentTime/duration)*20);
     if (bucket>=0&&bucket<20&&!sentBuckets.current.has(bucket)) {
       sentBuckets.current.add(bucket);
-      fetch(`${apiBase}/songs/${currentSong._id}/retention`,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ bucket, totalTime:Math.round(currentTime), completed:currentTime/duration>.9, deviceId:typeof localStorage!=='undefined'?localStorage.getItem('moozik_device_id')||'':'' }) }).catch(()=>{});
+      fetch(`${API}/songs/${currentSong._id}/retention`,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ bucket, totalTime:Math.round(currentTime), completed:currentTime/duration>.9, deviceId:typeof localStorage!=='undefined'?localStorage.getItem('moozik_device_id')||'':'' }) }).catch(()=>{});
     }
   }, [Math.floor(currentTime/5)]);
   useEffect(() => { sentBuckets.current.clear(); }, [currentSong?._id]);
@@ -732,7 +991,6 @@ const FullPlayerPage = ({
     if (idx!==-1) setQueue([...musiques.slice(idx+1),...musiques.slice(0,idx)]);
   }, [currentSong?._id]);
 
-  // EQ handlers
   const handleEqBand = useCallback((idx, value) => {
     setEqGains(prev=>{ const n=prev?.length===12?[...prev]:Array(12).fill(0); n[idx]=value; return n; });
     if (eqFiltersRef.current[idx]) eqFiltersRef.current[idx].gain.value=value;
@@ -745,7 +1003,6 @@ const FullPlayerPage = ({
     gains.forEach((v,i)=>{ if(eqFiltersRef.current[i]) eqFiltersRef.current[i].gain.value=v; });
   }, [setEqGains, eqFiltersRef]);
 
-  // Seek
   const seek = useCallback((e) => {
     const r=e.currentTarget.getBoundingClientRect();
     if(audioRef.current) audioRef.current.currentTime=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*duration;
@@ -764,8 +1021,12 @@ const FullPlayerPage = ({
 
   const handleLike = useCallback(() => {
     setHeartAnim(true); toggleLike(currentSong?._id);
-    setTimeout(()=>setHeartAnim(false),450);
+    setTimeout(()=>setHeartAnim(false),550);
   }, [toggleLike, currentSong]);
+
+  const showToast = useCallback((message, icon) => {
+    setToast({ message, icon, key: Date.now() });
+  }, []);
 
   const onDragStart = useCallback((i)=>{ dragIdx.current=i; },[]);
   const onDragOver  = useCallback((e,i)=>{ e.preventDefault(); setDragOver(i); },[]);
@@ -795,62 +1056,62 @@ const FullPlayerPage = ({
 
   // ──────────────── PLAYER VIEW ────────────────
   const renderPlayer = () => (
-    <div className="fp-fade" style={{ display:'flex', flexDirection:'column', flex:1 }}>
+    <div className={`fp-fade ${isPlaying ? 'fp-playing' : 'fp-paused'}`} style={{ display:'flex', flexDirection:'column', flex:1 }}>
 
       {/* COVER */}
-      <div style={{ display:'flex', justifyContent:'center', padding:'12px 32px 16px', flexShrink:0 }}>
-        <div style={{ position:'relative', width:'100%', maxWidth:240 }}>
+      <div style={{ display:'flex', justifyContent:'center', padding:'12px 36px 14px', flexShrink:0 }}>
+        <div style={{ position:'relative', width:'100%', maxWidth:248 }}>
           {/* Multi-layer glow */}
           {currentSong?.image && (<>
-            <div style={{ position:'absolute', inset:10, borderRadius:28, backgroundImage:`url(${currentSong.image})`, backgroundSize:'cover', filter:'blur(48px) saturate(1.6)', opacity:.65, transform:'scale(.92) translateY(18px)', pointerEvents:'none' }}/>
-            <div style={{ position:'absolute', inset:20, borderRadius:28, background:`rgba(${accentCSS},.35)`, filter:'blur(30px)', transform:'scale(.9) translateY(22px)', pointerEvents:'none' }}/>
+            <div className="fp-glow-layer-1" style={{ backgroundImage:`url(${currentSong.image})`, backgroundSize:'cover', backgroundPosition:'center' }}/>
+            <div className="fp-glow-layer-2"/>
           </>)}
           <div className="fp-cover-wrap" style={{ position:'relative', aspectRatio:'1/1' }}>
-            <img
-              src={currentSong?.image} alt={currentSong?.titre}
-              style={{
-                width:'100%', height:'100%', borderRadius:24,
-                objectFit:'cover', display:'block',
-                boxShadow:`0 24px 72px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,${isPlaying?.07:.04})`,
-                transition:'transform .6s cubic-bezier(.34,1.56,.64,1), opacity .4s, box-shadow .4s',
-                opacity:isPlaying?1:.68, transform:isPlaying?'scale(1)':'scale(.9)',
-              }}
-            />
-            {/* Format badge */}
-            {currentSong?.format && (
-              <div className="fp-badge" style={{ position:'absolute', bottom:10, left:10 }}>
-                {currentSong.format}
-              </div>
-            )}
-            {/* Playing overlay ring */}
-            {isPlaying && (
-              <div style={{ position:'absolute', inset:0, borderRadius:24, border:`1.5px solid rgba(${accentCSS},.3)`, animation:'fp-pulse 3s ease-in-out infinite', pointerEvents:'none' }}/>
-            )}
+            <div className="fp-cover-inner">
+              <img
+                src={currentSong?.image} alt={currentSong?.titre}
+                style={{
+                  width:'100%', height:'100%', borderRadius:24,
+                  objectFit:'cover', display:'block',
+                  boxShadow:`0 28px 72px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.08)`,
+                }}
+              />
+              {/* Format badge */}
+              {currentSong?.format && (
+                <div className="fp-badge" style={{ position:'absolute', bottom:10, left:10 }}>{currentSong.format}</div>
+              )}
+              {/* Playing ring animation */}
+              {isPlaying && (<>
+                <div className="fp-ring fp-ring-1"/>
+                <div className="fp-ring fp-ring-2"/>
+                <div className="fp-ring fp-ring-3"/>
+              </>)}
+            </div>
           </div>
         </div>
       </div>
 
       {/* TITLE + META */}
-      <div style={{ padding:'0 22px 12px', flexShrink:0 }}>
-        {/* Stats row */}
-        {(currentSong?.plays||currentSong?.favorites||currentSong?.duree) && (
-          <div style={{ display:'flex', gap:20, marginBottom:10 }}>
-            {currentSong.plays && (
-              <div style={{ textAlign:'center' }}>
-                <div style={{ fontSize:15, fontWeight:900, color:`rgba(${accentCSS},1)`, fontFamily:'var(--fp-mono)', lineHeight:1 }}>{(currentSong.plays/1000).toFixed(1)}K</div>
-                <div style={{ fontSize:8, fontWeight:700, letterSpacing:'.12em', textTransform:'uppercase', color:'rgba(255,255,255,.25)', marginTop:2 }}>Écoutes</div>
-              </div>
-            )}
-            {currentSong.favorites && (
-              <div style={{ textAlign:'center' }}>
-                <div style={{ fontSize:15, fontWeight:900, color:`rgba(${accentCSS},1)`, fontFamily:'var(--fp-mono)', lineHeight:1 }}>{(currentSong.favorites/1000).toFixed(1)}K</div>
-                <div style={{ fontSize:8, fontWeight:700, letterSpacing:'.12em', textTransform:'uppercase', color:'rgba(255,255,255,.25)', marginTop:2 }}>Favoris</div>
+      <div style={{ padding:'0 20px 10px', flexShrink:0 }}>
+        {/* Stats */}
+        {(currentSong?.plays || duration > 0) && (
+          <div style={{ display:'flex', gap:18, marginBottom:10 }}>
+            {currentSong?.plays > 0 && (
+              <div>
+                <div style={{ fontSize:16, fontWeight:900, color:`rgba(${accentCSS},1)`, fontFamily:'var(--fp-mono)', lineHeight:1 }}>{currentSong.plays >= 1000 ? `${(currentSong.plays/1000).toFixed(1)}K` : currentSong.plays}</div>
+                <div style={{ fontSize:8, fontWeight:700, letterSpacing:'.12em', textTransform:'uppercase', color:'rgba(255,255,255,.22)', marginTop:2 }}>Écoutes</div>
               </div>
             )}
             {duration > 0 && (
-              <div style={{ textAlign:'center' }}>
-                <div style={{ fontSize:15, fontWeight:900, color:`rgba(${accentCSS},1)`, fontFamily:'var(--fp-mono)', lineHeight:1 }}>{formatTime(duration)}</div>
-                <div style={{ fontSize:8, fontWeight:700, letterSpacing:'.12em', textTransform:'uppercase', color:'rgba(255,255,255,.25)', marginTop:2 }}>Durée</div>
+              <div>
+                <div style={{ fontSize:16, fontWeight:900, color:`rgba(${accentCSS},.7)`, fontFamily:'var(--fp-mono)', lineHeight:1 }}>{formatTime(duration)}</div>
+                <div style={{ fontSize:8, fontWeight:700, letterSpacing:'.12em', textTransform:'uppercase', color:'rgba(255,255,255,.22)', marginTop:2 }}>Durée</div>
+              </div>
+            )}
+            {currentSong?.annee && (
+              <div>
+                <div style={{ fontSize:16, fontWeight:900, color:`rgba(${accentCSS},.5)`, fontFamily:'var(--fp-mono)', lineHeight:1 }}>{currentSong.annee}</div>
+                <div style={{ fontSize:8, fontWeight:700, letterSpacing:'.12em', textTransform:'uppercase', color:'rgba(255,255,255,.22)', marginTop:2 }}>Année</div>
               </div>
             )}
           </div>
@@ -858,13 +1119,12 @@ const FullPlayerPage = ({
 
         <div style={{ display:'flex', alignItems:'flex-start' }}>
           <div style={{ flex:1, minWidth:0 }}>
-            <h2 style={{ fontSize:24, fontWeight:900, color:'#fff', letterSpacing:'-.025em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', margin:'0 0 4px', lineHeight:1.1 }}>
+            <h2 style={{ fontSize:24, fontWeight:900, color:'#fff', letterSpacing:'-.03em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', margin:'0 0 4px', lineHeight:1.1 }}>
               {currentSong?.titre}
             </h2>
             <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
               <span style={{ fontSize:14, color:`rgba(${accentCSS},1)`, fontWeight:700 }}>{currentSong?.artiste}</span>
-              {currentSong?.album && <span style={{ fontSize:12, color:'rgba(255,255,255,.25)' }}>· {currentSong.album}</span>}
-              {currentSong?.annee && <span style={{ fontSize:11, color:'rgba(255,255,255,.18)' }}>· {currentSong.annee}</span>}
+              {currentSong?.album && <span style={{ fontSize:11, color:'rgba(255,255,255,.25)' }}>· {currentSong.album}</span>}
             </div>
             {currentSong?.moods?.length > 0 && (
               <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
@@ -872,48 +1132,52 @@ const FullPlayerPage = ({
               </div>
             )}
           </div>
-          {/* Like heart */}
-          <button onClick={handleLike} style={{ marginLeft:12, padding:10, borderRadius:'50%', border:'none', background:'transparent', cursor:'pointer', flexShrink:0, animation:heartAnim?'fp-heartbeat .4s ease':'none' }}>
-            <Heart size={24} fill={currentSong?.liked?'#ef4444':'none'} color={currentSong?.liked?'#ef4444':'rgba(255,255,255,.28)'} style={{ transition:'fill .2s, color .2s' }}/>
+          {/* Like button with animation */}
+          <button onClick={handleLike} style={{
+            marginLeft:12, padding:10, borderRadius:'50%', border:'none',
+            background: currentSong?.liked ? 'rgba(239,68,68,.15)' : 'rgba(255,255,255,.06)',
+            cursor:'pointer', flexShrink:0,
+            animation: heartAnim ? 'fp-heartbeat .5s cubic-bezier(.34,1.56,.64,1)' : 'none',
+            transition: 'background .25s',
+            boxShadow: currentSong?.liked ? '0 0 16px rgba(239,68,68,.3)' : 'none',
+          }}>
+            <Heart size={24} fill={currentSong?.liked?'#ef4444':'none'} color={currentSong?.liked?'#ef4444':'rgba(255,255,255,.28)'} style={{ transition:'all .25s' }}/>
           </button>
         </div>
       </div>
 
-      {/* TAGS ROW (format, bitrate, etc.) */}
-      <div style={{ padding:'0 22px 10px', display:'flex', gap:6, flexWrap:'wrap', flexShrink:0 }}>
+      {/* GENRE TAGS */}
+      <div style={{ padding:'0 20px 8px', display:'flex', gap:6, flexWrap:'wrap', flexShrink:0 }}>
         {currentSong?.genre && (
-          <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:6, background:'rgba(255,255,255,.07)', color:'rgba(255,255,255,.45)', border:'1px solid rgba(255,255,255,.1)' }}>{currentSong.genre}</span>
+          <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:7, background:'rgba(255,255,255,.07)', color:'rgba(255,255,255,.45)', border:'1px solid rgba(255,255,255,.1)' }}>{currentSong.genre}</span>
         )}
         {currentSong?.format && (
-          <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:6, background:`rgba(${accentCSS},.15)`, color:`rgba(${accentCSS},1)`, border:`1px solid rgba(${accentCSS},.3)` }}>{currentSong.format}</span>
-        )}
-        {currentSong?.bitrate && (
-          <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:6, background:'rgba(255,255,255,.05)', color:'rgba(255,255,255,.4)', border:'1px solid rgba(255,255,255,.08)', fontFamily:'var(--fp-mono)' }}>{currentSong.bitrate}</span>
+          <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:7, background:`rgba(${accentCSS},.14)`, color:`rgba(${accentCSS},1)`, border:`1px solid rgba(${accentCSS},.28)` }}>{currentSong.format}</span>
         )}
       </div>
 
       {/* PROGRESS BAR */}
-      <div style={{ padding:'0 22px 4px', flexShrink:0 }}>
+      <div style={{ padding:'0 20px 4px', flexShrink:0 }}>
         <div className="fp-prog-track" onClick={seek} onTouchMove={seekTouch}>
           <div className="fp-prog-fill" style={{ width:`${prog}%` }}>
             <div className="fp-prog-thumb"/>
           </div>
-          {/* Timestamp markers */}
+          {/* Timestamp comment markers */}
           {duration > 0 && tsComments.map(c => {
             const pct = Math.min(97, Math.max(2, (c.timestamp/duration)*100));
             const near = Math.abs(currentTime - c.timestamp) < 3;
             return (
               <div key={c._id} className="fp-ts-marker"
-                style={{ left:`${pct}%`, width:near?10:7, height:near?10:7, background:near?`rgba(${accentCSS},1)`:'rgba(255,255,255,.5)', boxShadow:near?`0 0 8px rgba(${accentCSS},.8)`:'' }}
+                style={{ left:`${pct}%`, width:near?10:7, height:near?10:7, background:near?`rgba(${accentCSS},1)`:'rgba(255,255,255,.5)', boxShadow:near?`0 0 10px rgba(${accentCSS},.9)`:'' }}
                 onClick={e=>{ e.stopPropagation(); seekToTimestamp(c.timestamp); setActiveTab('comments'); }}
               />
             );
           })}
         </div>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8, fontSize:10, color:'rgba(255,255,255,.22)', fontFamily:'var(--fp-mono)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:9, fontSize:10, color:'rgba(255,255,255,.2)', fontFamily:'var(--fp-mono)' }}>
           <span>{formatTime(currentTime)}</span>
           {tsComments.length > 0 && (
-            <button onClick={()=>setActiveTab('comments')} style={{ display:'flex', alignItems:'center', gap:4, fontSize:10, color:`rgba(${accentCSS},.6)`, border:'none', background:'none', cursor:'pointer', transition:'color .15s', fontFamily:'var(--fp-font)' }}
+            <button onClick={()=>setActiveTab('comments')} style={{ display:'flex', alignItems:'center', gap:4, fontSize:10, color:`rgba(${accentCSS},.6)`, border:'none', background:'none', cursor:'pointer', transition:'color .18s', fontFamily:'var(--fp-font)' }}
               onMouseEnter={e=>e.currentTarget.style.color=`rgba(${accentCSS},1)`} onMouseLeave={e=>e.currentTarget.style.color=`rgba(${accentCSS},.6)`}>
               <MessageCircle size={9}/> {tsComments.length}
             </button>
@@ -923,78 +1187,95 @@ const FullPlayerPage = ({
       </div>
 
       {/* CONTROLS */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px 6px', flexShrink:0 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 12px 6px', flexShrink:0 }}>
         {/* Party */}
         <button onClick={()=>onOpenListenParty?.()}
-          style={{ display:'flex', alignItems:'center', gap:5, padding:'7px 12px', borderRadius:99, fontSize:11, fontWeight:700, border:'1px solid rgba(255,255,255,.1)', background:'rgba(255,255,255,.05)', color:'rgba(255,255,255,.4)', cursor:'pointer', transition:'all .15s', fontFamily:'var(--fp-font)' }}
-          onMouseEnter={e=>{ e.currentTarget.style.background='rgba(255,255,255,.1)'; e.currentTarget.style.color='rgba(255,255,255,.85)'; }}
-          onMouseLeave={e=>{ e.currentTarget.style.background='rgba(255,255,255,.05)'; e.currentTarget.style.color='rgba(255,255,255,.4)'; }}>
+          style={{ display:'flex', alignItems:'center', gap:5, padding:'7px 12px', borderRadius:99, fontSize:11, fontWeight:700, border:'1px solid rgba(255,255,255,.1)', background:'rgba(255,255,255,.05)', color:'rgba(255,255,255,.4)', cursor:'pointer', transition:'all .2s', fontFamily:'var(--fp-font)' }}
+          onMouseEnter={e=>{ e.currentTarget.style.background='rgba(255,255,255,.1)'; e.currentTarget.style.color='rgba(255,255,255,.85)'; e.currentTarget.style.transform='scale(1.05)'; }}
+          onMouseLeave={e=>{ e.currentTarget.style.background='rgba(255,255,255,.05)'; e.currentTarget.style.color='rgba(255,255,255,.4)'; e.currentTarget.style.transform='scale(1)'; }}>
           <Radio size={13}/> Party
         </button>
 
         {/* Shuffle */}
         <button onClick={()=>setIsShuffle(v=>!v)} className="fp-ctrl"
-          style={{ width:42, height:42, color:isShuffle?accentHex:'rgba(255,255,255,.3)', background:isShuffle?`rgba(${accentCSS},.14)`:'' }}>
+          style={{ width:44, height:44, color:isShuffle?accentHex:'rgba(255,255,255,.3)', background:isShuffle?`rgba(${accentCSS},.14)`:'' }}>
           <Shuffle size={20}/>
         </button>
 
         {/* Prev */}
-        <button onClick={handlePrev} className="fp-ctrl" style={{ width:46, height:46, color:'rgba(255,255,255,.85)' }}>
+        <button onClick={handlePrev} className="fp-ctrl fp-skip" style={{ width:48, height:48, color:'rgba(255,255,255,.85)' }}>
           <SkipBack size={26} fill="rgba(255,255,255,.85)"/>
         </button>
 
-        {/* Play */}
-        <button className={`fp-play-btn${isPlaying?' fp-playing':''}`}
+        {/* Play — main button */}
+        <button className="fp-play-btn"
           onClick={()=>{ initAudioEngine(); setIsPlaying(p=>!p); }}
-          style={{ width:68, height:68 }}>
-          <div className="fp-play-ring"/>
+          style={{ width:70, height:70 }}>
           {isPlaying ? <Pause fill="white" size={26} color="white"/> : <Play fill="white" size={26} color="white" style={{ marginLeft:3 }}/>}
         </button>
 
         {/* Next */}
-        <button onClick={handleNext} className="fp-ctrl" style={{ width:46, height:46, color:'rgba(255,255,255,.85)' }}>
+        <button onClick={handleNext} className="fp-ctrl fp-skip" style={{ width:48, height:48, color:'rgba(255,255,255,.85)' }}>
           <SkipForward size={26} fill="rgba(255,255,255,.85)"/>
         </button>
 
         {/* Repeat */}
         <button onClick={()=>setRepeatMode(m=>(m+1)%3)} className="fp-ctrl"
-          style={{ width:42, height:42, color:repeatMode>0?accentHex:'rgba(255,255,255,.3)', background:repeatMode>0?`rgba(${accentCSS},.14)`:'' }}>
+          style={{ width:44, height:44, color:repeatMode>0?accentHex:'rgba(255,255,255,.3)', background:repeatMode>0?`rgba(${accentCSS},.14)`:'' }}>
           {repeatMode===2?<Repeat1 size={20}/>:<Repeat size={20}/>}
         </button>
 
-        <div style={{ width:68 }}/>
+        <div style={{ width:72 }}/>
       </div>
 
       {/* VOLUME */}
-      <div style={{ display:'flex', alignItems:'center', gap:12, padding:'6px 28px 14px', flexShrink:0 }}>
-        <Volume2 size={15} color="rgba(255,255,255,.22)"/>
+      <div style={{ display:'flex', alignItems:'center', gap:12, padding:'6px 28px 12px', flexShrink:0 }}>
+        <button onClick={()=>setVolume(v=>v>0?0:80)} style={{ background:'none', border:'none', cursor:'pointer', padding:0, display:'flex' }}>
+          {volume === 0 ? <VolumeX size={15} color="rgba(255,255,255,.2)"/> : <Volume2 size={15} color="rgba(255,255,255,.22)"/>}
+        </button>
         <div className="fp-vol-track">
           <div className="fp-vol-fill" style={{ width:`${volume}%` }}/>
           <input type="range" min="0" max="100" value={volume} onChange={e=>setVolume(parseInt(e.target.value,10))} className="fp-vol-input"/>
         </div>
-        <span style={{ fontSize:11, color:'rgba(255,255,255,.22)', fontFamily:'var(--fp-mono)', minWidth:32, textAlign:'right' }}>{volume}%</span>
+        <span style={{ fontSize:11, color:'rgba(255,255,255,.2)', fontFamily:'var(--fp-mono)', minWidth:32, textAlign:'right' }}>{volume}%</span>
       </div>
 
-      {/* ACTION PILLS */}
-      <div style={{ padding:'0 22px 16px', flexShrink:0 }}>
+      {/* ACTION PILLS — with working Download & Share */}
+      <div style={{ padding:'0 20px 16px', flexShrink:0 }}>
         <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
+          {/* Like */}
           <button onClick={handleLike} className={`fp-pill${currentSong?.liked?' liked':''}`}>
             <Heart size={12} fill={currentSong?.liked?'#f87171':'none'}/> {currentSong?.liked?'Aimé':'Aimer'}
           </button>
-          <button className="fp-pill"><Download size={12}/> Télécharger</button>
-          <button className="fp-pill"><Share2 size={12}/> Partager</button>
+
+          {/* Download — FONCTIONNEL */}
+          <button 
+            className="fp-pill"
+            style={isAudioCached(currentSong?._id) ? { color: '#4ade80', borderColor: 'rgba(74,222,128,.4)', background: 'rgba(74,222,128,.1)' } : {}}
+            onClick={async () => {
+              if (isAudioCached(currentSong?._id)) {
+                await removeCached(currentSong);
+              } else {
+                await cacheAudio(currentSong);
+              }
+            }}>
+            {isAudioCached(currentSong?._id)
+              ? <><Check size={12}/> Téléchargé</>
+              : <><Download size={12}/> Télécharger</>
+            }
+          </button>
+
+          {/* Share — FONCTIONNEL */}
+          <button className="fp-pill" onClick={()=>setShowShare(true)}>
+            <Share2 size={12}/> Partager
+          </button>
+
+          {/* Sleep timer */}
           <button className={`fp-pill${sleepTimer>0?' sleep-on':''}`} onClick={()=>setSleepTimer(sleepTimer>0?0:30)}>
             <Moon size={12}/> {sleepTimer>0?`Veille ${sleepTimer}'`:'Veille'}
           </button>
         </div>
       </div>
-
-      {/* LYRICS placeholder */}
-      {currentSong && (
-        <div style={{ padding:'0 16px 32px', flexShrink:0 }}>
-          {/* LyricsDisplay and LyricsEditor would be injected here */}
-        </div>
-      )}
     </div>
   );
 
@@ -1005,57 +1286,60 @@ const FullPlayerPage = ({
       {/* BACKGROUND */}
       <div style={{ position:'absolute', inset:0, pointerEvents:'none', overflow:'hidden' }}>
         {currentSong?.image && (
-          <img src={currentSong.image} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', transform:'scale(1.4)', filter:`blur(80px) saturate(2)`, opacity:.3, transition:'opacity 1s' }}/>
+          <img src={currentSong.image} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', transform:'scale(1.5)', filter:`blur(90px) saturate(2.2)`, opacity:.25, transition:'opacity 1.2s ease' }}/>
         )}
         {/* Gradient overlay */}
-        <div style={{ position:'absolute', inset:0, background:`linear-gradient(180deg, rgba(8,8,8,.75) 0%, rgba(8,8,8,.45) 35%, rgba(8,8,8,.88) 75%, rgba(8,8,8,.98) 100%)` }}/>
-        <div style={{ position:'absolute', inset:0, background:`linear-gradient(to right, rgba(8,8,8,.6) 0%, transparent 25%, transparent 75%, rgba(8,8,8,.6) 100%)` }}/>
-        {/* Accent glow at bottom */}
-        <div style={{ position:'absolute', bottom:0, left:'50%', transform:'translateX(-50%)', width:'60%', height:200, background:`radial-gradient(ellipse at center, rgba(${accentCSS},.18) 0%, transparent 70%)`, transition:'background 1s', pointerEvents:'none' }}/>
+        <div style={{ position:'absolute', inset:0, background:`linear-gradient(180deg, rgba(8,8,8,.8) 0%, rgba(8,8,8,.45) 35%, rgba(8,8,8,.9) 75%, rgba(8,8,8,.99) 100%)` }}/>
+        <div style={{ position:'absolute', inset:0, background:`linear-gradient(to right, rgba(8,8,8,.55) 0%, transparent 30%, transparent 70%, rgba(8,8,8,.55) 100%)` }}/>
+        {/* Accent radial glow */}
+        <div style={{ position:'absolute', bottom:0, left:'50%', transform:'translateX(-50%)', width:'70%', height:220, background:`radial-gradient(ellipse at center, rgba(${accentCSS},.16) 0%, transparent 70%)`, transition:'background 1.2s ease', pointerEvents:'none' }}/>
+        {/* Top accent */}
+        <div style={{ position:'absolute', top:0, left:'50%', transform:'translateX(-50%)', width:'50%', height:140, background:`radial-gradient(ellipse at center, rgba(${accentCSS},.08) 0%, transparent 70%)`, pointerEvents:'none' }}/>
         {/* Noise grain */}
-        <div style={{ position:'absolute', inset:0, opacity:.025, backgroundImage:`url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`, backgroundSize:'100px' }}/>
+        <div style={{ position:'absolute', inset:0, opacity:.022, backgroundImage:`url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`, backgroundSize:'100px' }}/>
       </div>
 
       {/* ═══ MAIN COLUMN ═══ */}
-      <div className={isPlaying?'fp-playing':''} style={{ position:'relative', display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
+      <div className={isPlaying?'fp-playing':'fp-paused'} style={{ position:'relative', display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
 
-        {/* Frequency canvas */}
-        <canvas ref={canvasRef} width="1000" height="6" style={{ position:'absolute', top:0, left:0, width:'100%', height:3, zIndex:10, pointerEvents:'none', opacity:.9 }}/>
+        {/* Frequency visualizer canvas */}
+        <canvas ref={canvasRef} width="1000" height="6" style={{ position:'absolute', top:0, left:0, width:'100%', height:3, zIndex:10, pointerEvents:'none', opacity:.85 }}/>
 
         {/* HEADER */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'46px 18px 8px', flexShrink:0, zIndex:10 }}>
-          <button onClick={onClose} className="fp-ctrl" style={{ width:40, height:40 }}>
-            <ChevronDown size={21} color="rgba(255,255,255,.6)"/>
+          <button onClick={onClose} className="fp-ctrl" style={{ width:42, height:42 }}>
+            <ChevronDown size={22} color="rgba(255,255,255,.55)"/>
           </button>
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <span style={{ fontSize:9, fontWeight:800, letterSpacing:'.3em', textTransform:'uppercase', color:'rgba(255,255,255,.22)' }}>En cours</span>
+            <span style={{ fontSize:9, fontWeight:800, letterSpacing:'.3em', textTransform:'uppercase', color:'rgba(255,255,255,.2)' }}>En cours</span>
             {smartMode && (
               <span style={{ display:'flex', alignItems:'center', gap:4, fontSize:9, background:`rgba(${accentCSS},.18)`, color:accentHex, padding:'3px 8px', borderRadius:99, border:`1px solid rgba(${accentCSS},.3)` }}>
                 <Sparkles size={8}/> Smart
               </span>
             )}
             {isPlaying && (
-              <div style={{ display:'flex', gap:3, alignItems:'flex-end', height:15 }}>
-                <div className="fp-bar" style={{ height:5 }}/>
-                <div className="fp-bar" style={{ height:10 }}/>
-                <div className="fp-bar" style={{ height:5 }}/>
+              <div style={{ display:'flex', gap:2, alignItems:'flex-end', height:14 }}>
+                <div className="fp-bar" style={{ height:4 }}/>
+                <div className="fp-bar" style={{ height:9 }}/>
+                <div className="fp-bar" style={{ height:6 }}/>
+                <div className="fp-bar" style={{ height:4 }}/>
               </div>
             )}
           </div>
-          {/* Quick action buttons */}
-          <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+          {/* Quick action icons */}
+          <div style={{ display:'flex', alignItems:'center', gap:4 }}>
             {[
-              { key:'eq',       icon:<Sliders size={15}/>,      color:accentHex },
-              { key:'queue',    icon:<ListMusic size={15}/>,    color:accentHex, badge:queue.length },
-              { key:'comments', icon:<MessageCircle size={15}/>,color:accentHex, badge:tsComments.length },
-            ].map(({ key, icon, color, badge }) => (
+              { key:'eq',       icon:<Sliders size={15}/>,      badge:0 },
+              { key:'queue',    icon:<ListMusic size={15}/>,    badge:queue.length },
+              { key:'comments', icon:<MessageCircle size={15}/>,badge:tsComments.length },
+            ].map(({ key, icon, badge }) => (
               <div key={key} style={{ position:'relative' }}>
                 <button onClick={()=>setActiveTab(t=>t===key?'player':key)} className="fp-ctrl"
-                  style={{ width:38, height:38, color:activeTab===key?color:'rgba(255,255,255,.38)', background:activeTab===key?`rgba(${accentCSS},.18)`:undefined, border:`1px solid ${activeTab===key?`rgba(${accentCSS},.32)`:'transparent'}` }}>
+                  style={{ width:38, height:38, color:activeTab===key?accentHex:'rgba(255,255,255,.35)', background:activeTab===key?`rgba(${accentCSS},.16)`:undefined, border:`1px solid ${activeTab===key?`rgba(${accentCSS},.3)`:'transparent'}`, transition:'all .2s' }}>
                   {icon}
                 </button>
                 {badge > 0 && (
-                  <span style={{ position:'absolute', top:-3, right:-3, width:15, height:15, background:`rgba(${accentCSS},1)`, borderRadius:'50%', fontSize:8, fontWeight:900, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
+                  <span style={{ position:'absolute', top:-3, right:-3, width:16, height:16, background:`rgba(${accentCSS},1)`, borderRadius:'50%', fontSize:8, fontWeight:900, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none', boxShadow:`0 2px 8px rgba(${accentCSS},.5)` }}>
                     {badge>9?'9+':badge}
                   </span>
                 )}
@@ -1064,7 +1348,7 @@ const FullPlayerPage = ({
           </div>
         </div>
 
-        {/* TABS */}
+        {/* TABS (mobile) */}
         <div className="fp-mobile-tabs" style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,.06)', flexShrink:0 }}>
           {TABS_MOBILE.map(({ key, icon, label }) => (
             <button key={key} className={`fp-tab${activeTab===key?' on':''}`} onClick={()=>setActiveTab(key)}>
@@ -1075,48 +1359,22 @@ const FullPlayerPage = ({
 
         {/* CONTENT */}
         <div className="fp-scroll" style={{ flex:1, minHeight:0, overflowY:'auto', display:'flex', flexDirection:'column', overscrollBehavior:'contain', WebkitOverflowScrolling:'touch' }}>
-
           {activeTab==='player' && renderPlayer()}
-
-          {activeTab==='eq' && (
-            <div className="fp-fade" style={{ flex:1 }}>
-              <EQPanel {...eqProps}/>
-            </div>
-          )}
-
-          {activeTab==='queue' && (
-            <div className="fp-fade" style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
-              <QueuePanel {...queueProps}/>
-            </div>
-          )}
-
+          {activeTab==='eq' && <div className="fp-fade" style={{ flex:1 }}><EQPanel {...eqProps}/></div>}
+          {activeTab==='queue' && <div className="fp-fade" style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}><QueuePanel {...queueProps}/></div>}
           {activeTab==='comments' && currentSong && (
             <div className="fp-fade" style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, overscrollBehavior:'contain' }}>
-              <CommentsPanel
-                songId={currentSong._id} currentTime={currentTime} duration={duration}
-                onSeek={seekToTimestamp} token={token} isLoggedIn={isLoggedIn}
-                userId={userId} isAdmin={isAdminLocal} userNom={userNom}
-                onMarkersReady={setTsComments} accentColor={accentHex}
-                API={apiBase||''}
-              />
+              <CommentsPanel songId={currentSong._id} currentTime={currentTime} duration={duration} onSeek={seekToTimestamp} token={token} isLoggedIn={isLoggedIn} userId={userId} isAdmin={isAdminLocal} userNom={userNom} onMarkersReady={setTsComments} accentColor={accentHex} API={API||''}/>
             </div>
           )}
-
-          {activeTab==='infos' && (
-            <div className="fp-fade" style={{ flex:1 }}>
-              <InfosPanel currentSong={currentSong} currentTime={currentTime} duration={duration} audioRef={audioRef} accentColor={accentHex}/>
-            </div>
-          )}
-
+          {activeTab==='infos' && <div className="fp-fade" style={{ flex:1 }}><InfosPanel currentSong={currentSong} currentTime={currentTime} duration={duration} audioRef={audioRef} accentColor={accentHex}/></div>}
         </div>
       </div>
 
       {/* ═══ RIGHT COLUMN — DESKTOP ═══ */}
       <div className="fp-right" style={{ position:'relative', width:380, flexDirection:'column', borderLeft:`1px solid rgba(${accentCSS},.1)`, overflow:'hidden' }}>
-        <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,.32)', backdropFilter:'blur(40px)' }}/>
+        <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,.35)', backdropFilter:'blur(48px)' }}/>
         <div style={{ position:'relative', display:'flex', flexDirection:'column', height:'100%' }}>
-
-          {/* Desktop tabs */}
           <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,.07)', flexShrink:0 }}>
             {TABS_DESKTOP.map(({ key, icon, label }) => (
               <button key={key} onClick={()=>setActiveTab(key)} className={`fp-tab${activeTab===key?' on':''}`}>
@@ -1124,34 +1382,30 @@ const FullPlayerPage = ({
               </button>
             ))}
           </div>
-
           <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-            {activeTab==='eq' && (
-              <div className="fp-scroll" style={{ flex:1, overflowY:'auto' }}>
-                <EQPanel {...eqProps}/>
-              </div>
-            )}
+            {activeTab==='eq' && <div className="fp-scroll" style={{ flex:1, overflowY:'auto' }}><EQPanel {...eqProps}/></div>}
             {(activeTab==='queue'||activeTab==='player') && <QueuePanel {...queueProps}/>}
             {activeTab==='comments' && currentSong && (
               <div className="fp-scroll" style={{ flex:1, overflowY:'auto', overscrollBehavior:'contain' }}>
-                <CommentsPanel
-                  songId={currentSong._id} currentTime={currentTime} duration={duration}
-                  onSeek={seekToTimestamp} token={token} isLoggedIn={isLoggedIn}
-                  userId={userId} isAdmin={isAdminLocal} userNom={userNom}
-                  onMarkersReady={setTsComments} accentColor={accentHex}
-                  API={apiBase||''}
-                />
+                <CommentsPanel songId={currentSong._id} currentTime={currentTime} duration={duration} onSeek={seekToTimestamp} token={token} isLoggedIn={isLoggedIn} userId={userId} isAdmin={isAdminLocal} userNom={userNom} onMarkersReady={setTsComments} accentColor={accentHex} API={API||''}/>
               </div>
             )}
-            {activeTab==='infos' && (
-              <div className="fp-scroll" style={{ flex:1, overflowY:'auto' }}>
-                <InfosPanel currentSong={currentSong} currentTime={currentTime} duration={duration} audioRef={audioRef} accentColor={accentHex}/>
-              </div>
-            )}
+            {activeTab==='infos' && <div className="fp-scroll" style={{ flex:1, overflowY:'auto' }}><InfosPanel currentSong={currentSong} currentTime={currentTime} duration={duration} audioRef={audioRef} accentColor={accentHex}/></div>}
           </div>
         </div>
       </div>
 
+      {/* ══ MODALS ══ */}
+      {showShare && currentSong && (
+        <ShareModal
+          song={currentSong}
+          onClose={() => setShowShare(false)}
+          onToast={showToast}
+        />
+      )}
+
+      {/* ══ TOAST ══ */}
+      {toast && <Toast key={toast.key} message={toast.message} icon={toast.icon} onDone={()=>setToast(null)}/>}
     </div>
   );
 };

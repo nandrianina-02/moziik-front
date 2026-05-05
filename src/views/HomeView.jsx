@@ -783,12 +783,6 @@ const HomeView = ({
     { label: 'Gospel',    color: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300', activeColor: 'bg-emerald-500/30 border-emerald-400 text-emerald-200' },
   ];
 
-  if (searchTerm) return (
-    <GlobalSearchView
-      searchTerm={searchTerm} currentSong={currentSong}
-      setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}
-      isPlaying={isPlaying} toggleLike={toggleLike} />
-  );
 
   // ════════════════════════════════════════════
   // BUG FIX #1 : Résolution chanson complète pour Top 24h
@@ -803,6 +797,13 @@ const HomeView = ({
       setIsPlaying(true);
     }
   }, [songs, setCurrentSong, setIsPlaying]);
+
+  if (searchTerm) return (
+  <GlobalSearchView
+    searchTerm={searchTerm} currentSong={currentSong}
+    setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}
+    isPlaying={isPlaying} toggleLike={toggleLike} />
+  );
 
   // ── Slices pour chaque section ──
   const visibleTop24h     = top24hShowMore.expanded     ? top24h            : top24h.slice(0, top24hShowMore.limit);
