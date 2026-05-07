@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  Play, Pause, Music, Disc3, Loader2, CheckCircle, Star, ExternalLink, Users, UserPlus, UserCheck,
+  Play, Pause, Music, Disc3, Loader2, CheckCircle, Star, ExternalLink, Users, UserPlus, UserCheck, Mic2
 } from 'lucide-react';
 import { API } from '../config/api';
 import { FaInstagram, FaYoutube, FaXTwitter, FaFacebook, FaTiktok } from 'react-icons/fa6';
