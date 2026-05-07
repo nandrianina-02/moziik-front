@@ -209,6 +209,8 @@ const AppInner = () => {
 
   const resetEQ = useCallback(() => applyPreset('Flat'), [applyPreset]);
 
+
+
   // ── Titre dynamique ───────────────────────────────────────────
   useEffect(() => {
     if (!currentSong) { document.title = 'MooZik'; return; }
@@ -696,41 +698,6 @@ const AppInner = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleNext, handlePrev]);
 
-  useEffect(() => {
-    if (currentTime > 30 && !playCountedRef.current && currentSong) {
-      playCountedRef.current = true;
-
-      const reportPlay = async () => {
-        if (!currentSong || !currentSong._id) {
-          console.warn('Report play skipped: currentSong is not defined');
-          return;
-        }
-        try {
-          const headers = {
-            'Content-Type': 'application/json',
-            ...(tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {})
-          };
-          const res = await fetch(`${API}/songs/${currentSong._id}/play`, { method: 'PUT', headers });
-          if (!res.ok) {
-            const text = await res.text();
-            console.error('Report play failed', { status: res.status, body: text });
-          } else {
-            // CORRECTION : mettre à jour le score trending en local après un play
-            // pour que le tri reste cohérent sans recharger toutes les musiques
-            setMusiques(prev =>
-              sortByTrending(
-                prev.map(s => s._id === currentSong._id ? { ...s, plays: (s.plays || 0) + 1 } : s)
-              )
-            );
-          }
-        } catch (err) {
-          console.error('Report play error', err);
-        }
-      };
-
-      reportPlay();
-    }
-  }, [currentTime, currentSong]);
 
   useEffect(() => { if (audioRef.current) audioRef.current.playbackRate = playbackRate; }, [playbackRate]);
   useEffect(() => { if (audioRef.current) audioRef.current.volume = volume / 100; }, [volume]);
@@ -750,6 +717,36 @@ const AppInner = () => {
     if (currentSong?._id) {
       localStorage.setItem('moozik_last_song_id', currentSong._id);
     }
+  }, [currentSong?._id]);
+
+  const startTimeRef = useRef(null);
+
+  useEffect(() => {
+    if (isPlaying && currentSong) {
+      startTimeRef.current = Date.now();
+    }
+  }, [isPlaying, currentSong?._id]);
+
+  const recordPlay = async (song) => {
+    if (!song?._id || !startTimeRef.current) return;
+    const duration = Math.round((Date.now() - startTimeRef.current) / 1000);
+    startTimeRef.current = null;
+    try {
+      await fetch(`${API}/songs/${song._id}/play`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ duration }),
+      });
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    return () => {
+      recordPlay(currentSong); // appelé quand la chanson change ou le composant se démonte
+    };
   }, [currentSong?._id]);
 
   const formatTime = (t) => isNaN(t) ? '0:00' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;

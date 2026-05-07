@@ -140,7 +140,7 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
           }
         });
         xhr.addEventListener('error', () => reject(new Error('Erreur réseau')));
-        xhr.open('POST', `${API}/songs`);
+        xhr.open('POST', `${API}/upload`);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.send(fd);
       });
