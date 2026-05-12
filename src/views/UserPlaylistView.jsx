@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, Globe, Lock, Heart, ListPlus, Trash2, Play, Pause, Shuffle, ListMusic } from 'lucide-react';
 import { API } from '../config/api';
 import ConfirmDialog, { useConfirm } from '../components/ui/ConfirmDialog';
-import { usePlayerQueue } from '../hooks/usePlayerQueue';   // ← hook centralisé
 
 const UserPlaylistView = ({
   token, setCurrentSong, setIsPlaying, currentSong, isPlaying,
   toggleLike, addToQueue, setQueue, isOwner, isLoggedIn, userNom,
+  playAll,
 }) => {
   const { id } = useParams();
   const [playlist, setPlaylist]       = useState(null);
   const [loading, setLoading]         = useState(true);
+  const [shuffleActive, setShuffleActive] = useState(false);
   const { confirmDialog, ask, close } = useConfirm();
 
   useEffect(() => {
@@ -24,14 +25,36 @@ const UserPlaylistView = ({
 
   const songs = playlist?.musiques ?? [];
 
-  // ── Hook de queue ────────────────────────────────────────────
-  const queue = usePlayerQueue({ songs, setCurrentSong, setIsPlaying, setQueue, addToQueue });
-
-  // Un titre de cette playlist est-il en lecture ?
   const isCurrentPlaylistPlaying =
     currentSong && songs.some(s => String(s._id) === String(currentSong._id)) && isPlaying;
 
-  // ── Retirer un titre ─────────────────────────────────────────
+  // ── Lire tout depuis le début ──────────────────────────────────
+  const handlePlayAll = useCallback(() => {
+    if (!songs.length) return;
+    playAll(songs, 0);
+  }, [songs, playAll]);
+
+  // ── Clic sur un titre → lecture depuis ce titre ────────────────
+  const handlePlaySong = useCallback((song) => {
+    const index = songs.findIndex(s => String(s._id) === String(song._id));
+    playAll(songs, index >= 0 ? index : 0);
+  }, [songs, playAll]);
+
+  // ── Lecture aléatoire ──────────────────────────────────────────
+  const handleShuffle = useCallback(() => {
+    if (!songs.length) return;
+    const shuffled = [...songs].sort(() => Math.random() - 0.5);
+    setShuffleActive(prev => !prev);
+    playAll(shuffled, 0);
+  }, [songs, playAll]);
+
+  // ── Ajouter tout à la file ─────────────────────────────────────
+  const handleAddAllToQueue = useCallback(() => {
+    if (!songs.length || !addToQueue) return;
+    songs.forEach(song => addToQueue(song));
+  }, [songs, addToQueue]);
+
+  // ── Retirer un titre ──────────────────────────────────────────
   const removeFromPlaylist = (songId, titre) => {
     ask({
       title: `Retirer "${titre}" de la playlist ?`,
@@ -93,7 +116,7 @@ const UserPlaylistView = ({
           {songs.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={isCurrentPlaylistPlaying ? () => setIsPlaying(false) : queue.playAll}
+                onClick={isCurrentPlaylistPlaying ? () => setIsPlaying(false) : handlePlayAll}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm
                             transition-all active:scale-95 shadow-lg ${
                   isCurrentPlaylistPlaying
@@ -107,10 +130,10 @@ const UserPlaylistView = ({
               </button>
 
               <button
-                onClick={queue.shuffle}
+                onClick={handleShuffle}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border
                             transition-all active:scale-95 ${
-                  queue.shuffleActive
+                  shuffleActive
                     ? 'bg-purple-500/15 border-purple-500/40 text-purple-400'
                     : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:border-white/20 hover:bg-white/8'
                 }`}
@@ -121,7 +144,7 @@ const UserPlaylistView = ({
 
               {addToQueue && (
                 <button
-                  onClick={queue.addAllToQueue}
+                  onClick={handleAddAllToQueue}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border
                              bg-white/5 border-white/10 text-zinc-400 hover:text-white
                              hover:border-white/20 hover:bg-white/8 transition-all active:scale-95"
@@ -148,7 +171,7 @@ const UserPlaylistView = ({
               className={`flex items-center justify-between p-3 rounded-xl cursor-pointer group transition ${
                 currentSong?._id === song._id ? 'bg-purple-600/10' : 'hover:bg-white/5'
               }`}
-              onClick={() => queue.playSong(song)}   // ← hook : reconstruit la queue
+              onClick={() => handlePlaySong(song)}
             >
               <div className="flex items-center gap-4 min-w-0">
                 <span className="text-zinc-600 font-mono text-xs w-4 shrink-0">{index + 1}</span>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Loader2, Mic2, Disc3, Music, CheckCircle, Star,
@@ -10,7 +10,6 @@ import { FaInstagram, FaYoutube } from 'react-icons/fa';
 import { API } from '../config/api';
 import SongRow from '../components/music/SongRow';
 import { TipButton } from '../components/MonetisationComponents';
-import { usePlayerQueue } from '../hooks/usePlayerQueue';   // ← hook centralisé
 
 // ── Badge certifié ─────────────────────────────────────────────────
 const CertBadge = ({ level }) => {
@@ -58,6 +57,8 @@ const ArtistView = ({
   addToQueue, setQueue, token, isLoggedIn, userNom, isAdmin, isArtist, userArtistId,
   playlists, userPlaylists, onAddToUserPlaylist, ajouterAPlaylist,
   onDeleted, onRefresh, onTogglePlaylistVisibility,
+  // ← playAll vient directement de App.jsx (déjà correct)
+  playAll,
 }) => {
   const { id } = useParams();
   const [data, setData]             = useState(null);
@@ -70,21 +71,18 @@ const ArtistView = ({
   const [followLoading, setFollowLoading] = useState(false);
   const [certLoading, setCertLoading]     = useState(false);
   const [tab, setTab]               = useState('songs');
+  const [shuffleActive, setShuffleActive] = useState(false);
 
   const isOwnProfile = isArtist && String(userArtistId) === String(id);
   const canManage    = isAdmin || isOwnProfile;
 
-  // Liste des titres de cet artiste (dépend de `data`)
   const songs = data?.songs ?? [];
 
-  // ── Hook de queue ──────────────────────────────────────────────
-  const queue = usePlayerQueue({ songs, setCurrentSong, setIsPlaying, setQueue, addToQueue });
-
-  // Indique si le lecteur joue un titre de CET artiste
+  // ── Indique si le lecteur joue un titre de CET artiste ─────────
   const isCurrentArtistPlaying =
     currentSong && songs.some(s => String(s._id) === String(currentSong._id)) && isPlaying;
 
-  // ── Fetch données artiste ──────────────────────────────────────
+  // ── Fetch données artiste ───────────────────────────────────────
   useEffect(() => {
     setData(null);
     Promise.all([
@@ -113,7 +111,7 @@ const ArtistView = ({
     }
   }, [id]);
 
-  // ── Follow ─────────────────────────────────────────────────────
+  // ── Follow ──────────────────────────────────────────────────────
   const handleFollow = async () => {
     if (!isLoggedIn) return;
     setFollowLoading(true);
@@ -127,7 +125,7 @@ const ArtistView = ({
     setFollowLoading(false);
   };
 
-  // ── Certification ──────────────────────────────────────────────
+  // ── Certification ───────────────────────────────────────────────
   const handleRequestCert = async () => {
     if (!canManage) return;
     setCertLoading(true);
@@ -137,6 +135,33 @@ const ArtistView = ({
     if (res) setCert(res);
     setCertLoading(false);
   };
+
+  // ── Lecture d'un titre → reconstruit la queue depuis ce titre ───
+  // On passe l'index de départ à playAll pour respecter l'ordre de la liste
+  const handlePlaySong = useCallback((song) => {
+    const index = songs.findIndex(s => String(s._id) === String(song._id));
+    playAll(songs, index >= 0 ? index : 0);
+  }, [songs, playAll]);
+
+  // ── Lire tout depuis le début ───────────────────────────────────
+  const handlePlayAll = useCallback(() => {
+    if (!songs.length) return;
+    playAll(songs, 0);
+  }, [songs, playAll]);
+
+  // ── Lecture aléatoire ───────────────────────────────────────────
+  const handleShuffle = useCallback(() => {
+    if (!songs.length) return;
+    const shuffled = [...songs].sort(() => Math.random() - 0.5);
+    setShuffleActive(prev => !prev);
+    playAll(shuffled, 0);
+  }, [songs, playAll]);
+
+  // ── Ajouter tous les titres à la file d'attente ─────────────────
+  const handleAddAllToQueue = useCallback(() => {
+    if (!songs.length || !addToQueue) return;
+    songs.forEach(song => addToQueue(song));
+  }, [songs, addToQueue]);
 
   if (!data) return (
     <div className="p-8 text-zinc-500 flex items-center gap-2">
@@ -167,8 +192,6 @@ const ArtistView = ({
     onDeleted,
     onRefresh,
     onTogglePlaylistVisibility,
-    // ← on surcharge onPlay pour que chaque SongRow utilise notre hook
-    onPlay: (song) => queue.playSong(song),
   };
 
   return (
@@ -222,7 +245,7 @@ const ArtistView = ({
 
               {/* Lire tout / Pause */}
               <button
-                onClick={isCurrentArtistPlaying ? () => setIsPlaying(false) : queue.playAll}
+                onClick={isCurrentArtistPlaying ? () => setIsPlaying(false) : handlePlayAll}
                 className={`group flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm
                             transition-all active:scale-95 shadow-lg ${
                   isCurrentArtistPlaying
@@ -237,11 +260,11 @@ const ArtistView = ({
 
               {/* Aléatoire */}
               <button
-                onClick={queue.shuffle}
+                onClick={handleShuffle}
                 title="Lecture aléatoire"
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border
                             transition-all active:scale-95 ${
-                  queue.shuffleActive
+                  shuffleActive
                     ? 'bg-red-500/15 border-red-500/40 text-red-400'
                     : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:border-white/20 hover:bg-white/8'
                 }`}
@@ -253,7 +276,7 @@ const ArtistView = ({
               {/* Ajouter tout à la file */}
               {addToQueue && (
                 <button
-                  onClick={queue.addAllToQueue}
+                  onClick={handleAddAllToQueue}
                   title="Ajouter tous les titres à la file d'attente"
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border
                              bg-white/5 border-white/10 text-zinc-400 hover:text-white
@@ -392,8 +415,8 @@ const ArtistView = ({
                 song={song}
                 index={index}
                 {...songProps}
-                // Clic sur le titre → notre hook reconstruit la queue
-                onPlay={() => queue.playSong(song)}
+                // ← clic sur une ligne → lecture depuis ce titre avec toute la liste
+                onPlay={() => handlePlaySong(song)}
               />
             ))}
         </div>

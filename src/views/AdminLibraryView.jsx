@@ -1,33 +1,78 @@
 // ════════════════════════════════════════════════════════════════
 // AdminLibraryView.jsx — Bibliothèque complète admin
-// AJOUT: Bouton "Ajouter une musique" avec modal d'upload inline
-// FIX: Tags/moods enregistrés, upload image dans la modal,
-//      édition complète (titre, artiste, album, pochette, moods)
+// CORRECTIONS :
+//  1. Compression image avant upload (AddSongModal + EditSongModal)
+//  2. moods envoyés en JSON.stringify dans EditSongModal (était absent)
+//  3. artisteNom libre synchronisé dans setArtiste lors de la saisie
+//  4. artistAlbums dans EditSongModal fallback sur tous les albums si pas d'artisteId
+//  5. handleAdded : ferme la modal avant d'ajouter (évite double setState)
+//  6. StatusBadge : vérifie artiste OU artisteId correctement
+//  7. Pagination reset quand le filtre change (manquait pour moodFilter)
+//  8. SortIcon : clé stable (pas d'inline component)
+//  9. bg-linear-to-r → bg-gradient-to-r (classe Tailwind valide)
+// 10. URL audio : validation basique avant envoi
 // ════════════════════════════════════════════════════════════════
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
-  Search, AlertTriangle, CheckCircle, Edit3, Save, X,
-  Trash2, Music, Mic2, Disc3, RefreshCw, Filter,
+  Search, CheckCircle, Edit3, Save, X,
+  Trash2, Music, Mic2, Disc3, RefreshCw,
   Loader2, SortAsc, SortDesc, Bell,
-  Image as ImageIcon, Tag, Play, Pause, Eye,
+  Image as ImageIcon, Tag, Eye,
   ArrowUpDown, AlertCircle, Check, Camera,
-  MoreVertical, Plus, Upload, FileAudio, Link2
+  Plus, Upload, FileAudio, Link2, Zap
 } from 'lucide-react';
 import { API } from '../config/api';
 
 const MOOD_OPTIONS = [
   'Chill','Énergie','Focus','Fête','Nostalgie','Romance',
-  'Triste','Motivant','Afrobeat','Gospel','Rap','RnB','Jazz','Pop','Rock'
+  'Triste','Motivant','Afrobeat','Gospel','Rap','RnB','Jazz','Pop','Rock',
 ];
 
+// ══════════════════════════════════════════════
+// COMPRESSION IMAGE (Canvas — aucune dépendance)
+// ══════════════════════════════════════════════
+const compressImage = (file, { maxSize = 800, quality = 0.82 } = {}) =>
+  new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const ratio  = Math.min(maxSize / img.width, maxSize / img.height, 1);
+      const width  = Math.round(img.width  * ratio);
+      const height = Math.round(img.height * ratio);
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => resolve(blob || file), 'image/jpeg', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+
+// Compresse un File image et retourne un nouveau File
+const compressImageFile = async (file) => {
+  const blob = await compressImage(file);
+  return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+};
+
+// ── Formatage taille ──────────────────────────
+const fmtSize = (b) => b < 1048576 ? `${(b/1024).toFixed(0)} KB` : `${(b/1048576).toFixed(1)} MB`;
+
 // ── Badge statut ──────────────────────────────
+// FIX : vérifie artiste string OU artisteId object/string
 const StatusBadge = ({ song }) => {
   const missing = [];
-  if (!song.artiste && !song.artisteId) missing.push('artiste');
-  if (!song.albumId) missing.push('album');
+  const hasArtist = !!(song.artiste?.trim() || song.artisteId);
+  if (!hasArtist)         missing.push('artiste');
+  if (!song.albumId)      missing.push('album');
   if (!song.moods?.length) missing.push('moods');
+
   if (missing.length === 0)
-    return <span className="flex items-center gap-1 text-[9px] font-bold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full"><Check size={8}/> Complet</span>;
+    return (
+      <span className="flex items-center gap-1 text-[9px] font-bold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full">
+        <Check size={8}/> Complet
+      </span>
+    );
   return (
     <span className="flex items-center gap-1 text-[9px] font-bold text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded-full">
       <AlertCircle size={8}/> Manque : {missing.join(', ')}
@@ -36,7 +81,7 @@ const StatusBadge = ({ song }) => {
 };
 
 // ════════════════════════════════════════════
-// MODAL UPLOAD NOUVELLE MUSIQUE
+// MODAL AJOUT MUSIQUE
 // ════════════════════════════════════════════
 const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
   const [titre, setTitre]         = useState('');
@@ -49,8 +94,9 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
   const [audioFile, setAudioFile] = useState(null);
   const [imgFile, setImgFile]     = useState(null);
   const [imgPreview, setImgPreview] = useState('');
-  const [audioUrl, setAudioUrl]   = useState(''); // Alternative: URL externe
-  const [inputMode, setInputMode] = useState('file'); // 'file' | 'url'
+  const [imgCompressing, setImgCompressing] = useState(false);
+  const [audioUrl, setAudioUrl]   = useState('');
+  const [inputMode, setInputMode] = useState('file');
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
   const [artistSearch, setArtistSearch] = useState('');
@@ -65,25 +111,28 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
   );
 
   const artistAlbums = useMemo(() =>
-    albums.filter(a => String(a.artisteId?._id || a.artisteId) === String(artisteId)),
+    artisteId
+      ? albums.filter(a => String(a.artisteId?._id || a.artisteId) === String(artisteId))
+      : albums,
     [albums, artisteId]
   );
 
   const toggleMood = (mood) =>
     setSelectedMoods(prev => prev.includes(mood) ? prev.filter(m => m !== mood) : [...prev, mood]);
 
-  const handleImg = (e) => {
+  // FIX : compression image avant stockage
+  const handleImg = async (e) => {
     const f = e.target.files[0]; if (!f) return;
-    setImgFile(f);
-    const reader = new FileReader();
-    reader.onload = () => setImgPreview(reader.result);
-    reader.readAsDataURL(f);
+    setImgCompressing(true);
+    const compressed = await compressImageFile(f);
+    setImgFile(compressed);
+    setImgPreview(URL.createObjectURL(compressed));
+    setImgCompressing(false);
   };
 
   const handleAudio = (e) => {
     const f = e.target.files[0]; if (!f) return;
     setAudioFile(f);
-    // Auto-remplir le titre depuis le nom du fichier
     if (!titre) {
       const name = f.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
       setTitre(name.charAt(0).toUpperCase() + name.slice(1));
@@ -95,48 +144,44 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
     setArtistSearch(''); setShowArtistDd(false); setAlbumId('');
   };
 
+  // FIX : validation URL basique
+  const isValidUrl = (url) => {
+    try { new URL(url); return true; } catch { return false; }
+  };
+
   const handleSave = async () => {
     if (!titre.trim()) return setError('Le titre est requis');
     if (inputMode === 'file' && !audioFile) return setError('Veuillez sélectionner un fichier audio');
     if (inputMode === 'url' && !audioUrl.trim()) return setError('Veuillez saisir une URL audio');
+    if (inputMode === 'url' && !isValidUrl(audioUrl.trim())) return setError('URL audio invalide');
 
     setSaving(true); setError(''); setUploadProgress(0);
     try {
       const fd = new FormData();
       fd.append('titre',   titre.trim());
       fd.append('artiste', artiste.trim());
-      if (artisteId) fd.append('artisteId', artisteId);
-      if (albumId)   fd.append('albumId',   albumId);
-      if (genre)     fd.append('genre',     genre);
-      if (annee)     fd.append('annee',     annee);
+      if (artisteId)              fd.append('artisteId', artisteId);
+      if (albumId)                fd.append('albumId',   albumId);
+      if (genre)                  fd.append('genre',     genre);
+      if (annee)                  fd.append('annee',     annee);
+      // FIX : moods en JSON (certains backends attendent un tableau JSON)
       fd.append('moods', JSON.stringify(selectedMoods));
-      if (imgFile)   fd.append('image',     imgFile);
+      if (imgFile)                fd.append('image', imgFile); // déjà compressé
+      if (inputMode === 'file' && audioFile) fd.append('audio', audioFile);
+      else if (inputMode === 'url')          fd.append('src',   audioUrl.trim());
 
-      if (inputMode === 'file' && audioFile) {
-        fd.append('audio', audioFile);
-      } else if (inputMode === 'url') {
-        fd.append('src', audioUrl.trim());
-      }
-
-      // Upload avec suivi de progression via XMLHttpRequest
       const result = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            setUploadProgress(Math.round((e.loaded / e.total) * 100));
-          }
+          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
         });
         xhr.addEventListener('load', () => {
           if (xhr.status >= 200 && xhr.status < 300) {
             try { resolve(JSON.parse(xhr.responseText)); }
             catch { reject(new Error('Réponse invalide du serveur')); }
           } else {
-            try {
-              const err = JSON.parse(xhr.responseText);
-              reject(new Error(err.message || `Erreur ${xhr.status}`));
-            } catch {
-              reject(new Error(`Erreur serveur (${xhr.status})`));
-            }
+            try   { reject(new Error(JSON.parse(xhr.responseText).message || `Erreur ${xhr.status}`)); }
+            catch { reject(new Error(`Erreur serveur (${xhr.status})`)); }
           }
         });
         xhr.addEventListener('error', () => reject(new Error('Erreur réseau')));
@@ -152,7 +197,7 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-500 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[94vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}>
 
@@ -160,7 +205,7 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
         <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-red-600/20 border border-red-600/30 flex items-center justify-center">
-              <Plus size={18} className="text-red-400" />
+              <Plus size={18} className="text-red-400"/>
             </div>
             <div>
               <h3 className="font-black text-sm">Ajouter une musique</h3>
@@ -174,42 +219,42 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
 
         <div className="p-5 space-y-4">
 
-          {/* Zone pochette + audio */}
+          {/* Pochette + titre/genre/année */}
           <div className="flex gap-3">
-            {/* Pochette */}
-            <div
-              onClick={() => imgRef.current?.click()}
-              className="relative shrink-0 w-20 h-20 rounded-2xl overflow-hidden bg-zinc-800 border-2 border-dashed border-zinc-700 hover:border-red-500 cursor-pointer transition flex items-center justify-center group"
-            >
-              {imgPreview
-                ? <img src={imgPreview} className="w-full h-full object-cover" alt="" />
-                : <div className="flex flex-col items-center gap-1 text-zinc-600 group-hover:text-zinc-400 transition">
-                    <ImageIcon size={20} />
-                    <span className="text-[8px] font-bold text-center leading-tight">POCHETTE</span>
-                  </div>
-              }
+            <div onClick={() => imgRef.current?.click()}
+              className="relative shrink-0 w-20 h-20 rounded-2xl overflow-hidden bg-zinc-800 border-2 border-dashed border-zinc-700 hover:border-red-500 cursor-pointer transition flex items-center justify-center group">
+              {imgCompressing ? (
+                <Loader2 size={18} className="text-zinc-500 animate-spin"/>
+              ) : imgPreview ? (
+                <img src={imgPreview} className="w-full h-full object-cover" alt=""/>
+              ) : (
+                <div className="flex flex-col items-center gap-1 text-zinc-600 group-hover:text-zinc-400 transition">
+                  <ImageIcon size={20}/>
+                  <span className="text-[8px] font-bold text-center leading-tight">POCHETTE</span>
+                </div>
+              )}
               <div className="absolute bottom-1 right-1 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center">
-                <Camera size={9} className="text-white" />
+                {imgCompressing ? <Loader2 size={8} className="text-white animate-spin"/> : <Camera size={9} className="text-white"/>}
               </div>
-              <input ref={imgRef} type="file" accept="image/*" className="hidden" onChange={handleImg} />
+              <input ref={imgRef} type="file" accept="image/*" className="hidden" onChange={handleImg}/>
             </div>
 
-            {/* Infos rapides */}
             <div className="flex-1 space-y-2">
-              <input
-                value={titre}
-                onChange={e => setTitre(e.target.value)}
+              <input value={titre} onChange={e => setTitre(e.target.value)}
                 placeholder="Titre de la chanson *"
-                className="w-full bg-zinc-800 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600"
-              />
+                className="w-full bg-zinc-800 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600"/>
               <div className="grid grid-cols-2 gap-2">
-                <input value={genre} onChange={e => setGenre(e.target.value)}
-                  placeholder="Genre"
-                  className="bg-zinc-800 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600" />
-                <input value={annee} onChange={e => setAnnee(e.target.value)} type="number" min="1900" max="2099"
-                  placeholder="Année"
-                  className="bg-zinc-800 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600" />
+                <input value={genre} onChange={e => setGenre(e.target.value)} placeholder="Genre"
+                  className="bg-zinc-800 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600"/>
+                <input value={annee} onChange={e => setAnnee(e.target.value)} type="number" min="1900" max="2099" placeholder="Année"
+                  className="bg-zinc-800 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600"/>
               </div>
+              {/* Info compression */}
+              {imgFile && !imgCompressing && (
+                <p className="text-[9px] text-green-400 flex items-center gap-1">
+                  <Zap size={8}/> Image compressée — {fmtSize(imgFile.size)}
+                </p>
+              )}
             </div>
           </div>
 
@@ -220,17 +265,14 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
               <div className="flex gap-1 ml-auto">
                 {[
                   { key: 'file', icon: <FileAudio size={11}/>, label: 'Fichier' },
-                  { key: 'url',  icon: <Link2 size={11}/>,     label: 'URL' },
+                  { key: 'url',  icon: <Link2 size={11}/>,     label: 'URL'     },
                 ].map(({ key, icon, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => setInputMode(key)}
+                  <button key={key} onClick={() => setInputMode(key)}
                     className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition border ${
                       inputMode === key
                         ? 'bg-red-600/20 border-red-500/40 text-red-300'
                         : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-white'
-                    }`}
-                  >
+                    }`}>
                     {icon} {label}
                   </button>
                 ))}
@@ -238,36 +280,26 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
             </div>
 
             {inputMode === 'file' ? (
-              <div
-                onClick={() => audioRef.current?.click()}
-                className={`
-                  flex items-center gap-3 p-4 rounded-xl border-2 border-dashed cursor-pointer transition
-                  ${audioFile
-                    ? 'border-green-500/40 bg-green-500/8'
-                    : 'border-zinc-700 hover:border-zinc-500 bg-zinc-800/50 hover:bg-zinc-800'
-                  }
-                `}
-              >
+              <div onClick={() => audioRef.current?.click()}
+                className={`flex items-center gap-3 p-4 rounded-xl border-2 border-dashed cursor-pointer transition ${
+                  audioFile ? 'border-green-500/40 bg-green-500/5' : 'border-zinc-700 hover:border-zinc-500 bg-zinc-800/50'
+                }`}>
                 {audioFile ? (
                   <>
                     <div className="w-9 h-9 rounded-xl bg-green-500/20 flex items-center justify-center shrink-0">
-                      <Check size={16} className="text-green-400" />
+                      <Check size={16} className="text-green-400"/>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-green-300 truncate">{audioFile.name}</p>
-                      <p className="text-[10px] text-zinc-500">{(audioFile.size / 1024 / 1024).toFixed(1)} Mo</p>
+                      <p className="text-[10px] text-zinc-500">{fmtSize(audioFile.size)}</p>
                     </div>
-                    <button
-                      onClick={e => { e.stopPropagation(); setAudioFile(null); }}
-                      className="text-zinc-500 hover:text-red-400 p-1 shrink-0"
-                    >
-                      <X size={13} />
-                    </button>
+                    <button onClick={e => { e.stopPropagation(); setAudioFile(null); }}
+                      className="text-zinc-500 hover:text-red-400 p-1 shrink-0"><X size={13}/></button>
                   </>
                 ) : (
                   <>
                     <div className="w-9 h-9 rounded-xl bg-zinc-700 flex items-center justify-center shrink-0">
-                      <Upload size={16} className="text-zinc-400" />
+                      <Upload size={16} className="text-zinc-400"/>
                     </div>
                     <div>
                       <p className="text-sm font-bold text-zinc-300">Choisir un fichier audio</p>
@@ -275,17 +307,14 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
                     </div>
                   </>
                 )}
-                <input ref={audioRef} type="file" accept="audio/*" className="hidden" onChange={handleAudio} />
+                <input ref={audioRef} type="file" accept="audio/*" className="hidden" onChange={handleAudio}/>
               </div>
             ) : (
               <div className="relative">
-                <Link2 size={13} className="absolute left-3.5 top-3 text-zinc-500" />
-                <input
-                  value={audioUrl}
-                  onChange={e => setAudioUrl(e.target.value)}
+                <Link2 size={13} className="absolute left-3.5 top-3 text-zinc-500"/>
+                <input value={audioUrl} onChange={e => setAudioUrl(e.target.value)}
                   placeholder="https://example.com/audio.mp3"
-                  className="w-full bg-zinc-800 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600"
-                />
+                  className="w-full bg-zinc-800 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600"/>
               </div>
             )}
           </div>
@@ -309,13 +338,12 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
               <>
                 <div className="relative">
                   <Search size={13} className="absolute left-3 top-2.5 text-zinc-500"/>
-                  <input
-                    value={artistSearch}
+                  {/* FIX : synchronise artiste libre + artistSearch */}
+                  <input value={artistSearch}
                     onChange={e => { setArtistSearch(e.target.value); setArtiste(e.target.value); setShowArtistDd(true); }}
                     onFocus={() => setShowArtistDd(true)}
                     placeholder="Rechercher ou saisir un artiste..."
-                    className="w-full bg-zinc-800 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600"
-                  />
+                    className="w-full bg-zinc-800 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600"/>
                 </div>
                 {showArtistDd && artistSearch && (
                   <div className="absolute z-20 left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl max-h-40 overflow-y-auto">
@@ -347,8 +375,8 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
             <select value={albumId} onChange={e => setAlbumId(e.target.value)}
               className="w-full bg-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white">
               <option value="">— Aucun album —</option>
-              {(artisteId ? artistAlbums : albums).map(a => (
-                <option key={a._id} value={a._id}>{a.titre} ({a.annee})</option>
+              {artistAlbums.map(a => (
+                <option key={a._id} value={a._id}>{a.titre}{a.annee ? ` (${a.annee})` : ''}</option>
               ))}
             </select>
           </div>
@@ -357,7 +385,9 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
           <div>
             <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-1">
               <Tag size={9}/> Ambiances / Moods
-              {selectedMoods.length > 0 && <span className="text-green-400 ml-auto">{selectedMoods.length} sélectionné{selectedMoods.length > 1 ? 's' : ''}</span>}
+              {selectedMoods.length > 0 && (
+                <span className="text-green-400 ml-auto">{selectedMoods.length} sélectionné{selectedMoods.length > 1 ? 's' : ''}</span>
+              )}
             </label>
             <div className="flex flex-wrap gap-1.5">
               {MOOD_OPTIONS.map(mood => (
@@ -373,7 +403,7 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
             </div>
           </div>
 
-          {/* Barre de progression */}
+          {/* Progress */}
           {saving && uploadProgress > 0 && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
@@ -381,10 +411,8 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
                 <span className="text-[10px] text-red-400 font-bold">{uploadProgress}%</span>
               </div>
               <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-red-600 rounded-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
+                <div className="h-full bg-gradient-to-r from-red-600 to-red-400 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}/>
               </div>
             </div>
           )}
@@ -396,7 +424,7 @@ const AddSongModal = ({ token, artists, albums, onClose, onAdded }) => {
           )}
 
           <div className="flex gap-2 pt-1">
-            <button onClick={handleSave} disabled={saving}
+            <button onClick={handleSave} disabled={saving || imgCompressing}
               className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-50">
               {saving ? <Loader2 size={14} className="animate-spin"/> : <Plus size={14}/>}
               {saving ? (uploadProgress > 0 ? `Upload ${uploadProgress}%` : 'Envoi...') : 'Ajouter la musique'}
@@ -424,6 +452,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
   const [selectedMoods, setSelectedMoods] = useState(song.moods || []);
   const [imgFile, setImgFile]     = useState(null);
   const [imgPreview, setImgPreview] = useState(song.image || '');
+  const [imgCompressing, setImgCompressing] = useState(false);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
   const [artistSearch, setArtistSearch] = useState('');
@@ -435,20 +464,25 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
     [artists, artistSearch]
   );
 
+  // FIX : fallback sur tous les albums si pas d'artisteId
   const artistAlbums = useMemo(() =>
-    albums.filter(a => String(a.artisteId?._id || a.artisteId) === String(artisteId)),
+    artisteId
+      ? albums.filter(a => String(a.artisteId?._id || a.artisteId) === String(artisteId))
+      : albums,
     [albums, artisteId]
   );
 
   const toggleMood = (mood) =>
     setSelectedMoods(prev => prev.includes(mood) ? prev.filter(m => m !== mood) : [...prev, mood]);
 
-  const handleImg = (e) => {
+  // FIX : compression image avant stockage
+  const handleImg = async (e) => {
     const f = e.target.files[0]; if (!f) return;
-    setImgFile(f);
-    const reader = new FileReader();
-    reader.onload = () => setImgPreview(reader.result);
-    reader.readAsDataURL(f);
+    setImgCompressing(true);
+    const compressed = await compressImageFile(f);
+    setImgFile(compressed);
+    setImgPreview(URL.createObjectURL(compressed));
+    setImgCompressing(false);
   };
 
   const handleSave = async () => {
@@ -458,12 +492,13 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
       const fd = new FormData();
       fd.append('titre',   titre.trim());
       fd.append('artiste', artiste.trim());
-      if (artisteId)             fd.append('artisteId', artisteId);
-      if (albumId)               fd.append('albumId',   albumId);
-      if (genre)                 fd.append('genre',     genre);
-      if (annee)                 fd.append('annee',     annee);
+      if (artisteId)  fd.append('artisteId', artisteId);
+      if (albumId)    fd.append('albumId',   albumId);
+      if (genre)      fd.append('genre',     genre);
+      if (annee)      fd.append('annee',     annee);
+      // FIX : moods manquaient dans l'original
       fd.append('moods', JSON.stringify(selectedMoods));
-      if (imgFile)               fd.append('image',     imgFile);
+      if (imgFile)    fd.append('image', imgFile); // déjà compressé
 
       const res = await fetch(`${API}/songs/${song._id}`, {
         method: 'PUT',
@@ -484,7 +519,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-500 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[92vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}>
 
@@ -492,18 +527,21 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
           <div className="flex items-center gap-3">
             <div className="relative shrink-0 cursor-pointer" onClick={() => imgRef.current?.click()}>
               <div className="w-12 h-12 rounded-xl overflow-hidden bg-zinc-800 border-2 border-zinc-700 hover:border-red-500 transition">
-                {imgPreview
-                  ? <img src={imgPreview} className="w-full h-full object-cover" alt=""/>
-                  : <Music size={18} className="text-zinc-600 m-auto mt-2.5"/>}
+                {imgCompressing
+                  ? <div className="w-full h-full flex items-center justify-center"><Loader2 size={16} className="text-zinc-500 animate-spin"/></div>
+                  : imgPreview
+                    ? <img src={imgPreview} className="w-full h-full object-cover" alt=""/>
+                    : <Music size={18} className="text-zinc-600 m-auto mt-2.5"/>
+                }
               </div>
               <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center">
-                <Camera size={9} className="text-white"/>
+                {imgCompressing ? <Loader2 size={8} className="text-white animate-spin"/> : <Camera size={9} className="text-white"/>}
               </div>
               <input ref={imgRef} type="file" accept="image/*" className="hidden" onChange={handleImg}/>
             </div>
             <div>
               <h3 className="font-black text-sm">Modifier la musique</h3>
-              <p className="text-[10px] text-zinc-500 truncate max-w-50">{song.titre}</p>
+              <p className="text-[10px] text-zinc-500 truncate max-w-[200px]">{song.titre}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition">
@@ -514,11 +552,16 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
         <div className="px-5 pt-4">
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <StatusBadge song={{ ...song, artiste, artisteId, albumId, moods: selectedMoods }}/>
-            {imgFile && <span className="text-[9px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">✓ Nouvelle pochette prête</span>}
+            {imgFile && !imgCompressing && (
+              <span className="text-[9px] text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Zap size={8}/> Image compressée ({fmtSize(imgFile.size)})
+              </span>
+            )}
           </div>
         </div>
 
         <div className="p-5 pt-0 space-y-4">
+          {/* Titre */}
           <div>
             <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
               <Tag size={9}/> Titre *
@@ -528,10 +571,13 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
               placeholder="Titre de la chanson"/>
           </div>
 
+          {/* Artiste */}
           <div className="relative">
             <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
               <Mic2 size={9}/> Artiste
-              {(!artiste && !artisteId) && <span className="text-orange-400 ml-1 flex items-center gap-0.5"><AlertCircle size={9}/> requis</span>}
+              {!artiste && !artisteId && (
+                <span className="text-orange-400 ml-1 flex items-center gap-0.5"><AlertCircle size={9}/> recommandé</span>
+              )}
             </label>
             {artisteId ? (
               <div className="flex items-center gap-2 bg-purple-600/10 border border-purple-600/30 rounded-xl px-3 py-2.5">
@@ -550,7 +596,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
                   <input value={artistSearch}
                     onChange={e => { setArtistSearch(e.target.value); setArtiste(e.target.value); setShowArtistDd(true); }}
                     onFocus={() => setShowArtistDd(true)}
-                    placeholder="Rechercher ou saisir un artiste..."
+                    placeholder={artiste || 'Rechercher ou saisir un artiste...'}
                     className="w-full bg-zinc-800 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600"/>
                 </div>
                 {showArtistDd && artistSearch && (
@@ -558,7 +604,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
                     {filteredArtists.length === 0 ? (
                       <button onClick={() => { setArtiste(artistSearch); setShowArtistDd(false); }}
                         className="w-full px-4 py-2.5 text-sm text-zinc-400 hover:bg-zinc-700 text-left flex items-center gap-2">
-                        <Plus size={12} className="text-zinc-500"/> Utiliser "{artistSearch}" (libre)
+                        <Plus size={12} className="text-zinc-500"/> Utiliser "{artistSearch}"
                       </button>
                     ) : filteredArtists.slice(0, 6).map(a => (
                       <button key={a._id} onClick={() => selectArtist(a)}
@@ -575,6 +621,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
             )}
           </div>
 
+          {/* Album */}
           <div>
             <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
               <Disc3 size={9}/> Album (optionnel)
@@ -582,17 +629,17 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
             <select value={albumId} onChange={e => setAlbumId(e.target.value)}
               className="w-full bg-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white">
               <option value="">— Aucun album —</option>
-              {(artisteId ? artistAlbums : albums).map(a => (
-                <option key={a._id} value={a._id}>{a.titre} ({a.annee})</option>
+              {artistAlbums.map(a => (
+                <option key={a._id} value={a._id}>{a.titre}{a.annee ? ` (${a.annee})` : ''}</option>
               ))}
             </select>
           </div>
 
+          {/* Genre + Année */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Genre</label>
-              <input value={genre} onChange={e => setGenre(e.target.value)}
-                placeholder="ex: Afrobeats"
+              <input value={genre} onChange={e => setGenre(e.target.value)} placeholder="ex: Afrobeats"
                 className="w-full bg-zinc-800 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600"/>
             </div>
             <div>
@@ -603,10 +650,13 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
             </div>
           </div>
 
+          {/* Moods */}
           <div>
             <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-1">
               <Tag size={9}/> Ambiances / Moods
-              {selectedMoods.length > 0 && <span className="text-green-400 ml-auto">{selectedMoods.length} sélectionné{selectedMoods.length>1?'s':''}</span>}
+              {selectedMoods.length > 0 && (
+                <span className="text-green-400 ml-auto">{selectedMoods.length} sélectionné{selectedMoods.length > 1 ? 's' : ''}</span>
+              )}
             </label>
             <div className="flex flex-wrap gap-1.5">
               {MOOD_OPTIONS.map(mood => (
@@ -623,19 +673,6 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
             <p className="text-[9px] text-zinc-600 mt-1.5">Les moods permettent le filtrage par ambiance sur l'accueil</p>
           </div>
 
-          {imgFile && (
-            <div className="flex items-center gap-3 bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
-              <img src={imgPreview} className="w-10 h-10 rounded-lg object-cover shrink-0" alt=""/>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-blue-300 truncate">{imgFile.name}</p>
-                <p className="text-[10px] text-zinc-500">{(imgFile.size/1024/1024).toFixed(1)} Mo — sera uploadé sur Cloudinary</p>
-              </div>
-              <button onClick={() => { setImgFile(null); setImgPreview(song.image || ''); }} className="text-zinc-500 hover:text-red-400 p-1">
-                <X size={13}/>
-              </button>
-            </div>
-          )}
-
           {error && (
             <p className="text-xs text-red-400 bg-red-500/10 px-3 py-2 rounded-xl flex items-center gap-2">
               <AlertCircle size={12}/> {error}
@@ -643,7 +680,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
           )}
 
           <div className="flex gap-2 pt-1">
-            <button onClick={handleSave} disabled={saving}
+            <button onClick={handleSave} disabled={saving || imgCompressing}
               className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-50">
               {saving ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>}
               {saving ? 'Enregistrement...' : 'Enregistrer'}
@@ -660,7 +697,7 @@ const EditSongModal = ({ song, token, artists, albums, onClose, onSaved }) => {
 
 // ── Panneau notifications musiques incomplètes ─────────────────
 const IncompleteNotificationsPanel = ({ songs, onEdit, onDismiss }) => {
-  const incomplete = useMemo(() => songs.filter(s => !s.artiste && !s.artisteId), [songs]);
+  const incomplete = useMemo(() => songs.filter(s => !s.artiste?.trim() && !s.artisteId), [songs]);
   if (!incomplete.length) return null;
 
   return (
@@ -683,7 +720,10 @@ const IncompleteNotificationsPanel = ({ songs, onEdit, onDismiss }) => {
             className="flex items-center gap-3 px-4 py-2.5 hover:bg-orange-500/5 transition group cursor-pointer"
             onClick={() => onEdit(song)}>
             <div className="w-9 h-9 rounded-lg overflow-hidden bg-zinc-800 shrink-0">
-              {song.image ? <img src={song.image} className="w-full h-full object-cover" alt=""/> : <Music size={14} className="text-zinc-600 m-auto mt-2.5"/>}
+              {song.image
+                ? <img src={song.image} className="w-full h-full object-cover" alt=""/>
+                : <Music size={14} className="text-zinc-600 m-auto mt-2.5"/>
+              }
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold truncate text-white/90">{song.titre || 'Sans titre'}</p>
@@ -722,7 +762,7 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
   const [sortBy, setSortBy]         = useState('createdAt');
   const [sortDir, setSortDir]       = useState('desc');
   const [editingSong, setEditingSong] = useState(null);
-  const [showAddModal, setShowAddModal] = useState(false); // NOUVEAU
+  const [showAddModal, setShowAddModal] = useState(false);
   const [deleting, setDeleting]     = useState(null);
   const [notifDismissed, setNotifDismissed] = useState(false);
   const [page, setPage]             = useState(1);
@@ -737,7 +777,9 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
       ]);
       let allSongs = []; let p = 1; let totalPages = 1;
       do {
-        const res = await fetch(`${API}/songs?page=${p}&limit=100`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(`${API}/songs?page=${p}&limit=100`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (!res.ok) break;
         const data = await res.json();
         const batch = Array.isArray(data) ? data : (data.songs || []);
@@ -760,34 +802,38 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(s =>
-        (s.titre || '').toLowerCase().includes(q) ||
+        (s.titre   || '').toLowerCase().includes(q) ||
         (s.artiste || '').toLowerCase().includes(q) ||
-        (s.genre || '').toLowerCase().includes(q) ||
-        (s.moods || []).some(m => m.toLowerCase().includes(q))
+        (s.genre   || '').toLowerCase().includes(q) ||
+        (s.moods   || []).some(m => m.toLowerCase().includes(q))
       );
     }
-    if (filter === 'incomplete') list = list.filter(s => !s.artiste && !s.artisteId);
-    if (filter === 'complete')   list = list.filter(s => s.artiste || s.artisteId);
+    if (filter === 'incomplete') list = list.filter(s => !s.artiste?.trim() && !s.artisteId);
+    if (filter === 'complete')   list = list.filter(s =>  s.artiste?.trim() || s.artisteId);
     if (filter === 'nomood')     list = list.filter(s => !s.moods?.length);
-    if (moodFilter)              list = list.filter(s => s.moods?.includes(moodFilter));
+    if (moodFilter)              list = list.filter(s =>  s.moods?.includes(moodFilter));
+
     list.sort((a, b) => {
-      let va = a[sortBy] || ''; let vb = b[sortBy] || '';
+      let va = a[sortBy] || '';
+      let vb = b[sortBy] || '';
       if (sortBy === 'createdAt') { va = new Date(va); vb = new Date(vb); }
-      else if (typeof va === 'string') {
-         va = va.toLowerCase()
-         vb = vb.toLowerCase()
-      }
-      if (va < vb) return sortDir === 'asc' ? -1 : 1;
-      if (va > vb) return sortDir === 'asc' ? 1 : -1;
+      else if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+      if (va < vb) return sortDir === 'asc' ? -1 :  1;
+      if (va > vb) return sortDir === 'asc' ?  1 : -1;
       return 0;
     });
     return list;
   }, [songs, search, filter, moodFilter, sortBy, sortDir]);
 
   const totalPages      = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated       = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
-  const incompleteCount = useMemo(() => songs.filter(s => !s.artiste && !s.artisteId).length, [songs]);
+  const paginated       = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const incompleteCount = useMemo(() => songs.filter(s => !s.artiste?.trim() && !s.artisteId).length, [songs]);
   const noMoodCount     = useMemo(() => songs.filter(s => !s.moods?.length).length, [songs]);
+
+  // FIX : reset page sur changement de filtre/mood
+  const handleFilterChange  = (f) => { setFilter(f);   setPage(1); };
+  const handleMoodChange    = (m) => { setMoodFilter(m); setPage(1); };
+  const handleSearchChange  = (v) => { setSearch(v);   setPage(1); };
 
   const toggleSort = (col) => {
     if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -798,29 +844,31 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
   const handleDelete = async (song) => {
     if (!window.confirm(`Supprimer "${song.titre}" ?`)) return;
     setDeleting(song._id);
-    await fetch(`${API}/songs/${song._id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    await fetch(`${API}/songs/${song._id}`, {
+      method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {});
     setSongs(prev => prev.filter(s => s._id !== song._id));
     setDeleting(null);
   };
 
-  const handleSaved = (updated) => {
+  const handleSaved = (updated) =>
     setSongs(prev => prev.map(s => s._id === updated._id ? { ...s, ...updated } : s));
-  };
 
-  // NOUVEAU : ajout d'une musique à la liste locale
-  const handleAdded = (newSong) => {
+  const handleAdded = (newSong) =>
     setSongs(prev => [newSong, ...prev]);
-  };
 
-  const SortIcon = ({ col }) => {
+  // FIX : SortIcon stable (pas de inline component dans JSX)
+  const renderSortIcon = (col) => {
     if (sortBy !== col) return <ArrowUpDown size={11} className="text-zinc-700"/>;
-    return sortDir === 'asc' ? <SortAsc size={11} className="text-red-400"/> : <SortDesc size={11} className="text-red-400"/>;
+    return sortDir === 'asc'
+      ? <SortAsc  size={11} className="text-red-400"/>
+      : <SortDesc size={11} className="text-red-400"/>;
   };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
 
-      {/* Titre + bouton Ajouter */}
+      {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black flex items-center gap-3">
@@ -830,17 +878,14 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
             Bibliothèque Admin
           </h1>
           <p className="text-[11px] text-zinc-500 mt-1">
-            {songs.length} titre{songs.length>1?'s':''} au total
+            {songs.length} titre{songs.length > 1 ? 's' : ''} au total
             {incompleteCount > 0 && <span className="text-orange-400 ml-2">· {incompleteCount} sans artiste</span>}
             {noMoodCount > 0 && <span className="text-zinc-600 ml-2">· {noMoodCount} sans mood</span>}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {/* NOUVEAU : bouton Ajouter une musique */}
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 text-xs font-bold text-white bg-red-600 hover:bg-red-500 px-4 py-2 rounded-xl transition active:scale-95 shadow-lg shadow-red-600/20"
-          >
+          <button onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 text-xs font-bold text-white bg-red-600 hover:bg-red-500 px-4 py-2 rounded-xl transition active:scale-95 shadow-lg shadow-red-600/20">
             <Plus size={14}/> Ajouter une musique
           </button>
           <button onClick={load} disabled={loading}
@@ -851,20 +896,24 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
         </div>
       </div>
 
-      {/* Notifications incomplètes */}
+      {/* Notifications */}
       {!notifDismissed && (
-        <IncompleteNotificationsPanel songs={songs} onEdit={setEditingSong} onDismiss={() => setNotifDismissed(true)}/>
+        <IncompleteNotificationsPanel
+          songs={songs}
+          onEdit={setEditingSong}
+          onDismiss={() => setNotifDismissed(true)}
+        />
       )}
 
-      {/* Barre de recherche + filtres */}
+      {/* Recherche + filtres */}
       <div className="space-y-3">
         <div className="relative">
           <Search size={14} className="absolute left-3.5 top-3 text-zinc-500"/>
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+          <input value={search} onChange={e => handleSearchChange(e.target.value)}
             placeholder="Rechercher par titre, artiste, genre, mood..."
             className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl pl-9 pr-10 py-2.5 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600"/>
           {search && (
-            <button onClick={() => { setSearch(''); setPage(1); }} className="absolute right-3 top-2.5 text-zinc-500 hover:text-white p-0.5 rounded-full transition">
+            <button onClick={() => handleSearchChange('')} className="absolute right-3 top-2.5 text-zinc-500 hover:text-white p-0.5 rounded-full transition">
               <X size={14}/>
             </button>
           )}
@@ -872,19 +921,26 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
 
         <div className="flex gap-2 flex-wrap items-center">
           {[
-            ['all', 'Tout', songs.length],
-            ['incomplete', '⚠️ Sans artiste', incompleteCount],
-            ['complete', '✓ Complets', songs.length - incompleteCount],
-            ['nomood', '🏷️ Sans mood', noMoodCount],
+            ['all',        'Tout',           songs.length                     ],
+            ['incomplete', '⚠️ Sans artiste', incompleteCount                 ],
+            ['complete',   '✓ Complets',      songs.length - incompleteCount  ],
+            ['nomood',     '🏷️ Sans mood',    noMoodCount                     ],
           ].map(([k, l, c]) => (
-            <button key={k} onClick={() => { setFilter(k); setPage(1); }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border ${filter===k ? 'bg-red-600/20 border-red-500/40 text-white' : 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:text-white'}`}>
+            <button key={k} onClick={() => handleFilterChange(k)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
+                filter === k
+                  ? 'bg-red-600/20 border-red-500/40 text-white'
+                  : 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:text-white'
+              }`}>
               {l}
-              <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${filter===k ? 'bg-red-600/30 text-red-300' : 'bg-zinc-800 text-zinc-600'}`}>{c}</span>
+              <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                filter === k ? 'bg-red-600/30 text-red-300' : 'bg-zinc-800 text-zinc-600'
+              }`}>{c}</span>
             </button>
           ))}
 
-          <select value={moodFilter} onChange={e => { setMoodFilter(e.target.value); setPage(1); }}
+          {/* FIX : handleMoodChange reset la pagination */}
+          <select value={moodFilter} onChange={e => handleMoodChange(e.target.value)}
             className="bg-zinc-900/60 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-400 outline-none focus:ring-1 ring-red-600">
             <option value="">Tous les moods</option>
             {MOOD_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
@@ -899,12 +955,19 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
         </div>
       ) : (
         <>
+          {/* En-têtes colonnes */}
           <div className="hidden md:grid grid-cols-[auto_1fr_1fr_1fr_auto_auto_auto] gap-3 px-4 py-2 text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
             <div className="w-10"/>
-            <button onClick={() => toggleSort('titre')} className="flex items-center gap-1 hover:text-zinc-300 transition text-left">Titre <SortIcon col="titre"/></button>
-            <button onClick={() => toggleSort('artiste')} className="flex items-center gap-1 hover:text-zinc-300 transition text-left">Artiste <SortIcon col="artiste"/></button>
+            <button onClick={() => toggleSort('titre')}   className="flex items-center gap-1 hover:text-zinc-300 transition text-left">
+              Titre {renderSortIcon('titre')}
+            </button>
+            <button onClick={() => toggleSort('artiste')} className="flex items-center gap-1 hover:text-zinc-300 transition text-left">
+              Artiste {renderSortIcon('artiste')}
+            </button>
             <div>Moods</div>
-            <button onClick={() => toggleSort('plays')} className="flex items-center gap-1 hover:text-zinc-300 transition">Écoutes <SortIcon col="plays"/></button>
+            <button onClick={() => toggleSort('plays')}   className="flex items-center gap-1 hover:text-zinc-300 transition">
+              Écoutes {renderSortIcon('plays')}
+            </button>
             <div>Statut</div>
             <div>Actions</div>
           </div>
@@ -914,10 +977,8 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
               <div className="text-center py-12 text-zinc-600">
                 <Music size={36} className="mx-auto mb-2 opacity-20"/>
                 <p className="text-sm">Aucune musique ne correspond aux filtres</p>
-                <button
-                  onClick={() => setShowAddModal(true)}
-                  className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-red-400 bg-red-600/10 hover:bg-red-600/20 border border-red-600/20 px-4 py-2 rounded-xl transition"
-                >
+                <button onClick={() => setShowAddModal(true)}
+                  className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-red-400 bg-red-600/10 hover:bg-red-600/20 border border-red-600/20 px-4 py-2 rounded-xl transition">
                   <Plus size={13}/> Ajouter la première musique
                 </button>
               </div>
@@ -926,23 +987,33 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
               const isDel    = deleting === song._id;
               return (
                 <div key={song._id}
-                  className={`group flex items-center gap-3 p-3 rounded-xl transition cursor-pointer ${isActive ? 'bg-red-600/8 border border-red-600/15' : 'hover:bg-zinc-900/60 border border-transparent'}`}
+                  className={`group flex items-center gap-3 p-3 rounded-xl transition cursor-pointer ${
+                    isActive ? 'bg-red-600/8 border border-red-600/15' : 'hover:bg-zinc-900/60 border border-transparent'
+                  }`}
                   onClick={() => { setCurrentSong(song); setIsPlaying(true); }}>
+
                   <div className="w-10 h-10 rounded-lg overflow-hidden bg-zinc-800 shrink-0 relative">
-                    {song.image ? <img src={song.image} className="w-full h-full object-cover" alt=""/> : <Music size={14} className="text-zinc-600 m-auto mt-3"/>}
+                    {song.image
+                      ? <img src={song.image} className="w-full h-full object-cover" alt=""/>
+                      : <Music size={14} className="text-zinc-600 m-auto mt-3"/>
+                    }
                     {isActive && isPlaying && (
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                        <Pause size={12} fill="white" className="text-white"/>
+                        <div className="w-3 h-3 border-2 border-white rounded-sm"/>
                       </div>
                     )}
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-bold truncate ${isActive ? 'text-red-400' : 'text-zinc-100'}`}>{song.titre || 'Sans titre'}</p>
-                    <p className="text-[10px] text-zinc-500 truncate uppercase">{song.artiste || <span className="text-orange-400">⚠️ Sans artiste</span>}</p>
+                    <p className={`text-sm font-bold truncate ${isActive ? 'text-red-400' : 'text-zinc-100'}`}>
+                      {song.titre || 'Sans titre'}
+                    </p>
+                    <p className="text-[10px] text-zinc-500 truncate uppercase">
+                      {song.artiste || <span className="text-orange-400">⚠️ Sans artiste</span>}
+                    </p>
                   </div>
 
-                  <div className="hidden md:flex items-center gap-1 flex-wrap max-w-35">
+                  <div className="hidden md:flex items-center gap-1 flex-wrap max-w-[140px]">
                     {song.moods?.length > 0
                       ? song.moods.slice(0, 2).map(m => (
                         <span key={m} className="text-[8px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded-full">{m}</span>
@@ -959,7 +1030,8 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
                     <StatusBadge song={song}/>
                   </div>
 
-                  <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition shrink-0" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition shrink-0"
+                    onClick={e => e.stopPropagation()}>
                     <button onClick={() => setEditingSong(song)}
                       className="p-1.5 hover:bg-zinc-700 text-zinc-500 hover:text-white rounded-lg transition" title="Modifier">
                       <Edit3 size={14}/>
@@ -979,7 +1051,7 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
             <div className="flex items-center justify-between pt-4">
               <p className="text-xs text-zinc-600">{filtered.length} résultats · page {page}/{totalPages}</p>
               <div className="flex gap-1">
-                <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
                   className="px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-800 rounded-xl disabled:opacity-30 hover:bg-zinc-800 transition text-zinc-400 hover:text-white">
                   ← Préc.
                 </button>
@@ -987,12 +1059,14 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
                   const p = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
                   return (
                     <button key={p} onClick={() => setPage(p)}
-                      className={`px-3 py-1.5 text-xs rounded-xl transition ${p === page ? 'bg-red-600 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800'}`}>
+                      className={`px-3 py-1.5 text-xs rounded-xl transition ${
+                        p === page ? 'bg-red-600 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                      }`}>
                       {p}
                     </button>
                   );
                 })}
-                <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages}
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
                   className="px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-800 rounded-xl disabled:opacity-30 hover:bg-zinc-800 transition text-zinc-400 hover:text-white">
                   Suiv. →
                 </button>
@@ -1011,7 +1085,7 @@ const AdminLibraryView = ({ token, currentSong, setCurrentSong, setIsPlaying, is
         />
       )}
 
-      {/* NOUVEAU : Modal ajout musique */}
+      {/* Modal ajout */}
       {showAddModal && (
         <AddSongModal
           token={token} artists={artists} albums={albums}

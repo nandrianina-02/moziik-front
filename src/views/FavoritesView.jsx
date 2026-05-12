@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Heart, Loader2, Play, Pause, Shuffle, ListMusic } from 'lucide-react';
 import SongRow from '../components/music/SongRow';
 import { API } from '../config/api';
-import { usePlayerQueue } from '../hooks/usePlayerQueue';   // ← hook centralisé
 
 const FavoritesView = ({
   setCurrentSong, setIsPlaying, currentSong, isPlaying,
@@ -10,9 +9,11 @@ const FavoritesView = ({
   isAdmin, isArtist, userArtistId, userId,
   playlists, userPlaylists, onAddToUserPlaylist,
   ajouterAPlaylist, onDeleted, onRefresh, onTogglePlaylistVisibility,
+  playAll,
 }) => {
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading]     = useState(false);
+  const [shuffleActive, setShuffleActive] = useState(false);
 
   useEffect(() => {
     if (!token || !isLoggedIn) { setFavorites([]); return; }
@@ -30,17 +31,34 @@ const FavoritesView = ({
     setFavorites(prev => prev.filter(s => s._id !== id));
   };
 
-  // ── Hook de queue ────────────────────────────────────────────
-  const queue = usePlayerQueue({
-    songs: favorites,
-    setCurrentSong,
-    setIsPlaying,
-    setQueue,
-    addToQueue,
-  });
-
   const isCurrentFavPlaying =
     currentSong && favorites.some(s => String(s._id) === String(currentSong._id)) && isPlaying;
+
+  // ── Lire tout depuis le début ──────────────────────────────────
+  const handlePlayAll = useCallback(() => {
+    if (!favorites.length) return;
+    playAll(favorites, 0);
+  }, [favorites, playAll]);
+
+  // ── Clic sur un titre → lecture depuis ce titre ────────────────
+  const handlePlaySong = useCallback((song) => {
+    const index = favorites.findIndex(s => String(s._id) === String(song._id));
+    playAll(favorites, index >= 0 ? index : 0);
+  }, [favorites, playAll]);
+
+  // ── Lecture aléatoire ──────────────────────────────────────────
+  const handleShuffle = useCallback(() => {
+    if (!favorites.length) return;
+    const shuffled = [...favorites].sort(() => Math.random() - 0.5);
+    setShuffleActive(prev => !prev);
+    playAll(shuffled, 0);
+  }, [favorites, playAll]);
+
+  // ── Ajouter tous les favoris à la file ────────────────────────
+  const handleAddAllToQueue = useCallback(() => {
+    if (!favorites.length || !addToQueue) return;
+    favorites.forEach(song => addToQueue(song));
+  }, [favorites, addToQueue]);
 
   if (!isLoggedIn) return (
     <div className="flex flex-col items-center justify-center h-64 text-zinc-600 gap-3">
@@ -70,8 +88,6 @@ const FavoritesView = ({
     onDeleted,
     onRefresh,
     onTogglePlaylistVisibility,
-    // Clic sur un SongRow → hook reconstruit la queue des favoris
-    onPlay: (song) => queue.playSong(song),
   };
 
   return (
@@ -95,7 +111,7 @@ const FavoritesView = ({
           {!loading && favorites.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={isCurrentFavPlaying ? () => setIsPlaying(false) : queue.playAll}
+                onClick={isCurrentFavPlaying ? () => setIsPlaying(false) : handlePlayAll}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm
                             transition-all active:scale-95 shadow-lg ${
                   isCurrentFavPlaying
@@ -109,10 +125,10 @@ const FavoritesView = ({
               </button>
 
               <button
-                onClick={queue.shuffle}
+                onClick={handleShuffle}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border
                             transition-all active:scale-95 ${
-                  queue.shuffleActive
+                  shuffleActive
                     ? 'bg-red-500/15 border-red-500/40 text-red-400'
                     : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:border-white/20 hover:bg-white/8'
                 }`}
@@ -123,7 +139,7 @@ const FavoritesView = ({
 
               {addToQueue && (
                 <button
-                  onClick={queue.addAllToQueue}
+                  onClick={handleAddAllToQueue}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border
                              bg-white/5 border-white/10 text-zinc-400 hover:text-white
                              hover:border-white/20 hover:bg-white/8 transition-all active:scale-95"
@@ -156,8 +172,7 @@ const FavoritesView = ({
                 song={{ ...song, liked: true }}
                 index={index}
                 {...songProps}
-                // Clic → hook reconstruit la queue des favoris
-                onPlay={() => queue.playSong(song)}
+                onPlay={() => handlePlaySong(song)}
               />
             ))
           )}

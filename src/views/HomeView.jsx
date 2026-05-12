@@ -5,7 +5,8 @@ import {
   Users, AlertTriangle, Share2, Clock, WifiOff,
   Star, Radio, Gem, Trophy, Zap, Sun, Bell, Ticket, Calendar, MapPin, ChevronLeft,
   ChevronDown, ChevronUp,
-  Plus, ListMusic
+  Plus, ListMusic,
+  Wand2, // ← MODIF : icône "Pour vous"
 } from 'lucide-react';
 import SongRow from '../components/music/SongRow';
 import GlobalSearchView from './GlobalSearchView';
@@ -14,6 +15,9 @@ import { usePushNotifications } from '../hooks/usePushNotifications';
 import useSubscription from '../hooks/useSubscription';
 import { StoriesBar } from '../components/SocialComponents';
 import { AudioAdPlayer } from '../components/MonetisationComponents';
+
+// ← MODIF : import du moteur de recommandations
+import useSmartRecommendations, { recordListenHistory } from '../hooks/useSmartRecommendations';
 
 // ════════════════════════════════════════════
 // HOOK UTILITAIRE : "Voir plus"
@@ -302,8 +306,7 @@ const RecentSharesSection = ({ token, setCurrentSong, setIsPlaying, currentSong,
   const validShares = shares.filter(s => s.songId);
   if (!validShares.length) return null;
 
-  // MODIF: cap à 20 max
-  const cappedShares = validShares.slice(0, 20);
+  const cappedShares  = validShares.slice(0, 20);
   const visibleShares = expanded ? cappedShares : cappedShares.slice(0, limit);
 
   const resolveAndPlay = (songId) => {
@@ -326,7 +329,7 @@ const RecentSharesSection = ({ token, setCurrentSong, setIsPlaying, currentSong,
         }
       >
         {visibleShares.map(share => {
-          const song = share.songId;
+          const song    = share.songId;
           const expired = new Date(share.expiresAt) < new Date();
           return (
             <div
@@ -371,15 +374,9 @@ const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
     return () => clearInterval(intervalRef.current);
   }, [events.length]);
 
-  const goTo = (i) => {
-    clearInterval(intervalRef.current);
-    setCurrent(i);
-    intervalRef.current = setInterval(() => setCurrent(c => (c + 1) % events.length), 4000);
-  };
-
   if (!events.length) return null;
 
-  const ev = events[current];
+  const ev     = events[current];
   const isPast = new Date(ev.date) < new Date();
 
   return (
@@ -391,7 +388,7 @@ const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
       <div className="group relative w-full mx-auto rounded-2xl overflow-hidden bg-[#1a0a2e] border border-purple-500/30 shadow-2xl shadow-purple-900/20">
         {ev.image
           ? <img src={ev.image} alt={ev.title}
-            className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105" />
+              className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105" />
           : <div className="absolute inset-0 bg-linear-to-br from-purple-900/60 to-zinc-950" />
         }
         <div className="absolute inset-0 bg-linear-to-r from-zinc-950/95 via-zinc-950/70 to-zinc-950/15" />
@@ -464,7 +461,7 @@ const EventsBannerSlider = ({ setCurrentSong, setIsPlaying }) => {
             </div>
             {!isPast && (
               <div className="flex-1 flex justify-end">
-                <a href={`/events/`}
+                <a href="/events/"
                   className="inline-flex items-center gap-1.5 bg-purple-700 hover:bg-purple-600 text-white font-black rounded-xl transition-all active:scale-95"
                   style={{ fontSize: 'clamp(9px,1.8vw,11px)', padding: '7px 14px', letterSpacing: '0.04em' }}>
                   RÉSERVER
@@ -488,7 +485,6 @@ const OfflineSection = ({ musiques, setCurrentSong, setIsPlaying, currentSong, i
   const COLS = 2;
   const ROWS = 3;
   const PAGE = COLS * ROWS;
-  // NOTE: Section offline — pas de cap à 20, comportement original conservé
   const { expanded, limit, toggle } = useShowMore(PAGE);
 
   if (!cached.length) return null;
@@ -502,12 +498,8 @@ const OfflineSection = ({ musiques, setCurrentSong, setIsPlaying, currentSong, i
         title="Disponible hors-ligne"
         subtitle={`${cached.length} titre${cached.length > 1 ? 's' : ''} téléchargé${cached.length > 1 ? 's' : ''}`}
       />
-
       <div className="block md:hidden">
-        <div
-          className="flex gap-3 overflow-x-auto pb-2"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        >
+        <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {Array.from({ length: Math.ceil(visible.length / ROWS) }, (_, colIdx) => {
             const colItems = visible.slice(colIdx * ROWS, (colIdx + 1) * ROWS);
             return (
@@ -526,15 +518,9 @@ const OfflineSection = ({ musiques, setCurrentSong, setIsPlaying, currentSong, i
           })}
         </div>
         {cached.length > PAGE && (
-          <ShowMoreButton
-            expanded={expanded}
-            onToggle={toggle}
-            total={cached.length}
-            shown={visible.length}
-          />
+          <ShowMoreButton expanded={expanded} onToggle={toggle} total={cached.length} shown={visible.length} />
         )}
       </div>
-
       <div className="hidden md:block">
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {visible.map(song => (
@@ -548,12 +534,7 @@ const OfflineSection = ({ musiques, setCurrentSong, setIsPlaying, currentSong, i
           ))}
         </div>
         {cached.length > PAGE && (
-          <ShowMoreButton
-            expanded={expanded}
-            onToggle={toggle}
-            total={cached.length}
-            shown={visible.length}
-          />
+          <ShowMoreButton expanded={expanded} onToggle={toggle} total={cached.length} shown={visible.length} />
         )}
       </div>
     </section>
@@ -587,11 +568,11 @@ const OfflineSongCard = ({ song, isActive, isPlaying, onClick }) => (
 );
 
 // ════════════════════════════════════════════
-// SECTION PLAYLISTS PUBLIQUES (NOUVELLE)
+// SECTION PLAYLISTS PUBLIQUES
 // ════════════════════════════════════════════
 const PublicPlaylistsSection = ({ token, setCurrentSong, setIsPlaying, currentSong, isPlaying, musiques }) => {
   const [playlists, setPlaylists] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]     = useState(true);
   const { expanded, limit, toggle } = useShowMore(8);
 
   useEffect(() => {
@@ -630,9 +611,8 @@ const PublicPlaylistsSection = ({ token, setCurrentSong, setIsPlaying, currentSo
       >
         {visiblePlaylists.map(playlist => {
           const coverImage = playlist.image || playlist.musiques?.[0]?.image || '/icon-192.png';
-          const songCount = playlist.musiques?.length || 0;
-          const isActive = playlist.musiques?.some(s => (s._id || s) === currentSong?._id);
-
+          const songCount  = playlist.musiques?.length || 0;
+          const isActive   = playlist.musiques?.some(s => (s._id || s) === currentSong?._id);
           return (
             <div
               key={playlist._id}
@@ -640,7 +620,6 @@ const PublicPlaylistsSection = ({ token, setCurrentSong, setIsPlaying, currentSo
               className="shrink-0 w-28 md:w-32 group cursor-pointer"
             >
               <div className="relative mb-2 aspect-square">
-                {/* Mosaïque 2x2 si 4+ chansons avec images */}
                 {playlist.songs?.filter(s => s.image).length >= 4 ? (
                   <div className="w-full h-full rounded-2xl overflow-hidden grid grid-cols-2 gap-0.5 bg-zinc-800 shadow-lg">
                     {playlist.songs.filter(s => s.image).slice(0, 4).map((s, i) => (
@@ -654,30 +633,20 @@ const PublicPlaylistsSection = ({ token, setCurrentSong, setIsPlaying, currentSo
                     alt=""
                   />
                 )}
-
-                {/* Overlay play */}
                 <div className={`absolute inset-0 rounded-2xl flex items-center justify-center bg-black/50 transition ${isActive && isPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                   <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
-                    {isActive && isPlaying
-                      ? <Pause fill="white" size={15} />
-                      : <Play fill="white" size={15} className="ml-0.5" />
-                    }
+                    {isActive && isPlaying ? <Pause fill="white" size={15} /> : <Play fill="white" size={15} className="ml-0.5" />}
                   </div>
                 </div>
-
-                {/* Compteur de titres */}
                 <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full">
                   {songCount} titre{songCount !== 1 ? 's' : ''}
                 </span>
-
-                {/* Badge officielle */}
                 {playlist.isOfficial && (
                   <span className="absolute top-2 left-2 bg-teal-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide">
                     Officielle
                   </span>
                 )}
               </div>
-
               <p className="text-xs font-bold truncate text-zinc-200">{playlist.nom || playlist.title || 'Playlist'}</p>
               <p className="text-[10px] text-zinc-600 truncate mt-0.5 uppercase tracking-wide">
                 {playlist.createdBy?.nom || playlist.userId?.nom || 'Anonyme'}
@@ -705,13 +674,12 @@ const HomeView = ({
   isAudioCached, cachedIds,
   onInfiniteRadio,
 }) => {
-  const canUpload = isAdmin || isArtist;
   const songs = Array.isArray(musiques) ? musiques : [];
 
-  const { isPremium } = useSubscription(token);
+  const { isPremium }                                          = useSubscription(token);
   const { subscribed, subscribe, unsubscribe, loading: pushLoading } = usePushNotifications(token);
 
-  // ── "Voir plus" hooks ──
+  // ── "Voir plus" hooks ──────────────────────────────────────────────────────
   const top24hShowMore     = useShowMore(5);
   const nouveautesShowMore = useShowMore(8);
   const artistesShowMore   = useShowMore(8);
@@ -720,21 +688,61 @@ const HomeView = ({
   const rankingShowMore    = useShowMore(5);
   const favorisShowMore    = useShowMore(5);
   const moodShowMore       = useShowMore(5);
+  // ← MODIF : "voir plus" pour la section "Pour vous"
+  const pourVousShowMore   = useShowMore(8);
+  // ← MODIF : "voir plus" pour l'ambiance contextuelle
+  const ambianceShowMore   = useShowMore(8);
 
-  const [showAd, setShowAd] = useState(false);
-  const [adCount, setAdCount] = useState(0);
-  const adCountRef = useRef(adCount);
-  adCountRef.current = adCount;
-
+  const [showAd, setShowAd]             = useState(false);
   const [selectedMood, setSelectedMood] = useState(null);
-  const [lastPlayed, setLastPlayed] = useState(null);
-  const [heroSong, setHeroSong] = useState(null);
-  const [top24h, setTop24h] = useState([]);
+  const [lastPlayed, setLastPlayed]     = useState(null);
+  const [heroSong, setHeroSong]         = useState(null);
+  const [top24h, setTop24h]             = useState([]);
   const [recentAlbums, setRecentAlbums] = useState([]);
   const [friendRanking, setFriendRanking] = useState([]);
-  const [downloadingId, setDownloadingId] = useState(null);
-  const [downloadedId, setDownloadedId] = useState(null);
 
+  // ← MODIF : moteur de recommandations intelligent
+  const {
+    pourVous,
+    trendingHybrid,
+    nouveautes,
+    decouverteduJour,
+    ambianceContextuelle,
+    gems,
+    artistesTendance,
+    isPersonalized,
+  } = useSmartRecommendations({ songs, selectedMood, limit: 20 });
+
+  // ← MODIF : enregistrement automatique des écoutes dans l'historique local
+  const prevSongIdRef    = useRef(null);
+  const sessionStartRef  = useRef(null);
+
+  useEffect(() => {
+    if (!currentSong) return;
+    if (prevSongIdRef.current && prevSongIdRef.current !== currentSong._id) {
+      // La chanson vient de changer → enregistrer la durée écoutée
+      const duration = sessionStartRef.current
+        ? Math.round((Date.now() - sessionStartRef.current) / 1000)
+        : 0;
+      recordListenHistory(prevSongIdRef.current, duration);
+    }
+    prevSongIdRef.current   = currentSong._id;
+    sessionStartRef.current = isPlaying ? Date.now() : null;
+  }, [currentSong?._id]);
+
+  useEffect(() => {
+    if (!currentSong) return;
+    if (isPlaying) {
+      sessionStartRef.current = sessionStartRef.current || Date.now();
+    } else if (sessionStartRef.current) {
+      // Pause → enregistrer la durée partielle
+      const duration = Math.round((Date.now() - sessionStartRef.current) / 1000);
+      if (duration > 5) recordListenHistory(currentSong._id, duration);
+      sessionStartRef.current = null;
+    }
+  }, [isPlaying]);
+
+  // ── Données asynchrones (inchangées) ──────────────────────────────────────
   useEffect(() => {
     if (!isLoggedIn) return;
     try {
@@ -747,39 +755,39 @@ const HomeView = ({
   }, [isLoggedIn]);
 
   useEffect(() => {
+    // ← MODIF : hero song = découverte personnalisée ou fallback API
     fetch(`${API}/songs/meta`).then(r => r.ok ? r.json() : null).then(d => {
       if (d?.heroSong) { setHeroSong(d.heroSong); return; }
+      if (decouverteduJour) { setHeroSong(decouverteduJour); return; }
       if (songs.length) {
         const seed = parseInt(new Date().toISOString().slice(0, 10).replace(/-/g, ''));
-        const top = [...songs].sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 10);
+        const top  = [...songs].sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 10);
         setHeroSong(top[seed % top.length]);
       }
     }).catch(() => {
+      if (decouverteduJour) { setHeroSong(decouverteduJour); return; }
       if (songs.length) {
         const seed = parseInt(new Date().toISOString().slice(0, 10).replace(/-/g, ''));
-        const top = [...songs].sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 10);
+        const top  = [...songs].sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 10);
         setHeroSong(top[seed % top.length]);
       }
     });
-  }, [songs.length]);
+  }, [songs.length, decouverteduJour]);
 
   useEffect(() => {
+    // ← MODIF : si l'API ne répond pas, on utilise le trending hybride local
     fetch(`${API}/trending?limit=20`)
       .then(r => r.ok ? r.json() : [])
       .then(d => {
         const list = Array.isArray(d) ? d.filter(s => s.songId).map(s => s.songId) : [];
         if (list.length) {
-          const enriched = list.map(t => {
-            const full = songs.find(s => s._id === (t._id || t));
-            return full || t;
-          });
-          setTop24h(enriched);
+          setTop24h(list.map(t => songs.find(s => s._id === (t._id || t)) || t));
         } else {
-          setTop24h([...songs].sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 20));
+          setTop24h(trendingHybrid);
         }
       })
-      .catch(() => setTop24h([...songs].sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 20)));
-  }, [songs.length]);
+      .catch(() => setTop24h(trendingHybrid));
+  }, [songs.length, trendingHybrid]);
 
   useEffect(() => {
     fetch(`${API}/albums?limit=20`).then(r => r.ok ? r.json() : []).then(d => setRecentAlbums(Array.isArray(d) ? d : [])).catch(() => { });
@@ -797,87 +805,30 @@ const HomeView = ({
     if (!currentSong || !isLoggedIn) return;
     const save = () => {
       const audio = document.querySelector('audio');
-      const ts = audio?.currentTime || 0;
+      const ts    = audio?.currentTime || 0;
       localStorage.setItem('moozik_last_played', JSON.stringify({ song: currentSong, timestamp: ts, savedAt: new Date().toISOString() }));
     };
     const t = setInterval(save, 5000);
     return () => clearInterval(t);
   }, [currentSong, isLoggedIn]);
 
-  // ══ MODIF 1 : Nouveautés triées par date de sortie (annee + mois) ══
-  const recentMusiques = useMemo(() => {
-    return [...songs].sort((a, b) => {
-      // Priorité : champ `annee` (année de sortie) + `mois` si présents
-      const getReleaseDateValue = (song) => {
-        if (song.annee) {
-          const year = parseInt(song.annee) || 0;
-          const month = parseInt(song.mois) || 0;
-          return year * 100 + month; // ex: 2024*100+5 = 202405
-        }
-        // Fallback sur createdAt
-        return new Date(song.createdAt).getTime() / 1000000;
-      };
-      return getReleaseDateValue(b) - getReleaseDateValue(a);
-    });
-  }, [songs]);
-
+  // ── isNewSong (inchangé) ──────────────────────────────────────────────────
   const isNewSong = (song) => {
-    const currentYear = new Date().getFullYear();
+    const currentYear  = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
     if (song.annee) {
-      const songYear = parseInt(song.annee) || 0;
-      const songMonth = parseInt(song.mois) || 0;
+      const songYear  = parseInt(song.annee) || 0;
+      const songMonth = parseInt(song.mois)  || 0;
       if (songYear === currentYear && (!songMonth || songMonth >= currentMonth - 1)) return true;
     }
-    const diff = Date.now() - new Date(song.createdAt).getTime();
-    return diff < 7 * 86400000;
+    return Date.now() - new Date(song.createdAt).getTime() < 7 * 86400000;
   };
 
-  const discoveryToday = useMemo(() => {
-    if (!songs.length) return null;
-    const lowPlays = songs.filter(s => (s.plays || 0) < 100);
-    const pool = lowPlays.length > 0 ? lowPlays : songs;
-    const seed = parseInt(new Date().toISOString().slice(0, 10).replace(/-/g, ''));
-    return pool[seed % pool.length];
-  }, [songs]);
-
-  const trendingArtistsMemo = useMemo(() => {
-    const counts = {};
-    songs.forEach(s => { if (s.artiste) counts[s.artiste] = (counts[s.artiste] || 0) + (s.plays || 0); });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1])
-      .map(([nom, plays]) => ({ nom, plays, song: songs.find(s => s.artiste === nom) }));
-  }, [songs]);
-
-  const hiddenGems = useMemo(() =>
-    songs.filter(s => (s.plays || 0) < 100 && s.liked)
-      .sort((a, b) => (b.plays || 0) - (a.plays || 0)),
-    [songs]);
-
-  const MOOD_KEYWORDS = {
-    'Chill':     ['chill','calme','doux','relax','slow','lounge','ambient','soir'],
-    'Énergie':   ['énergie','energie','energy','fast','rapide','power','boost','dance','danse'],
-    'Focus':     ['focus','concentration','study','travail','work','deep','instrumental'],
-    'Fête':      ['fête','fete','party','club','festif','nuit','afrobeats','dancehall'],
-    'Nostalgie': ['nostalgie','nostalgia','retro','oldschool','old','classic','souvenir'],
-    'Romance':   ['romance','amour','love','romantique','tendresse','coeur'],
-    'Motivant':  ['motivant','motivation','inspire','gospel','victoire','triumph','champion'],
-    'Gospel':    ['gospel','dieu','jesus','christ','praise','worship','gloire','seigneur'],
-  };
-
+  // ── Mood filtré — maintenant via ambianceContextuelle ──────────────────────
   const moodFiltered = useMemo(() => {
-    if (!selectedMood) return songs;
-    const hasMoodsField = songs.some(s => Array.isArray(s.moods) && s.moods.length > 0);
-    if (hasMoodsField) {
-      const tagged = songs.filter(s => s.moods?.includes(selectedMood));
-      if (tagged.length > 0) return tagged;
-    }
-    const keywords = MOOD_KEYWORDS[selectedMood] || [selectedMood.toLowerCase()];
-    return songs.filter(s => {
-      const text = [s.titre, s.artiste, s.genre, s.description, s.album]
-        .filter(Boolean).join(' ').toLowerCase();
-      return keywords.some(kw => text.includes(kw));
-    });
-  }, [songs, selectedMood]);
+    if (!selectedMood) return [];
+    return ambianceContextuelle.songs; // ← MODIF : résultat du hook intelligent
+  }, [selectedMood, ambianceContextuelle]);
 
   const favorites = useMemo(() => songs.filter(s => s.liked), [songs]);
 
@@ -891,51 +842,58 @@ const HomeView = ({
   };
 
   const MOODS = [
-    { label: 'Chill',     color: 'bg-sky-500/20 border-sky-500/30 text-sky-300',           activeColor: 'bg-sky-500/30 border-sky-400 text-sky-200'       },
+    { label: 'Chill',     color: 'bg-sky-500/20 border-sky-500/30 text-sky-300',            activeColor: 'bg-sky-500/30 border-sky-400 text-sky-200'         },
     { label: 'Énergie',   color: 'bg-yellow-500/20 border-yellow-500/30 text-yellow-300',   activeColor: 'bg-yellow-500/30 border-yellow-400 text-yellow-200' },
     { label: 'Focus',     color: 'bg-violet-500/20 border-violet-500/30 text-violet-300',   activeColor: 'bg-violet-500/30 border-violet-400 text-violet-200' },
-    { label: 'Fête',      color: 'bg-pink-500/20 border-pink-500/30 text-pink-300',         activeColor: 'bg-pink-500/30 border-pink-400 text-pink-200'     },
+    { label: 'Fête',      color: 'bg-pink-500/20 border-pink-500/30 text-pink-300',         activeColor: 'bg-pink-500/30 border-pink-400 text-pink-200'       },
     { label: 'Nostalgie', color: 'bg-amber-500/20 border-amber-500/30 text-amber-300',      activeColor: 'bg-amber-500/30 border-amber-400 text-amber-200'   },
-    { label: 'Romance',   color: 'bg-rose-500/20 border-rose-500/30 text-rose-300',         activeColor: 'bg-rose-500/30 border-rose-400 text-rose-200'     },
+    { label: 'Romance',   color: 'bg-rose-500/20 border-rose-500/30 text-rose-300',         activeColor: 'bg-rose-500/30 border-rose-400 text-rose-200'       },
     { label: 'Motivant',  color: 'bg-orange-500/20 border-orange-500/30 text-orange-300',   activeColor: 'bg-orange-500/30 border-orange-400 text-orange-200' },
     { label: 'Gospel',    color: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300', activeColor: 'bg-emerald-500/30 border-emerald-400 text-emerald-200' },
   ];
 
   const playFullSong = useCallback((songOrId) => {
-    const id = songOrId?._id || songOrId;
+    const id   = songOrId?._id || songOrId;
     const full = songs.find(s => s._id === id);
-    if (full) {
-      setCurrentSong(full);
-      setIsPlaying(true);
-    }
+    if (full) { setCurrentSong(full); setIsPlaying(true); }
   }, [songs, setCurrentSong, setIsPlaying]);
 
   if (searchTerm) return (
-  <GlobalSearchView
-    searchTerm={searchTerm} currentSong={currentSong}
-    setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}
-    isPlaying={isPlaying} toggleLike={toggleLike} />
+    <GlobalSearchView
+      searchTerm={searchTerm} currentSong={currentSong}
+      setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}
+      isPlaying={isPlaying} toggleLike={toggleLike} />
   );
 
-  // ══ MODIF 2 : Cap à 20 max pour toutes les sections (sauf offline) ══
+  // ── Caps & tranches visibles ───────────────────────────────────────────────
   const MAX = 20;
-  const top24hCapped       = top24h.slice(0, MAX);
-  const nouveautesCapped   = recentMusiques.slice(0, MAX);
-  const artistesCapped     = trendingArtistsMemo.slice(0, MAX);
-  const albumsCapped       = recentAlbums.slice(0, MAX);
-  const gemsCapped         = hiddenGems.slice(0, MAX);
-  const rankingCapped      = friendRanking.slice(0, MAX);
-  const favorisCapped      = favorites.slice(0, MAX);
-  const moodCapped         = moodFiltered.slice(0, MAX);
 
-  const visibleTop24h     = top24hShowMore.expanded     ? top24hCapped     : top24hCapped.slice(0, top24hShowMore.limit);
-  const visibleNouveautes = nouveautesShowMore.expanded  ? nouveautesCapped : nouveautesCapped.slice(0, nouveautesShowMore.limit);
-  const visibleArtistes   = artistesShowMore.expanded    ? artistesCapped   : artistesCapped.slice(0, artistesShowMore.limit);
-  const visibleAlbums     = albumsShowMore.expanded      ? albumsCapped     : albumsCapped.slice(0, albumsShowMore.limit);
-  const visibleGems       = gemsShowMore.expanded        ? gemsCapped       : gemsCapped.slice(0, gemsShowMore.limit);
-  const visibleRanking    = rankingShowMore.expanded     ? rankingCapped    : rankingCapped.slice(0, rankingShowMore.limit);
-  const visibleFavoris    = favorisShowMore.expanded     ? favorisCapped    : favorisCapped.slice(0, favorisShowMore.limit);
-  const visibleMood       = moodShowMore.expanded        ? moodCapped       : moodCapped.slice(0, moodShowMore.limit);
+  const top24hCapped    = top24h.slice(0, MAX);
+  const albumsCapped    = recentAlbums.slice(0, MAX);
+  const rankingCapped   = friendRanking.slice(0, MAX);
+  const favorisCapped   = favorites.slice(0, MAX);
+  const moodCapped      = moodFiltered.slice(0, MAX);
+  // ← MODIF : sections issues du hook (déjà cappées à limit=20)
+  const pourVousCapped  = pourVous.slice(0, MAX);
+  const gemsCapped      = gems.slice(0, MAX);
+
+  const visibleTop24h    = top24hShowMore.expanded   ? top24hCapped   : top24hCapped.slice(0, top24hShowMore.limit);
+  const visibleNouveautes = nouveautesShowMore.expanded ? nouveautes   : nouveautes.slice(0, nouveautesShowMore.limit);
+  const visibleArtistes  = artistesShowMore.expanded  ? artistesTendance : artistesTendance.slice(0, artistesShowMore.limit);
+  const visibleAlbums    = albumsShowMore.expanded    ? albumsCapped   : albumsCapped.slice(0, albumsShowMore.limit);
+  const visibleGems      = gemsShowMore.expanded      ? gemsCapped     : gemsCapped.slice(0, gemsShowMore.limit);
+  const visibleRanking   = rankingShowMore.expanded   ? rankingCapped  : rankingCapped.slice(0, rankingShowMore.limit);
+  const visibleFavoris   = favorisShowMore.expanded   ? favorisCapped  : favorisCapped.slice(0, favorisShowMore.limit);
+  const visibleMood      = moodShowMore.expanded      ? moodCapped     : moodCapped.slice(0, moodShowMore.limit);
+  // ← MODIF
+  const visiblePourVous  = pourVousShowMore.expanded  ? pourVousCapped : pourVousCapped.slice(0, pourVousShowMore.limit);
+  const visibleAmbiance  = ambianceShowMore.expanded  ? ambianceContextuelle.songs : ambianceContextuelle.songs.slice(0, ambianceShowMore.limit);
+
+  // ── Icônes ambiance ────────────────────────────────────────────────────────
+  const MOOD_ICONS = {
+    'Énergie': '⚡', 'Focus': '🎯', 'Chill': '🌊',
+    'Fête': '🎉', 'Romance': '🌙', 'Motivant': '🔥', 'Gospel': '✨', 'Nostalgie': '🎵',
+  };
 
   return (
     <div className="flex flex-col gap-10 md:gap-14">
@@ -955,10 +913,13 @@ const HomeView = ({
       {/* ══ 1. HERO "TITRE DU JOUR" ══ */}
       {heroSong && (
         <section>
-          <SectionHeader icon={<Sun size={18} className="text-yellow-400" />} title="Titre du jour" subtitle="Sélectionné pour vous aujourd'hui" />
-          <div
-            onClick={() => playFullSong(heroSong._id)}
-            className="relative overflow-hidden rounded-3xl cursor-pointer group">
+          {/* ← MODIF : badge adapté selon personnalisation */}
+          <SectionHeader
+            icon={<Sun size={18} className="text-yellow-400" />}
+            title="Titre du jour"
+            subtitle={isPersonalized ? 'Sélectionné selon vos goûts' : 'Sélectionné pour vous aujourd\'hui'}
+          />
+          <div onClick={() => playFullSong(heroSong._id)} className="relative overflow-hidden rounded-3xl cursor-pointer group">
             <div className="absolute inset-0">
               <img src={heroSong.image} className="w-full h-full object-cover scale-110 blur-xl opacity-40" alt="" />
             </div>
@@ -972,7 +933,10 @@ const HomeView = ({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[9px] font-black bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 px-2 py-0.5 rounded-full">⭐ DU JOUR</span>
+                  {/* ← MODIF */}
+                  <span className="text-[9px] font-black bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 px-2 py-0.5 rounded-full">
+                    {isPersonalized ? '✨ POUR VOUS' : '⭐ DU JOUR'}
+                  </span>
                   {heroSong.plays > 0 && <span className="text-[9px] text-zinc-500">{heroSong.plays.toLocaleString()} écoutes</span>}
                 </div>
                 <h2 className="text-xl md:text-3xl font-black text-white truncate">{heroSong.titre}</h2>
@@ -1036,17 +1000,17 @@ const HomeView = ({
       {/* ══ RADIO IA ══ */}
       <section>
         <SectionHeader
-          icon={<Radio size={18} className="text-red-400"/>}
+          icon={<Radio size={18} className="text-red-400" />}
           title="Radio IA"
           subtitle="L'IA compose votre playlist en continu"
         />
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-900/30 via-zinc-900/60 to-orange-900/20 border border-red-500/20 p-5 group cursor-pointer hover:border-red-500/40 transition-all duration-300"
           onClick={onInfiniteRadio}>
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(239,68,68,0.08)_0%,_transparent_60%)] pointer-events-none"/>
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(239,68,68,0.08)_0%,_transparent_60%)] pointer-events-none" />
           <div className="relative flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-xl shadow-red-500/30 shrink-0 group-hover:scale-105 transition-transform duration-300 relative">
-              <Radio size={24} className="text-white"/>
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-zinc-900 animate-pulse"/>
+              <Radio size={24} className="text-white" />
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-zinc-900 animate-pulse" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
@@ -1057,7 +1021,7 @@ const HomeView = ({
               <h3 className="text-base font-black text-white">Radio IA MOOZIK</h3>
               <p className="text-[11px] text-zinc-400 mt-0.5">Choisissez une ambiance · L'IA compose en continu</p>
               <div className="flex gap-1.5 mt-2 flex-wrap">
-                {['🌊 Chill','⚡ Énergie','🎯 Focus','🎉 Fête'].map(m => (
+                {['🌊 Chill', '⚡ Énergie', '🎯 Focus', '🎉 Fête'].map(m => (
                   <span key={m} className="text-[9px] font-bold bg-white/6 border border-white/8 text-zinc-500 px-2 py-0.5 rounded-full">{m}</span>
                 ))}
                 <span className="text-[9px] font-bold text-zinc-600 px-1 py-0.5">+4…</span>
@@ -1065,7 +1029,7 @@ const HomeView = ({
             </div>
             <div className="w-9 h-9 rounded-full bg-white/8 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-red-500/20 group-hover:border-red-500/30 transition-all duration-300">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400 group-hover:text-red-400 transition-colors"/>
+                <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400 group-hover:text-red-400 transition-colors" />
               </svg>
             </div>
           </div>
@@ -1113,7 +1077,12 @@ const HomeView = ({
       {/* ══ 4. TOP DU MOMENT ══ */}
       {top24hCapped.length > 0 && (
         <section>
-          <SectionHeader icon={<Flame size={18} className="text-orange-500" />} title="Top du moment" subtitle="Mis à jour toutes les heures" />
+          {/* ← MODIF : sous-titre mis à jour */}
+          <SectionHeader
+            icon={<Flame size={18} className="text-orange-500" />}
+            title="Top du moment"
+            subtitle="Score hybride · popularité + affinité + fraîcheur"
+          />
           <div className="flex flex-col gap-1">
             {visibleTop24h.map((song, i) => (
               <TopTrack
@@ -1137,44 +1106,111 @@ const HomeView = ({
         </section>
       )}
 
-      {/* ══ 5. DÉCOUVERTE DU JOUR ══ */}
-      {discoveryToday && (
+      {/* ══ NOUVEAU : "POUR VOUS" ══ */}
+      {pourVousCapped.length > 0 && (
         <section>
-          <SectionHeader icon={<Compass size={18} className="text-violet-400" />} title="Découverte du jour" subtitle="Un artiste émergent · change chaque jour" />
-          <div onClick={() => playFullSong(discoveryToday._id)}
-            className="relative overflow-hidden rounded-2xl cursor-pointer group">
+          <SectionHeader
+            icon={<Wand2 size={18} className="text-violet-400" />}
+            title={isPersonalized ? 'Pour vous' : 'Sélection du moment'}
+            subtitle={
+              isPersonalized
+                ? 'Affinité · fraîcheur · découverte · adaptée à vous'
+                : 'Écoutez plus de musiques pour personnaliser cette section'
+            }
+          />
+          {!isPersonalized && (
+            <p className="text-[11px] text-violet-400/70 bg-violet-500/10 border border-violet-500/20 rounded-xl px-3 py-2 mb-3">
+              💡 Plus vous écoutez, plus les recommandations s'adaptent à vos goûts
+            </p>
+          )}
+          <HorizontalScrollContainer
+            showMoreProps={
+              pourVousCapped.length > 8
+                ? { total: pourVousCapped.length, shown: visiblePourVous.length, expanded: pourVousShowMore.expanded, onToggle: pourVousShowMore.toggle }
+                : undefined
+            }
+          >
+            {visiblePourVous.map(song => (
+              <HorizontalCard
+                key={song._id}
+                song={song}
+                isActive={currentSong?._id === song._id}
+                isPlaying={isPlaying}
+                onClick={() => playFullSong(song._id)}
+                badge={isPersonalized && song._score > 60 ? '♥' : null}
+                badgeColor="bg-violet-600"
+              />
+            ))}
+          </HorizontalScrollContainer>
+        </section>
+      )}
+
+      {/* ══ 5. DÉCOUVERTE DU JOUR (personnalisée) ══ */}
+      {decouverteduJour && (
+        <section>
+          <SectionHeader
+            icon={<Compass size={18} className="text-violet-400" />}
+            title="Découverte du jour"
+            subtitle={isPersonalized ? 'Dans vos goûts · peu connu · change chaque jour' : 'Un artiste émergent · change chaque jour'}
+          />
+          <div onClick={() => playFullSong(decouverteduJour._id)} className="relative overflow-hidden rounded-2xl cursor-pointer group">
             <div className="absolute inset-0">
-              <img src={discoveryToday.image} className="w-full h-full object-cover opacity-30 blur-lg scale-110" alt="" />
+              <img src={decouverteduJour.image} className="w-full h-full object-cover opacity-30 blur-lg scale-110" alt="" />
             </div>
             <div className="absolute inset-0 bg-linear-to-t from-black/90 to-black/30" />
             <div className="relative flex items-center gap-4 p-5">
-              <img src={discoveryToday.image} className="w-16 h-16 rounded-2xl object-cover shadow-lg shrink-0" alt="" />
+              <img src={decouverteduJour.image} className="w-16 h-16 rounded-2xl object-cover shadow-lg shrink-0" alt="" />
               <div className="flex-1 min-w-0">
-                <span className="text-[9px] font-black bg-violet-500/20 text-violet-400 px-2 py-0.5 rounded-full">Découverte</span>
-                <p className="text-base font-black text-white truncate mt-1">{discoveryToday.titre}</p>
-                <p className="text-[11px] text-zinc-400 uppercase truncate">{discoveryToday.artiste}</p>
-                <p className="text-[9px] text-zinc-600 mt-0.5">{discoveryToday.plays || 0} écoutes · talents émergents</p>
+                <span className="text-[9px] font-black bg-violet-500/20 text-violet-400 px-2 py-0.5 rounded-full">
+                  {isPersonalized ? 'Dans vos goûts' : 'Découverte'}
+                </span>
+                <p className="text-base font-black text-white truncate mt-1">{decouverteduJour.titre}</p>
+                <p className="text-[11px] text-zinc-400 uppercase truncate">{decouverteduJour.artiste}</p>
+                <p className="text-[9px] text-zinc-600 mt-0.5">{decouverteduJour.plays || 0} écoutes · talents émergents</p>
               </div>
               <div className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition">
-                {currentSong?._id === discoveryToday._id && isPlaying ? <Pause fill="white" size={16} /> : <Play fill="white" size={16} className="ml-0.5" />}
+                {currentSong?._id === decouverteduJour._id && isPlaying ? <Pause fill="white" size={16} /> : <Play fill="white" size={16} className="ml-0.5" />}
               </div>
             </div>
           </div>
         </section>
       )}
 
-      {/* ══ 6. NOUVEAUTÉS (triées par date de sortie : annee + mois) ══ */}
+      {/* ══ NOUVEAU : AMBIANCE CONTEXTUELLE (heure du jour) ══ */}
+      {!selectedMood && ambianceContextuelle.songs.length > 0 && (
+        <section>
+          <SectionHeader
+            icon={<Clock size={18} className="text-amber-400" />}
+            title={`${MOOD_ICONS[ambianceContextuelle.mood] || '🎵'} ${ambianceContextuelle.label}`}
+            subtitle={`Sélection ${ambianceContextuelle.mood} · adaptée à ce moment de la journée`}
+          />
+          <HorizontalScrollContainer
+            showMoreProps={
+              ambianceContextuelle.songs.length > 8
+                ? { total: ambianceContextuelle.songs.length, shown: visibleAmbiance.length, expanded: ambianceShowMore.expanded, onToggle: ambianceShowMore.toggle }
+                : undefined
+            }
+          >
+            {visibleAmbiance.map(song => (
+              <HorizontalCard
+                key={song._id}
+                song={song}
+                isActive={currentSong?._id === song._id}
+                isPlaying={isPlaying}
+                onClick={() => playFullSong(song._id)}
+              />
+            ))}
+          </HorizontalScrollContainer>
+        </section>
+      )}
+
+      {/* ══ 6. NOUVEAUTÉS (triées par date de sortie + score) ══ */}
       <section>
         <SectionHeader icon={<Sparkles size={18} className="text-blue-400" />} title="Nouveautés" subtitle="Triées par date de sortie" />
         <HorizontalScrollContainer
           showMoreProps={
-            nouveautesCapped.length > 8
-              ? {
-                  total: nouveautesCapped.length,
-                  shown: visibleNouveautes.length,
-                  expanded: nouveautesShowMore.expanded,
-                  onToggle: nouveautesShowMore.toggle,
-                }
+            nouveautes.length > 8
+              ? { total: nouveautes.length, shown: visibleNouveautes.length, expanded: nouveautesShowMore.expanded, onToggle: nouveautesShowMore.toggle }
               : undefined
           }
         >
@@ -1191,19 +1227,18 @@ const HomeView = ({
         <AudioAdPlayer isPremium={isPremium} token={token} onAdEnd={() => setShowAd(false)} />
       )}
 
-      {/* ══ 7. ARTISTES TENDANCE ══ */}
-      {artistesCapped.length > 0 && (
+      {/* ══ 7. ARTISTES TENDANCE (pondérés par affinité) ══ */}
+      {artistesTendance.length > 0 && (
         <section>
-          <SectionHeader icon={<Users size={18} className="text-pink-400" />} title="Artistes tendance" subtitle="Classés par vélocité d'écoutes" />
+          <SectionHeader
+            icon={<Users size={18} className="text-pink-400" />}
+            title="Artistes tendance"
+            subtitle={isPersonalized ? 'Popularité pondérée par vos affinités' : 'Classés par vélocité d\'écoutes'}
+          />
           <HorizontalScrollContainer
             showMoreProps={
-              artistesCapped.length > 8
-                ? {
-                    total: artistesCapped.length,
-                    shown: visibleArtistes.length,
-                    expanded: artistesShowMore.expanded,
-                    onToggle: artistesShowMore.toggle,
-                  }
+              artistesTendance.length > 8
+                ? { total: artistesTendance.length, shown: visibleArtistes.length, expanded: artistesShowMore.expanded, onToggle: artistesShowMore.toggle }
                 : undefined
             }
           >
@@ -1231,12 +1266,7 @@ const HomeView = ({
           <HorizontalScrollContainer
             showMoreProps={
               albumsCapped.length > 8
-                ? {
-                    total: albumsCapped.length,
-                    shown: visibleAlbums.length,
-                    expanded: albumsShowMore.expanded,
-                    onToggle: albumsShowMore.toggle,
-                  }
+                ? { total: albumsCapped.length, shown: visibleAlbums.length, expanded: albumsShowMore.expanded, onToggle: albumsShowMore.toggle }
                 : undefined
             }
           >
@@ -1253,7 +1283,7 @@ const HomeView = ({
         </section>
       )}
 
-      {/* ══ PLAYLISTS PUBLIQUES (NOUVELLE SECTION) ══ */}
+      {/* ══ PLAYLISTS PUBLIQUES ══ */}
       <PublicPlaylistsSection
         token={token}
         setCurrentSong={setCurrentSong}
@@ -1263,10 +1293,14 @@ const HomeView = ({
         musiques={songs}
       />
 
-      {/* ══ INCONNUS MAIS EXCELLENTS ══ */}
+      {/* ══ INCONNUS MAIS EXCELLENTS (gems hybrides) ══ */}
       {gemsCapped.length > 0 && (
         <section>
-          <SectionHeader icon={<Gem size={18} className="text-cyan-400" />} title="Inconnus mais excellents" subtitle="Moins de 100 écoutes · très aimés" />
+          <SectionHeader
+            icon={<Gem size={18} className="text-cyan-400" />}
+            title="Inconnus mais excellents"
+            subtitle={isPersonalized ? 'Moins de 100 écoutes · score d\'affinité élevé' : 'Moins de 100 écoutes · très aimés'}
+          />
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {visibleGems.map(song => (
               <DiscoveryCard key={song._id} song={song}

@@ -50,7 +50,8 @@ import { NotificationsPanel, HistoryView, RecommendationsView, SharePageView } f
 import { TrendingView, ListenPartyModal, LoyaltyWidget } from './components/SocialComponents';
 import ArtistAnalyticsView from './views/ArtistAnalyticsView.jsx';
 import AdminLibraryView from './views/AdminLibraryView';
-import FullPlayerPage, { initEQ12, EQ_PRESETS_12 } from './components/player/FullPlayerPage';
+import FullPlayerPage from './components/player/FullPlayerPage';
+import { eqBands, eqPresets, initEQ12 } from './components/player/constants/eq.js';
 import RadioView from './views/RadioView';
 import AdminArtistView from './views/AdminArtistView';
 import AdminTeamView from './views/AdminTeamView';
@@ -85,7 +86,9 @@ const sortByTrending = (songs) =>
 // ── Composant interne pour avoir accès à useNavigate ──────────
 const AppInner = () => {
   const navigate  = useNavigate();
-  const location  = useLocation();
+  const location  = useLocation()
+  const [smartMode, setSmartMode] = useState(false);
+
 
   // ── Data ──────────────────────────────────────────────────────
   const [musiques, setMusiques]           = useState([]);
@@ -105,7 +108,6 @@ const AppInner = () => {
   const [currentTime, setCurrentTime]   = useState(0);
   const [duration, setDuration]         = useState(0);
   const [volume, setVolume]             = useState(100);
-  const [showFullPlayer, setShowFullPlayer] = useState(false);
   const [showListenParty, setShowListenParty] = useState(false);
 
   // ── NOUVEAU : contexte de lecture ─────────────────────────────
@@ -199,7 +201,7 @@ const AppInner = () => {
   }, [setEqGains]);
 
   const applyPreset = useCallback((name) => {
-    const gains = EQ_PRESETS_12[name] || Array(12).fill(0);
+    const gains = eqPresets[name] || Array(12).fill(0);
     setEqGains(gains);
     setActivePreset(name);
     gains.forEach((v, i) => {
@@ -407,15 +409,24 @@ const AppInner = () => {
   // la liste passée est jouée telle quelle (déjà triée par la vue).
   // On définit aussi le contexte pour que handleNext suive le bon ordre.
   const playAll = useCallback((songs, startIndex = 0) => {
-    if (!songs?.length) return;
-    const start = songs[startIndex];
-    const rest  = [...songs.slice(startIndex + 1), ...songs.slice(0, startIndex)];
-    setCurrentSong(start);
-    setIsPlaying(true);
-    setQueue(rest);
-    setPlayedIds(new Set(songs.map(s => s._id)));
-    setPlayContext('playlist'); // contexte playlist = respecter l'ordre passé
+  if (!songs?.length) return;
+ 
+  // Titre de départ
+  const start = songs[startIndex];
+ 
+  // Le reste de la liste après le titre de départ
+  // (les titres avant startIndex sont mis en fin de queue pour boucler)
+  const afterStart = songs.slice(startIndex + 1);
+  const beforeStart = songs.slice(0, startIndex);
+  const rest = [...afterStart, ...beforeStart];
+ 
+  setCurrentSong(start);
+  setIsPlaying(true);
+  setQueue(rest);                          // ← remplit la file avec le reste
+  setPlayedIds(new Set(songs.map(s => s._id)));
+  setPlayContext('playlist');              // ordre fixe, pas trending
   }, []);
+
 
   // ── NOUVEAU : playByCategory ───────────────────────────────────
   // Joue une chanson et remplit la file avec les chansons de la même
@@ -807,16 +818,6 @@ const AppInner = () => {
     playByCategory: (song) => playByCategory(song, musiques),
   };
 
-  const fullPlayerProps = {
-    currentSong, isPlaying, setIsPlaying, setCurrentSong, currentTime, duration,
-    handleNext, handlePrev, isShuffle, setIsShuffle, repeatMode, setRepeatMode,
-    toggleLike, volume, setVolume, queue, setQueue, audioRef, initAudioEngine,
-    playbackRate, setPlaybackRate, sleepTimer, setSleepTimer, sleepRemaining,
-    formatTime, canvasRef, audioContextRef, musiques, eqGains, setEqGains, eqFiltersRef,
-    token, isLoggedIn,
-    onClose: () => setShowFullPlayer(false),
-    onOpenListenParty: () => setShowListenParty(true),
-  };
 
   return (
     <div className="flex h-screen bg-black text-white font-sans overflow-hidden">
@@ -827,7 +828,6 @@ const AppInner = () => {
       {showLoginModal     && <LoginModal onLogin={handleLogin} onClose={() => setShowLoginModal(false)} />}
       {showUpload         && <UploadModal token={token} artists={artists} albums={albums} onClose={() => setShowUpload(false)} onSuccess={chargerMusiques} userRole={userRole} userArtistId={userArtistId} userNom={userNom} />}
       {showCreatePlaylist && <CreatePlaylistModal token={token} onClose={() => setShowCreatePlaylist(false)} onSuccess={() => chargerUserPlaylists(token)} />}
-      {showFullPlayer && currentSong && <FullPlayerPage {...fullPlayerProps} />}
       {showListenParty && (
         <ListenPartyModal
           token={token} isLoggedIn={isLoggedIn}
@@ -1083,10 +1083,55 @@ const AppInner = () => {
         onClick={() => setActiveMenu(null)}
       >
         <Routes>
-          <Route path="/favorites"       element={<FavoritesView musiques={musiques} {...songProps} isPlaying={isPlaying} />} />
+          <Route
+            path="/player"
+            element={
+              <FullPlayerPage
+                currentSong={currentSong}
+                setCurrentSong={setCurrentSong}
+                isPlaying={isPlaying}
+                setIsPlaying={setIsPlaying}
+                currentTime={currentTime}
+                duration={duration}
+                handleNext={handleNext}
+                handlePrev={handlePrev}
+                isShuffle={isShuffle}
+                setIsShuffle={setIsShuffle}
+                repeatMode={repeatMode}
+                setRepeatMode={setRepeatMode}
+                toggleLike={toggleLike}
+                volume={volume}
+                setVolume={setVolume}
+                queue={queue}
+                setQueue={setQueue}
+                musiques={musiques}
+                audioRef={audioRef}
+                initAudioEngine={initAudioEngine}
+                audioContextRef={audioContextRef}
+                eqGains={eqGains}
+                setEqGains={setEqGains}
+                eqFiltersRef={eqFiltersRef}
+                playbackRate={playbackRate}
+                setPlaybackRate={setPlaybackRate}
+                sleepTimer={sleepTimer}
+                setSleepTimer={setSleepTimer}
+                sleepRemaining={sleepRemaining}
+                formatTime={formatTime}
+                canvasRef={canvasRef}
+                token={token}
+                isLoggedIn={isLoggedIn}
+                userId={userId}
+                isAdmin={isAdmin}
+                onOpenListenParty={() => setShowListenParty(true)}
+                smartMode={smartMode}
+                setSmartMode={setSmartMode}
+              />
+            }
+          />
+          <Route path="/favorites"       element={<FavoritesView musiques={musiques} {...songProps} isPlaying={isPlaying} setQueue={setQueue} playAll={playAll} />} />
           <Route path="/playlist/:id"    element={<PlaylistView playlists={playlists} {...songProps} playAll={playAll} />} />
-          <Route path="/my-playlist/:id" element={<UserPlaylistView token={token} {...songProps} isOwner={isUser || isAdmin} playAll={playAll} />} />
-          <Route path="/artist/:id"      element={<ArtistView {...songProps} playAll={playAll} />} />
+          <Route path="/my-playlist/:id" element={<UserPlaylistView token={token} {...songProps} isOwner={isUser || isAdmin} playAll={playAll} setQueue={setQueue} />} />
+          <Route path="/artist/:id"      element={<ArtistView {...songProps} playAll={playAll} setQueue={setQueue} />} />
           <Route path="/album/:id"       element={<AlbumView {...songProps} isArtist={isArtist} isAdmin={isAdmin} userArtistId={userArtistId} playAll={playAll} />} />
           <Route path="/my-albums"       element={<MyAlbumsView token={token} userArtistId={userArtistId} userNom={userNom} />} />
           <Route path="/artists-list"    element={<ArtistsListView artists={artists} />} />
@@ -1145,7 +1190,7 @@ const AppInner = () => {
               </button>
             </div>
             <div className="flex gap-2 flex-wrap mb-6">
-              {Object.keys(EQ_PRESETS_12).map(name => (
+              {Object.keys(eqPresets).map(name => (
                 <button key={name} onClick={() => applyPreset(name)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition active:scale-95 ${activePreset === name ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>
                   {name}
@@ -1259,9 +1304,9 @@ const AppInner = () => {
 
       {/* ════════ PLAYER BAR DESKTOP ════════ */}
       {currentSong && (
-        <footer className="hidden md:flex fixed bottom-0 left-0 right-0 md:bottom-3 md:left-67 md:right-3 md:rounded-2xl bg-zinc-950/98 border-t border-zinc-800/60 md:border md:border-zinc-800/60 h-20 md:h-24 px-3 md:px-5 items-center justify-between backdrop-blur-xl shadow-2xl z-50">
+        <footer className="hidden md:flex fixed bottom-0 left-0 right-0 md:bottom-3 md:left-67 md:right-3 md:rounded-2xl bg-zinc-950/98 border-t border-zinc-800/60 md:border md:border-zinc-800/60 h-20 md:h-24 px-3 md:px-5 items-center justify-between backdrop-blur-xl shadow-2xl z-40">
           <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-0.5 opacity-70 pointer-events-none" width="1000" height="4"/>
-          <button onClick={() => setShowFullPlayer(true)} className="flex items-center gap-3 w-1/3 min-w-0 hover:opacity-80 transition text-left">
+          <button onClick={() => navigate('/player')} className="flex items-center gap-3 w-1/3 min-w-0 hover:opacity-80 transition text-left">
             <div className="relative shrink-0">
               <img src={currentSong.image} className="w-10 h-10 md:w-12 md:h-12 rounded-xl shadow-lg object-cover" alt=""/>
               {isPlaying && <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-zinc-950 animate-pulse"/>}
@@ -1303,7 +1348,7 @@ const AppInner = () => {
                 <button onClick={() => setShowListenParty(true)} className="hidden sm:block p-1.5 hover:bg-zinc-800 rounded-lg transition text-zinc-600 hover:text-blue-400" title="Listen Party">
                   <Radio size={15}/>
                 </button>
-                <button onClick={() => { initAudioEngine(); setShowFullPlayer(true); }} className="hidden sm:block p-1.5 hover:bg-zinc-800 rounded-lg transition text-zinc-600 hover:text-white">
+                <button onClick={() => { initAudioEngine(); navigate('/player')}} className="hidden sm:block p-1.5 hover:bg-zinc-800 rounded-lg transition text-zinc-600 hover:text-white">
                   <Maximize2 size={15}/>
                 </button>
               </div>
@@ -1322,7 +1367,7 @@ const AppInner = () => {
       <MiniPlayerMobile
         currentSong={currentSong} isPlaying={isPlaying} setIsPlaying={setIsPlaying}
         handleNext={handleNext} toggleLike={toggleLike}
-        onOpenFullPlayer={() => setShowFullPlayer(true)}
+        onOpenFullPlayer={() => navigate('/player')}
         currentTime={currentTime} duration={duration} initAudioEngine={initAudioEngine}
         cacheAudio={cacheAudio} removeCached={removeCached} isAudioCached={isAudioCached}
       />
