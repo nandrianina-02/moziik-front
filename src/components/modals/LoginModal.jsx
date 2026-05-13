@@ -1,100 +1,243 @@
-import React, { useState } from 'react';
-import { LogIn, X, UserCircle, Mic2, ShieldCheck, Loader2 } from 'lucide-react';
-import { API } from '../../config/api';
+// components/LoginModal/LoginModal.jsx
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { LogIn, X, UserCircle, Mic2, ShieldCheck, Loader2, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
+import ForgotPasswordModal from './ForgotPasswordModal'; // ← 1. Import
 
-const LoginModal = ({ onLogin, onClose }) => {
-  const [mode, setMode] = useState('user');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [nom, setNom] = useState('');
-  const [isRegister, setIsRegister] = useState(false);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+// ─── Constantes module-level ──────────────────────────────────────────────────
+const TABS = [
+  { key: 'user',   label: 'Utilisateur', icon: UserCircle },
+  { key: 'artist', label: 'Artiste',     icon: Mic2 },
+  { key: 'admin',  label: 'Admin',       icon: ShieldCheck },
+];
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    let endpoint = '';
-    if (mode === 'admin') endpoint = '/admin/login';
-    else if (mode === 'artist') endpoint = '/artists/login';
-    else endpoint = isRegister ? '/users/register' : '/users/login';
-    try {
-      const body = mode === 'user' && isRegister ? { email, password, nom } : { email, password };
-      const res = await fetch(`${API}${endpoint}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
-      if (!res.ok) setError(data.message || 'Erreur de connexion');
-      else {
-        localStorage.setItem('moozik_token', data.token);
-        localStorage.setItem('moozik_email', data.email);
-        localStorage.setItem('moozik_role', data.role);
-        if (data.nom) localStorage.setItem('moozik_nom', data.nom);
-        if (data.artisteId) localStorage.setItem('moozik_artisteId', data.artisteId);
-        if (data.userId) localStorage.setItem('moozik_userId', data.userId);
-        onLogin(data);
-      }
-    } catch { setError('Impossible de contacter le serveur'); }
-    finally { setLoading(false); }
-  };
-
-  const tabs = [
-    { key: 'user', label: 'Utilisateur', icon: <UserCircle size={14} /> },
-    { key: 'artist', label: 'Artiste', icon: <Mic2 size={14} /> },
-    { key: 'admin', label: 'Admin', icon: <ShieldCheck size={14} /> },
-  ];
+// ─── Sous-composant : champ de saisie ─────────────────────────────────────────
+const Field = ({ label, type = 'text', value, onChange, placeholder, required }) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPassword = type === 'password';
+  const inputType  = isPassword && showPassword ? 'text' : type;
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-300 flex items-center justify-center p-4">
+    <div>
+      <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          type={inputType}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          required={required}
+          autoComplete={isPassword ? 'current-password' : type === 'email' ? 'email' : 'name'}
+          className="w-full bg-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600 pr-10"
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword(v => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition"
+            aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+          >
+            {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─── Composant principal ──────────────────────────────────────────────────────
+const LoginModal = ({ onLogin, onClose }) => {
+  const [mode,        setMode]        = useState('user');
+  const [isRegister,  setIsRegister]  = useState(false);
+  const [email,       setEmail]       = useState('');
+  const [password,    setPassword]    = useState('');
+  const [nom,         setNom]         = useState('');
+  const [showForgot,  setShowForgot]  = useState(false); // ← 2. État
+
+  const { loading, error, clearError, submit } = useAuth(onLogin);
+  const firstFocusableRef = useRef(null);
+
+  const handleBackdropClick = useCallback((e) => {
+    if (e.target === e.currentTarget) onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    firstFocusableRef.current?.focus();
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const handleTabChange = useCallback((key) => {
+    setMode(key);
+    setIsRegister(false);
+    setEmail('');
+    setPassword('');
+    setNom('');
+    clearError();
+  }, [clearError]);
+
+  const handleSubmit = useCallback(async (e) => {
+    e.preventDefault();
+    await submit({ mode, isRegister, email, password, nom });
+  }, [submit, mode, isRegister, email, password, nom]);
+
+  const submitLabel = useMemo(() => {
+    if (loading)    return 'Connexion…';
+    if (isRegister) return 'Créer mon compte';
+    return 'Se connecter';
+  }, [loading, isRegister]);
+
+  // ── Si la modale "mot de passe oublié" est ouverte, on la rend à la place ──
+  // ← 3. Rendu conditionnel
+  if (showForgot) {
+    return (
+      <ForgotPasswordModal
+        onClose={onClose}
+        onBackToLogin={() => setShowForgot(false)}
+      />
+    );
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="login-title"
+      className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={handleBackdropClick}
+    >
       <div className="bg-zinc-900 border border-zinc-800 p-6 md:p-8 rounded-3xl w-full max-w-sm shadow-2xl">
+
+        {/* ── Header ── */}
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-black italic flex items-center gap-2">
-            <LogIn className="text-red-600" size={22} /> CONNEXION
+          <h3 id="login-title" className="text-xl font-black italic flex items-center gap-2">
+            <LogIn className="text-red-600" size={22} aria-hidden="true" />
+            CONNEXION
           </h3>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white"><X size={20} /></button>
+          <button
+            ref={firstFocusableRef}
+            onClick={onClose}
+            aria-label="Fermer la fenêtre de connexion"
+            className="text-zinc-500 hover:text-white transition"
+          >
+            <X size={20} />
+          </button>
         </div>
-        <div className="flex bg-zinc-800 rounded-xl p-1 mb-6 gap-1">
-          {tabs.map(t => (
-            <button key={t.key} onClick={() => { setMode(t.key); setIsRegister(false); setError(''); }}
-              className={`flex-1 py-2 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-1 ${mode === t.key ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white'}`}>
-              {t.icon} {t.label}
+
+        {/* ── Onglets mode ── */}
+        <div
+          role="tablist"
+          aria-label="Type de compte"
+          className="flex bg-zinc-800 rounded-xl p-1 mb-6 gap-1"
+        >
+          {TABS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={mode === key}
+              onClick={() => handleTabChange(key)}
+              className={`
+                flex-1 py-2 rounded-lg text-[10px] font-bold transition
+                flex items-center justify-center gap-1
+                ${mode === key ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white'}
+              `}
+            >
+              <Icon size={14} aria-hidden="true" />
+              {label}
             </button>
           ))}
         </div>
+
+        {/* ── Toggle connexion / inscription ── */}
         {mode === 'user' && (
-          <div className="flex bg-zinc-800/50 rounded-lg p-0.5 mb-4">
-            <button onClick={() => { setIsRegister(false); setError(''); }}
-              className={`flex-1 py-1.5 rounded-md text-xs font-bold transition ${!isRegister ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Se connecter</button>
-            <button onClick={() => { setIsRegister(true); setError(''); }}
-              className={`flex-1 py-1.5 rounded-md text-xs font-bold transition ${isRegister ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Créer un compte</button>
+          <div
+            role="group"
+            aria-label="Mode"
+            className="flex bg-zinc-800/50 rounded-lg p-0.5 mb-4"
+          >
+            {[
+              { value: false, label: 'Se connecter' },
+              { value: true,  label: 'Créer un compte' },
+            ].map(({ value, label }) => (
+              <button
+                key={String(value)}
+                onClick={() => { setIsRegister(value); clearError(); }}
+                className={`
+                  flex-1 py-1.5 rounded-md text-xs font-bold transition
+                  ${isRegister === value ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}
+                `}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         )}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+
+        {/* ── Formulaire ── */}
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+
           {mode === 'user' && isRegister && (
-            <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">Nom d'affichage</label>
-              <input value={nom} onChange={e => setNom(e.target.value)} placeholder="Votre prénom ou pseudo"
-                className="w-full bg-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600" required />
-            </div>
+            <Field
+              label="Nom d'affichage"
+              value={nom}
+              onChange={e => setNom(e.target.value)}
+              placeholder="Votre prénom ou pseudo"
+              required
+            />
           )}
-          <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@exemple.com"
-              className="w-full bg-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600" required />
-          </div>
-          <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">Mot de passe</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••"
-              className="w-full bg-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600" required />
-          </div>
-          {error && <p className="text-red-500 text-xs bg-red-500/10 px-4 py-2 rounded-lg">{error}</p>}
-          <button type="submit" disabled={loading}
-            className="mt-2 bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50">
-            {loading ? <Loader2 size={18} className="animate-spin" /> : <LogIn size={18} />}
-            {loading ? 'Connexion...' : (isRegister ? 'Créer mon compte' : 'Se connecter')}
+
+          <Field
+            label="Email"
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="email@exemple.com"
+            required
+          />
+
+          <Field
+            label="Mot de passe"
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="••••••••"
+            required
+          />
+
+          {/* ── Message d'erreur ── */}
+          {error && (
+            <p role="alert" className="text-red-400 text-xs bg-red-500/10 px-4 py-2 rounded-lg">
+              {error}
+            </p>
+          )}
+
+          {/* ── Bouton submit ── */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="mt-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2"
+          >
+            {loading
+              ? <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+              : <LogIn   size={18} aria-hidden="true" />
+            }
+            {submitLabel}
           </button>
+
+          {/* ── Lien mot de passe oublié (user, mode connexion seulement) ── */}
+          {mode === 'user' && !isRegister && (
+            <button
+              type="button"
+              onClick={() => setShowForgot(true)}
+              className="text-xs text-zinc-500 hover:text-zinc-300 text-center transition -mt-1"
+            >
+              Mot de passe oublié ?
+            </button>
+          )}
+
         </form>
       </div>
     </div>

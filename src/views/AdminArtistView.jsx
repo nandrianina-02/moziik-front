@@ -618,14 +618,14 @@ const AdminArtistView = ({ token, adminId, adminNom }) => {
     const ok = await confirm(banned ? 'Débannir cet utilisateur ?' : 'Bannir cet utilisateur ?');
     if (!ok) return;
     try {
-      const res = await fetch(`${API}/admin/users/${uid}/ban`, {
+      const res  = await fetch(`${API}/admin/users/${uid}/ban`, {
         method: 'PUT',
-        headers: { ...h, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ banned: !banned }),
+        headers: h,
       });
-      if (!res.ok) throw new Error(`Erreur ${res.status}`);
-      setUsers(prev => prev.map(u => u._id === uid ? { ...u, banned: !banned } : u));
-      show(!banned ? 'Utilisateur banni' : 'Utilisateur débanni');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || `Erreur ${res.status}`);
+      setUsers(prev => prev.map(u => u._id === uid ? { ...u, banned: data.banned } : u));
+      show(data.message);
     } catch (err) { show(err.message, true); }
   }, [h, show, confirm]);
 
