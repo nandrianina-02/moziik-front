@@ -6,6 +6,7 @@ import {
   Settings, Star, Globe, Bell, Radio
 } from 'lucide-react';
 import { API as API_DEFAULT } from '../config/api';
+import { STORAGE_KEYS } from '../hooks/useAuth';
 
 // ─────────────────────────────────────────────────────────
 // UTILITAIRES
@@ -1026,6 +1027,42 @@ const AccountView = ({
     { label: 'Playlists', value: userPlaylists?.length || 0, icon: <ListOrdered size={16} aria-hidden="true" />, color: '#60a5fa' },
   ], [musiques, favCount, userPlaylists]);
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePassword,    setDeletePassword]    = useState('');
+  const [loadingDelete,     setLoadingDelete]     = useState(false);
+  const [deleteMsg,         setDeleteMsg]         = useState({ type: '', text: '' });
+
+  const handleDeleteAccount = useCallback(async () => {
+    if (!deletePassword) return flash(setDeleteMsg, 'error', 'Mot de passe requis');
+    setLoadingDelete(true);
+    try {
+      // Vérifier le mot de passe d'abord
+      const check = await fetch(`${apiBase}/users/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail, password: deletePassword }),
+      });
+      if (!check.ok) throw new Error('Mot de passe incorrect');
+
+      const res = await fetch(`${apiBase}/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.message || 'Erreur serveur');
+      }
+
+      // Purger la session
+      Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
+      window.location.href = '/';
+    } catch (err) {
+      flash(setDeleteMsg, 'error', err.message);
+    } finally {
+      setLoadingDelete(false);
+    }
+  }, [deletePassword, userEmail, userId, token, apiBase, flash]);
+
   // ── Rendu ─────────────────────────────────────────────
   return (
     <main
@@ -1382,8 +1419,92 @@ const AccountView = ({
         </div>
         <div style={{ height: 8 }} />
       </SectionCard>
+
+      {isUser && (
+        <SectionCard>
+          <SectionHeader icon={<Trash2 size={14} />} title="Zone de danger" />
+          <SectionBody>
+            {!showDeleteConfirm ? (
+              <>
+                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 14, lineHeight: 1.6 }}>
+                  La suppression de votre compte est <strong style={{ color: '#fca5a5' }}>irréversible</strong>.
+                  Toutes vos données seront effacées définitivement.
+                </p>
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  style={{
+                    width: '100%', padding: '12px 16px',
+                    background: 'rgba(226,75,74,0.08)',
+                    border: '0.5px solid rgba(226,75,74,0.3)',
+                    borderRadius: 12, color: '#fca5a5',
+                    fontFamily: "'Syne', sans-serif", fontSize: 14, fontWeight: 700,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', gap: 8, transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(226,75,74,0.15)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(226,75,74,0.08)'}
+                >
+                  <Trash2 size={16} aria-hidden="true" /> Supprimer mon compte
+                </button>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: 13, color: '#fca5a5', marginBottom: 14, lineHeight: 1.6 }}>
+                  Confirmez avec votre mot de passe pour supprimer définitivement votre compte.
+                </p>
+                <Field label="Mot de passe" htmlFor="input-delete-pwd">
+                  <Input
+                    id="input-delete-pwd"
+                    type="password"
+                    value={deletePassword}
+                    onChange={e => setDeletePassword(e.target.value)}
+                    placeholder="Votre mot de passe actuel"
+                    autoComplete="current-password"
+                  />
+                </Field>
+                <Alert type={deleteMsg.type} msg={deleteMsg.text} />
+                <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                  <button
+                    onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setDeleteMsg({ type: '', text: '' }); }}
+                    style={{
+                      flex: 1, padding: '12px 16px',
+                      background: 'rgba(255,255,255,0.06)', border: 'none',
+                      borderRadius: 12, color: 'rgba(255,255,255,0.6)',
+                      fontFamily: "'Syne', sans-serif", fontSize: 14, fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={loadingDelete || !deletePassword}
+                    style={{
+                      flex: 1, padding: '12px 16px',
+                      background: loadingDelete || !deletePassword ? 'rgba(226,75,74,0.2)' : '#E24B4A',
+                      border: 'none', borderRadius: 12, color: '#fff',
+                      fontFamily: "'Syne', sans-serif", fontSize: 14, fontWeight: 700,
+                      cursor: loadingDelete || !deletePassword ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      opacity: loadingDelete || !deletePassword ? 0.5 : 1,
+                    }}
+                  >
+                    {loadingDelete
+                      ? <Loader2 size={16} className="animate-spin" />
+                      : <><Trash2 size={16} /> Confirmer la suppression</>
+                    }
+                  </button>
+                </div>
+              </>
+            )}
+          </SectionBody>
+        </SectionCard>
+      )}
     </main>
   );
 };
+
+
+
 
 export default AccountView;

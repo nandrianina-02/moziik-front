@@ -9,29 +9,30 @@ const EmailView = ({ onBack, onSent }) => {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
 
-  const handleSubmit = async (e) => {
+    const handleSubmit = async (e) => {
     e.preventDefault();
-    // FIX : validation email plus robuste
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
-      return setError('Adresse email invalide.');
+        return setError('Adresse email invalide.');
+
     setLoading(true);
     setError('');
+
     try {
-      const res = await fetch(`${API}/users/forgot-password`, {
-        method:  'POST',
+        const res = await fetch(`${API}/users/forgot-password`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // FIX : trim() avant envoi
-        body:    JSON.stringify({ email: email.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) setError(data.message || 'Erreur serveur.');
-      else onSent(email.trim());
-    } catch {
-      setError('Impossible de contacter le serveur.');
+        body: JSON.stringify({ email: email.trim() }),
+        });
+        const data = await res.json();
+        if (!res.ok) setError(data.message || 'Erreur serveur.');
+        else onSent(email.trim());
+    } catch (err) {
+        console.error('Fetch error:', err); // ← que dit la console ?
+        setError('Impossible de contacter le serveur.');
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+    };
 
   return (
     <>
@@ -95,10 +96,16 @@ const SentView = ({ email, onBack, onRetry }) => (
     </div>
     <p className="text-zinc-600 text-xs">Vérifiez aussi vos spams.</p>
 
-    {/* FIX : option de réessayer avec un autre email */}
+    {/* ← Ajout : suggestion si pas reçu */}
+    <p className="text-zinc-500 text-xs leading-relaxed border border-zinc-800 rounded-xl px-4 py-3">
+      Vous ne recevez rien ?<br />
+      Vérifiez que cet email correspond bien à votre compte,<br />
+      ou <button onClick={onBack} className="text-red-400 hover:text-red-300 underline transition">créez un nouveau compte</button>.
+    </p>
+
     <button
       onClick={onRetry}
-      className="mt-1 w-full flex items-center justify-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 py-2 rounded-xl transition"
+      className="w-full flex items-center justify-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 py-2 rounded-xl transition"
     >
       <Mail size={13} /> Réessayer avec un autre email
     </button>

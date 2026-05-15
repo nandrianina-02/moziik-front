@@ -49,23 +49,19 @@ const validate = ({ mode, isRegister, email, password, nom }) => {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export const useAuth = (onLogin) => {
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState('');
-
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState('');
+  const [successMsg,   setSuccessMsg]   = useState(''); // ← nouveau
   const clearError = useCallback(() => setError(''), []);
 
   const submit = useCallback(async ({ mode, isRegister, email, password, nom }) => {
-    // 1. Validation locale d'abord
     const validationError = validate({ mode, isRegister, email, password, nom });
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
+    if (validationError) { setError(validationError); return; }
 
     setLoading(true);
     setError('');
+    setSuccessMsg('');
 
-    // 2. Résolution de l'endpoint
     const action   = isRegister ? 'register' : 'login';
     const endpoint = ENDPOINTS[mode]?.[action] ?? ENDPOINTS[mode]?.login;
     const body     = mode === 'user' && isRegister
@@ -78,22 +74,22 @@ export const useAuth = (onLogin) => {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(body),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
         setError(data.message || 'Erreur de connexion. Veuillez réessayer.');
+      } else if (isRegister && !data.token) {
+        // ← Inscription sans token = vérification email requise
+        setSuccessMsg(data.message);
       } else {
         persistSession(data);
         onLogin(data);
       }
     } catch (err) {
-      console.error('[useAuth] Erreur réseau :', err);
       setError('Impossible de contacter le serveur. Vérifiez votre connexion.');
     } finally {
       setLoading(false);
     }
   }, [onLogin]);
 
-  return { loading, error, clearError, submit };
+  return { loading, error, clearError, submit, successMsg }; // ← exposer successMsg
 };

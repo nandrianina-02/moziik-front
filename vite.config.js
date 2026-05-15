@@ -124,5 +124,10 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    server: {
+    headers: {
+      'Content-Security-Policy': "connect-src 'self' https://moozik-gft1.onrender.com"
+    }
+  }
   },
 });

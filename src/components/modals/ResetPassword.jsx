@@ -39,7 +39,8 @@ const PasswordField = ({ label, value, onChange, placeholder }) => {
 const ResetPassword = () => {
   const navigate        = useNavigate();
   const [searchParams]  = useSearchParams();
-  const token           = searchParams.get('token');
+  const token = searchParams.get('token');
+    console.log('token dans URL:', token);
 
   const [newPassword,     setNewPassword]     = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -77,21 +78,29 @@ const ResetPassword = () => {
     setLoading(true);
     setError('');
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
       const res = await fetch(`${API}/users/reset-password`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ token, newPassword }),
+        signal:  controller.signal,
       });
-      const data = await res.json();
+      clearTimeout(timeout);
+
+      let data = {};
+      try { data = await res.json(); } catch {}  // ← protège si réponse non-JSON
+
       if (!res.ok) {
         if (res.status === 400) setTokenInvalid(true);
         else setError(data.message || 'Erreur serveur.');
       } else {
         setSuccess(true);
-        // La redirection est gérée par le useEffect ci-dessus
       }
-    } catch {
-      setError('Impossible de contacter le serveur.');
+    } catch (err) {
+      if (err.name === 'AbortError') setError('Délai dépassé, réessayez.');
+      else setError('Impossible de contacter le serveur.');
     } finally {
       setLoading(false);
     }

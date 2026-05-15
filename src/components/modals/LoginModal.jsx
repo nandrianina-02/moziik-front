@@ -1,6 +1,6 @@
 // components/LoginModal/LoginModal.jsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { LogIn, X, UserCircle, Mic2, ShieldCheck, Loader2, Eye, EyeOff } from 'lucide-react';
+import { LogIn, X, UserCircle, Mic2, ShieldCheck, Loader2, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import ForgotPasswordModal from './ForgotPasswordModal'; // ← 1. Import
 
@@ -55,8 +55,9 @@ const LoginModal = ({ onLogin, onClose }) => {
   const [password,    setPassword]    = useState('');
   const [nom,         setNom]         = useState('');
   const [showForgot,  setShowForgot]  = useState(false); // ← 2. État
+  // const { loading, error, clearError, submit, successMsg } = useAuth(onLogin); // ← ajouter successMsg
 
-  const { loading, error, clearError, submit } = useAuth(onLogin);
+  const { loading, error, clearError, submit, successMsg } = useAuth(onLogin);
   const firstFocusableRef = useRef(null);
 
   const handleBackdropClick = useCallback((e) => {
@@ -177,6 +178,22 @@ const LoginModal = ({ onLogin, onClose }) => {
         )}
 
         {/* ── Formulaire ── */}
+        {successMsg ? (
+          <div className="flex flex-col items-center gap-4 py-4 text-center">
+            <div className="w-14 h-14 rounded-full bg-green-500/10 flex items-center justify-center">
+              <CheckCircle2 size={30} className="text-green-400" />
+            </div>
+            <p className="text-white font-bold">Compte créé !</p>
+            <p className="text-zinc-400 text-sm leading-relaxed">{successMsg}</p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="mt-2 bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-xl transition"
+            >
+              Fermer
+            </button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
 
           {mode === 'user' && isRegister && (
@@ -239,6 +256,7 @@ const LoginModal = ({ onLogin, onClose }) => {
           )}
 
         </form>
+        )}
       </div>
     </div>
   );

@@ -57,6 +57,7 @@ import AdminArtistView from './views/AdminArtistView';
 import AdminTeamView from './views/AdminTeamView';
 import OfflineLibraryView from './views/OfflineLibraryView.jsx';
 import ResetPassword from './components/modals/ResetPassword.jsx';
+import VerifyEmail from './components/modals/VerifyEmail.jsx';
 
 
 
@@ -1156,6 +1157,7 @@ const AppInner = () => {
           <Route path="/a/:slug" element={<SmartLinkPage token={token} isLoggedIn={isLoggedIn} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} currentSong={currentSong} isPlaying={isPlaying}/>} />
           <Route path="/artist-dashboard" element={isArtist ? <ArtistDashboard token={token} userArtistId={userArtistId} userNom={userNom}/> : <div className="p-8 text-zinc-600">Accès refusé</div>} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/" element={
             <HomeView musiques={musiques} {...songProps}
               isAdmin={isAdmin} isArtist={isArtist} isUser={isUser}
