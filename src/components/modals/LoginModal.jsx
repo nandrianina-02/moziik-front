@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { LogIn, X, UserCircle, Mic2, ShieldCheck, Loader2, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import ForgotPasswordModal from './ForgotPasswordModal'; // ← 1. Import
+import ForgotPasswordModal from './ForgotPasswordModal';
 
 // ─── Constantes module-level ──────────────────────────────────────────────────
 const TABS = [
@@ -12,10 +12,12 @@ const TABS = [
 ];
 
 // ─── Sous-composant : champ de saisie ─────────────────────────────────────────
-const Field = ({ label, type = 'text', value, onChange, placeholder, required }) => {
+const Field = ({ label, type = 'text', value, onChange, placeholder, required, inputRef }) => {
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === 'password';
   const inputType  = isPassword && showPassword ? 'text' : type;
+
+  const autoComplete = isPassword ? 'current-password' : type === 'email' ? 'email' : 'off';
 
   return (
     <div>
@@ -24,12 +26,13 @@ const Field = ({ label, type = 'text', value, onChange, placeholder, required })
       </label>
       <div className="relative">
         <input
+          ref={inputRef}
           type={inputType}
           value={value}
           onChange={onChange}
           placeholder={placeholder}
           required={required}
-          autoComplete={isPassword ? 'current-password' : type === 'email' ? 'email' : 'name'}
+          autoComplete={autoComplete}
           className="w-full bg-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-red-600 text-white placeholder-zinc-600 pr-10"
         />
         {isPassword && (
@@ -54,20 +57,26 @@ const LoginModal = ({ onLogin, onClose }) => {
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
   const [nom,         setNom]         = useState('');
-  const [showForgot,  setShowForgot]  = useState(false); // ← 2. État
-  // const { loading, error, clearError, submit, successMsg } = useAuth(onLogin); // ← ajouter successMsg
+  const [showForgot,  setShowForgot]  = useState(false);
 
   const { loading, error, clearError, submit, successMsg } = useAuth(onLogin);
-  const firstFocusableRef = useRef(null);
+
+  const firstFieldRef = useRef(null);
 
   const handleBackdropClick = useCallback((e) => {
     if (e.target === e.currentTarget) onClose();
   }, [onClose]);
 
+  // FIX #7 : séparation en deux effets distincts
+  // Effet 1 : focus sur le premier champ uniquement au montage (tableau vide)
+  useEffect(() => {
+    firstFieldRef.current?.focus();
+  }, []);
+
+  // Effet 2 : listener Escape, se réabonne uniquement si onClose change
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
-    firstFocusableRef.current?.focus();
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
@@ -82,22 +91,26 @@ const LoginModal = ({ onLogin, onClose }) => {
 
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
+    clearError();
     await submit({ mode, isRegister, email, password, nom });
-  }, [submit, mode, isRegister, email, password, nom]);
+  }, [submit, clearError, mode, isRegister, email, password, nom]);
 
   const submitLabel = useMemo(() => {
-    if (loading)    return 'Connexion…';
+    if (loading) return isRegister ? 'Création en cours…' : 'Connexion…';
     if (isRegister) return 'Créer mon compte';
     return 'Se connecter';
   }, [loading, isRegister]);
 
-  // ── Si la modale "mot de passe oublié" est ouverte, on la rend à la place ──
-  // ← 3. Rendu conditionnel
+  const handleBackToLogin = useCallback(() => {
+    clearError();
+    setShowForgot(false);
+  }, [clearError]);
+
   if (showForgot) {
     return (
       <ForgotPasswordModal
         onClose={onClose}
-        onBackToLogin={() => setShowForgot(false)}
+        onBackToLogin={handleBackToLogin}
       />
     );
   }
@@ -119,8 +132,8 @@ const LoginModal = ({ onLogin, onClose }) => {
             CONNEXION
           </h3>
           <button
-            ref={firstFocusableRef}
             onClick={onClose}
+            type="button"
             aria-label="Fermer la fenêtre de connexion"
             className="text-zinc-500 hover:text-white transition"
           >
@@ -138,7 +151,9 @@ const LoginModal = ({ onLogin, onClose }) => {
             <button
               key={key}
               role="tab"
+              type="button"
               aria-selected={mode === key}
+              aria-controls={`tabpanel-${key}`}
               onClick={() => handleTabChange(key)}
               className={`
                 flex-1 py-2 rounded-lg text-[10px] font-bold transition
@@ -165,6 +180,7 @@ const LoginModal = ({ onLogin, onClose }) => {
             ].map(({ value, label }) => (
               <button
                 key={String(value)}
+                type="button"
                 onClick={() => { setIsRegister(value); clearError(); }}
                 className={`
                   flex-1 py-1.5 rounded-md text-xs font-bold transition
@@ -178,85 +194,96 @@ const LoginModal = ({ onLogin, onClose }) => {
         )}
 
         {/* ── Formulaire ── */}
-        {successMsg ? (
-          <div className="flex flex-col items-center gap-4 py-4 text-center">
-            <div className="w-14 h-14 rounded-full bg-green-500/10 flex items-center justify-center">
-              <CheckCircle2 size={30} className="text-green-400" />
+        <div
+          id={`tabpanel-${mode}`}
+          role="tabpanel"
+          aria-labelledby={`tab-${mode}`}
+        >
+          {successMsg ? (
+            <div className="flex flex-col items-center gap-4 py-4 text-center">
+              <div className="w-14 h-14 rounded-full bg-green-500/10 flex items-center justify-center">
+                <CheckCircle2 size={30} className="text-green-400" />
+              </div>
+              <p className="text-white font-bold">Compte créé !</p>
+              <p className="text-zinc-400 text-sm leading-relaxed">{successMsg}</p>
+              <button
+                type="button"
+                onClick={onClose}
+                className="mt-2 bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-xl transition"
+              >
+                Fermer
+              </button>
             </div>
-            <p className="text-white font-bold">Compte créé !</p>
-            <p className="text-zinc-400 text-sm leading-relaxed">{successMsg}</p>
-            <button
-              type="button"
-              onClick={onClose}
-              className="mt-2 bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-xl transition"
-            >
-              Fermer
-            </button>
-          </div>
-        ) : (
-        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+          ) : (
+            <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
 
-          {mode === 'user' && isRegister && (
-            <Field
-              label="Nom d'affichage"
-              value={nom}
-              onChange={e => setNom(e.target.value)}
-              placeholder="Votre prénom ou pseudo"
-              required
-            />
+              {/* FIX #6 : en mode inscription, le champ Nom est affiché en premier
+                  et reçoit le focus (firstFieldRef transmis ici, pas sur email) */}
+              {mode === 'user' && isRegister && (
+                <Field
+                  label="Nom d'affichage"
+                  value={nom}
+                  onChange={e => setNom(e.target.value)}
+                  placeholder="Votre prénom ou pseudo"
+                  required
+                  inputRef={firstFieldRef}
+                />
+              )}
+
+              <Field
+                label="Email"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="email@exemple.com"
+                required
+                // FIX #6 : ref sur email uniquement si le champ Nom n'est pas visible
+                inputRef={mode === 'user' && isRegister ? undefined : firstFieldRef}
+              />
+
+              <Field
+                label="Mot de passe"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+              />
+
+              {/* ── Message d'erreur ── */}
+              {error && (
+                <p role="alert" className="text-red-400 text-xs bg-red-500/10 px-4 py-2 rounded-lg">
+                  {error}
+                </p>
+              )}
+
+              {/* ── Bouton submit ── */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="mt-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2"
+              >
+                {loading
+                  ? <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+                  : <LogIn   size={18} aria-hidden="true" />
+                }
+                {submitLabel}
+              </button>
+
+              {/* ── Lien mot de passe oublié (user, mode connexion seulement) ── */}
+              {mode === 'user' && !isRegister && (
+                <button
+                  type="button"
+                  onClick={() => setShowForgot(true)}
+                  className="text-xs text-zinc-500 hover:text-zinc-300 text-center transition -mt-1"
+                >
+                  Mot de passe oublié ?
+                </button>
+              )}
+
+            </form>
           )}
-
-          <Field
-            label="Email"
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="email@exemple.com"
-            required
-          />
-
-          <Field
-            label="Mot de passe"
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="••••••••"
-            required
-          />
-
-          {/* ── Message d'erreur ── */}
-          {error && (
-            <p role="alert" className="text-red-400 text-xs bg-red-500/10 px-4 py-2 rounded-lg">
-              {error}
-            </p>
-          )}
-
-          {/* ── Bouton submit ── */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="mt-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2"
-          >
-            {loading
-              ? <Loader2 size={18} className="animate-spin" aria-hidden="true" />
-              : <LogIn   size={18} aria-hidden="true" />
-            }
-            {submitLabel}
-          </button>
-
-          {/* ── Lien mot de passe oublié (user, mode connexion seulement) ── */}
-          {mode === 'user' && !isRegister && (
-            <button
-              type="button"
-              onClick={() => setShowForgot(true)}
-              className="text-xs text-zinc-500 hover:text-zinc-300 text-center transition -mt-1"
-            >
-              Mot de passe oublié ?
-            </button>
-          )}
-
-        </form>
-        )}
+        </div>
       </div>
     </div>
   );

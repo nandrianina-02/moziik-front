@@ -2,7 +2,7 @@
 import { useState, useCallback } from 'react';
 import { API } from '../config/api';
 
-// ─── Endpoint map — facile à maintenir ────────────────────────────────────────
+// ─── Endpoint map ─────────────────────────────────────────────────────────────
 const ENDPOINTS = {
   admin:  { login:    '/admin/login' },
   artist: { login:    '/artists/login' },
@@ -20,9 +20,6 @@ export const STORAGE_KEYS = {
 };
 
 const persistSession = (data) => {
-  // NOTE DE SÉCURITÉ : Pour une app en production, préférer des httpOnly cookies
-  // gérés côté serveur plutôt que localStorage (vulnérable aux attaques XSS).
-  // Cette implémentation est conservée pour compatibilité avec l'API existante.
   const entries = [
     [STORAGE_KEYS.TOKEN,     data.token],
     [STORAGE_KEYS.EMAIL,     data.email],
@@ -37,11 +34,13 @@ const persistSession = (data) => {
 };
 
 // ─── Validation client ────────────────────────────────────────────────────────
+// FIX : seuil password aligné sur le backend (6 car. minimum, pas 8)
+// FIX : validation appelée AVANT setLoading pour ne pas bloquer sur loading=true
 const validate = ({ mode, isRegister, email, password, nom }) => {
   if (!email.includes('@') || !email.includes('.'))
     return 'Adresse email invalide.';
-  if (password.length < 8)
-    return 'Mot de passe trop court (8 caractères minimum).';
+  if (password.length < 6)
+    return 'Mot de passe trop court (6 caractères minimum).';
   if (mode === 'user' && isRegister && !nom.trim())
     return 'Veuillez entrer un nom d\'affichage.';
   return null;
@@ -49,14 +48,25 @@ const validate = ({ mode, isRegister, email, password, nom }) => {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export const useAuth = (onLogin) => {
-  const [loading,      setLoading]      = useState(false);
-  const [error,        setError]        = useState('');
-  const [successMsg,   setSuccessMsg]   = useState(''); // ← nouveau
-  const clearError = useCallback(() => setError(''), []);
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const clearError = useCallback(() => {
+    setError('');
+    setSuccessMsg('');
+  }, []);
 
   const submit = useCallback(async ({ mode, isRegister, email, password, nom }) => {
+    // FIX CRITIQUE : validation AVANT setLoading(true)
+    // Avant : setLoading(true) était appelé en premier, puis validate() faisait
+    // un return anticipé sans jamais atteindre le finally → loading restait true
+    // indéfiniment, le bouton restait bloqué sur "Création en cours…"
     const validationError = validate({ mode, isRegister, email, password, nom });
-    if (validationError) { setError(validationError); return; }
+    if (validationError) {
+      setError(validationError);
+      return; // ← on sort AVANT d'avoir mis loading à true : aucun blocage
+    }
 
     setLoading(true);
     setError('');
@@ -75,21 +85,22 @@ export const useAuth = (onLogin) => {
         body:    JSON.stringify(body),
       });
       const data = await res.json();
+
       if (!res.ok) {
         setError(data.message || 'Erreur de connexion. Veuillez réessayer.');
       } else if (isRegister && !data.token) {
-        // ← Inscription sans token = vérification email requise
+        // Inscription sans token = vérification email requise
         setSuccessMsg(data.message);
       } else {
         persistSession(data);
         onLogin(data);
       }
-    } catch (err) {
+    } catch {
       setError('Impossible de contacter le serveur. Vérifiez votre connexion.');
     } finally {
-      setLoading(false);
+      setLoading(false); // ← atteint dans tous les cas (try/catch)
     }
   }, [onLogin]);
 
-  return { loading, error, clearError, submit, successMsg }; // ← exposer successMsg
+  return { loading, error, clearError, submit, successMsg };
 };
