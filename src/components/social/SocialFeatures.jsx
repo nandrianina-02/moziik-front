@@ -25,6 +25,10 @@ const NOTIF_CFG = {
   comment:   { emoji: '💬', bg: 'bg-blue-500/15',   border: 'border-blue-500/20' },
   reaction:  { emoji: '❤️',  bg: 'bg-pink-500/15',   border: 'border-pink-500/20' },
   new_album: { emoji: '💿', bg: 'bg-yellow-500/15', border: 'border-yellow-500/20' },
+  // ✅ AJOUTER
+  system:    { emoji: '📢', bg: 'bg-zinc-500/15',   border: 'border-zinc-500/20' },
+  update:    { emoji: '🔔', bg: 'bg-purple-500/15', border: 'border-purple-500/20' },
+  info:      { emoji: 'ℹ️',  bg: 'bg-blue-400/15',   border: 'border-blue-400/20' },
 };
 
 // ════════════════════════════════════════════
@@ -151,11 +155,36 @@ export const NotificationsPanel = ({ token, onPlaySong, onUnreadCount, isPage = 
     setNotifs(prev => prev.filter(n => !n.lu));
   };
 
-  const handleClick = (notif) => {
-    if (!notif.lu) markRead(notif._id);
-    if (notif.songId && onPlaySong) onPlaySong(notif.songId._id || notif.songId);
-    if (!isPage) setOpen(false);
-  };
+const handleClick = (notif) => {
+  if (!notif.lu) markRead(notif._id);
+  if (!isPage) setOpen(false);
+
+  // Notification système : pas de songId ni albumId → rien à ouvrir
+  if (!notif.songId && !notif.albumId) return;
+
+  switch (notif.type) {
+    case 'new_song':
+    case 'reaction':
+      if (notif.songId && onPlaySong) {
+        onPlaySong(notif.songId._id || notif.songId);
+      }
+      break;
+    case 'comment':
+      if (notif.songId && navigate) {
+        navigate(`/song/${notif.songId._id || notif.songId}`);
+      } else if (notif.songId && onPlaySong) {
+        onPlaySong(notif.songId._id || notif.songId);
+      }
+      break;
+    case 'new_album':
+      if (notif.albumId && navigate) {
+        navigate(`/album/${notif.albumId._id || notif.albumId}`);
+      }
+      break;
+    default:
+      break;
+  }
+};
 
   if (!token) return null;
 

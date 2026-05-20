@@ -1,10 +1,6 @@
 import React from 'react';
 import { Play, Pause, SkipForward, Heart, ChevronUp, Download, Check } from 'lucide-react';
 
-// ─────────────────────────────────────────────────────────────────
-// MiniPlayerMobile
-// Bouton téléchargement hors-ligne inclus et visible sur mobile
-// ─────────────────────────────────────────────────────────────────
 const MiniPlayerMobile = ({
   currentSong,
   isPlaying,
@@ -15,15 +11,15 @@ const MiniPlayerMobile = ({
   currentTime,
   duration,
   initAudioEngine,
-  // Props optionnels pour le cache hors-ligne
+  audioRef,
   cacheAudio,
   removeCached,
   isAudioCached,
 }) => {
   if (!currentSong) return null;
 
-  const prog   = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const cached = isAudioCached ? isAudioCached(currentSong) : false;
+  const prog = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const cached = isAudioCached ? isAudioCached(currentSong._id ?? currentSong) : false;
 
   const handleCacheToggle = async (e) => {
     e.stopPropagation();
@@ -35,18 +31,34 @@ const MiniPlayerMobile = ({
     }
   };
 
+  const handleSeek = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (audioRef?.current) {
+      audioRef.current.currentTime = ((e.clientX - r.left) / r.width) * duration;
+    }
+  };
+
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-50">
-      {/* ── Barre de progression ultra-fine tout en haut ── */}
-      <div className="h-0.5 w-full bg-white/10 relative">
+
+      {/* ── Barre de progression cliquable ── */}
+      <div
+        className="h-1 w-full bg-white/10 cursor-pointer relative group"
+        onClick={handleSeek}
+      >
         <div
-          className="absolute top-0 left-0 h-full bg-linear-to-r from-blue-500 to-violet-500 transition-all duration-300"
+          className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all duration-300"
           style={{ width: `${prog}%` }}
+        />
+        <div
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition pointer-events-none"
+          style={{ left: `${prog}%` }}
         />
       </div>
 
-      {/* ── Corps du mini player ── */}
+      {/* ── Corps ── */}
       <div className="relative overflow-hidden">
+
         {/* Fond ambiant depuis la pochette */}
         {currentSong.image && (
           <div className="absolute inset-0 pointer-events-none">
@@ -55,7 +67,7 @@ const MiniPlayerMobile = ({
               className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-40"
               alt=""
             />
-            <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" />
+            <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm"/>
           </div>
         )}
 
@@ -68,11 +80,13 @@ const MiniPlayerMobile = ({
           <div className="relative shrink-0">
             <img
               src={currentSong.image}
-              className={`w-11 h-11 rounded-xl object-cover shadow-lg shadow-black/50 transition-all duration-300 ${isPlaying ? 'scale-100' : 'scale-95 opacity-80'}`}
+              className={`w-11 h-11 rounded-xl object-cover shadow-lg shadow-black/50 transition-all duration-300 ${
+                isPlaying ? 'scale-100' : 'scale-95 opacity-80'
+              }`}
               alt=""
             />
             {isPlaying && (
-              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-linear-to-br from-blue-400 to-violet-500 border border-zinc-950" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 border border-zinc-950 animate-pulse"/>
             )}
           </div>
 
@@ -82,18 +96,19 @@ const MiniPlayerMobile = ({
             <p className="text-[11px] text-white/50 truncate mt-0.5">{currentSong.artiste}</p>
           </div>
 
-          {/* Boutons action — stopPropagation pour ne pas ouvrir le FullPlayer */}
+          {/* Boutons — stopPropagation pour ne pas ouvrir le FullPlayer */}
           <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
 
-            {/* Téléchargement hors-ligne */}
+            {/* Cache hors-ligne */}
             {(cacheAudio || removeCached) && (
               <button
                 onClick={handleCacheToggle}
                 title={cached ? 'Supprimer du hors-ligne' : 'Écouter hors-ligne'}
-                className="p-2 active:scale-90 transition">
+                className="p-2 active:scale-90 transition"
+              >
                 {cached
-                  ? <Check size={16} className="text-green-400" />
-                  : <Download size={16} className="text-white/40 hover:text-white transition" />
+                  ? <Check size={16} className="text-green-400"/>
+                  : <Download size={16} className="text-white/40 hover:text-white transition"/>
                 }
               </button>
             )}
@@ -101,7 +116,8 @@ const MiniPlayerMobile = ({
             {/* Like */}
             <button
               onClick={() => toggleLike(currentSong._id)}
-              className="p-2 active:scale-90 transition">
+              className="p-2 active:scale-90 transition"
+            >
               <Heart
                 size={18}
                 fill={currentSong.liked ? '#ef4444' : 'none'}
@@ -109,33 +125,35 @@ const MiniPlayerMobile = ({
               />
             </button>
 
-            {/* Play/Pause — anneau gradient */}
+            {/* Play/Pause avec anneau gradient */}
             <button
               onClick={() => { initAudioEngine(); setIsPlaying(p => !p); }}
-              className="relative flex items-center justify-center w-10 h-10 active:scale-95 transition mx-0.5">
+              className="relative flex items-center justify-center w-10 h-10 active:scale-95 transition mx-0.5"
+            >
               <div
                 className="absolute inset-0 rounded-full"
                 style={{
                   background: 'conic-gradient(from 180deg, #6366f1, #8b5cf6, #3b82f6, #6366f1)',
                   padding: '2px'
-                }}>
-                <div className="w-full h-full rounded-full bg-zinc-900" />
+                }}
+              >
+                <div className="w-full h-full rounded-full bg-zinc-900"/>
               </div>
               <div className="relative z-10">
                 {isPlaying
-                  ? <Pause fill="white" size={16} className="text-white" />
-                  : <Play  fill="white" size={16} className="text-white ml-0.5" />}
+                  ? <Pause fill="white" size={16} className="text-white"/>
+                  : <Play  fill="white" size={16} className="text-white ml-0.5"/>
+                }
               </div>
             </button>
 
             {/* Suivant */}
             <button onClick={handleNext} className="p-2 active:scale-90 transition">
-              <SkipForward size={18} className="text-white/70" />
+              <SkipForward size={18} className="text-white/70"/>
             </button>
           </div>
 
-          {/* Flèche haut */}
-          <ChevronUp size={14} className="text-white/25 shrink-0" />
+          <ChevronUp size={14} className="text-white/25 shrink-0"/>
         </div>
       </div>
     </div>
