@@ -56,6 +56,8 @@ const DetailModal = ({ title, children, onClose }) => (
   </div>
 );
 
+
+
 const EnhancedDashboardView = ({ token }) => {
   const [stats, setStats]             = useState(null);
   const [playsHistory, setPlaysHistory] = useState([]);
@@ -71,6 +73,28 @@ const EnhancedDashboardView = ({ token }) => {
   const [modal, setModal]             = useState(null); // 'songs'|'artists'|'users'|'active'|'unassigned'|'shares'
 
   const h = { Authorization: `Bearer ${token}` };
+
+
+  // Fusionner les partages par chanson (même songId)
+  const mergedStats = Object.values(
+    shareStats.reduce((acc, sh) => {
+      const key = sh.songId?._id || sh.songId || 'unknown';
+      
+      if (!acc[key]) {
+        acc[key] = { ...sh, viewCount: 0, playCount: 0 };
+      }
+      
+      acc[key].viewCount += sh.viewCount || 0;
+      acc[key].playCount += sh.playCount || 0;
+      
+      return acc;
+    }, {})
+  ).sort((a, b) => (b.viewCount + b.playCount) - (a.viewCount + a.playCount)); // tri par popularité
+
+  // Nombre de chansons uniques partagées
+  const uniqueSongsCount = new Set(
+    shareStats.map(sh => sh.songId?._id || sh.songId || 'unknown')
+  ).size;
 
   useEffect(() => {
     const load = async () => {
@@ -178,23 +202,23 @@ const EnhancedDashboardView = ({ token }) => {
       )}
       {modal === 'shares' && (
         <DetailModal title="Historique des partages" onClose={() => setModal(null)}>
-          {shareStats.length === 0
+          {mergedStats.length === 0
             ? <p className="text-sm text-zinc-500 text-center py-8">Aucun partage enregistré</p>
             : <div className="space-y-2">
-              {shareStats.slice(0, 20).map(sh => (
-                <div key={sh._id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/5">
-                  {sh.songId?.image && <img src={sh.songId.image} className="w-9 h-9 rounded-lg object-cover shrink-0" alt="" />}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold truncate">{sh.songId?.titre || 'Musique supprimée'}</p>
-                    <p className="text-[10px] text-zinc-500">par {sh.sharedBy?.nom || sh.sharedBy?.email || 'Anonyme'}</p>
+                {mergedStats.slice(0, 20).map(sh => (
+                  <div key={sh._id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/5">
+                    {sh.songId?.image && <img src={sh.songId.image} className="w-9 h-9 rounded-lg object-cover shrink-0" alt="" />}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold truncate">{sh.songId?.titre || 'Musique supprimée'}</p>
+                      {/* Optionnel : afficher le nombre de partages fusionnés */}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-[10px] text-blue-400">{sh.viewCount} vue{sh.viewCount !== 1 ? 's' : ''}</p>
+                      <p className="text-[10px] text-green-400">{sh.playCount} écoute{sh.playCount !== 1 ? 's' : ''}</p>
+                    </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-[10px] text-blue-400">{sh.viewCount} vue{sh.viewCount!==1?'s':''}</p>
-                    <p className="text-[10px] text-green-400">{sh.playCount} écoute{sh.playCount!==1?'s':''}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
           }
         </DetailModal>
       )}
@@ -234,7 +258,7 @@ const EnhancedDashboardView = ({ token }) => {
           {shareStats.length > 0 && (
             <button onClick={() => setModal('shares')}
               className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold px-3 py-2 rounded-xl hover:bg-blue-500/20 transition">
-              <Share2 size={13}/> {shareStats.length} partage{shareStats.length!==1?'s':''}
+              <Share2 size={13}/> {uniqueSongsCount} partage{uniqueSongsCount !== 1 ? 's' : ''}
             </button>
           )}
         </div>

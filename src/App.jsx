@@ -59,6 +59,13 @@ import AdminTeamView from './views/AdminTeamView';
 import OfflineLibraryView from './views/OfflineLibraryView.jsx';
 import ResetPassword from './components/modals/ResetPassword.jsx';
 import VerifyEmail from './components/modals/VerifyEmail.jsx';
+import MoozikHeader from './components/layout/MoozikHeader.jsx';
+import MoozikRightPanel from './components/layout/MoozikRightPanel.jsx';
+import { useSessionGuard } from './hooks/useSessionGuard';
+import { clearLocalSession } from './hooks/useAuth';
+import SessionExpiredToast from './components/ui/SessionExpiredToast';
+import SessionsView from './views/SessionsView';
+
 
 const DashboardView     = lazy(() => import('./views/EnhancedDashboardView'));
 const PublicProfileView = lazy(() => import('./views/PublicProfileView'));
@@ -75,358 +82,7 @@ const getTrendingScore = (song) => {
 const sortByTrending = (songs) =>
   [...songs].sort((a, b) => getTrendingScore(b) - getTrendingScore(a));
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SOUS-COMPOSANT : HEADER DESKTOP
-// ─────────────────────────────────────────────────────────────────────────────
-const MoozikHeader = ({
-  navigate, searchTerm, setSearchTerm,
-  isLoggedIn, userNom, userEmail, userRole, userAvatar,
-  unreadNotifs, isPremium, isOnline,
-  onLogin, onLogout, onImport,
-  darkMode, setDarkMode,
-  canUpload,
-}) => {
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const menuRef  = useRef(null);
-  const searchRef = useRef(null);
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setUserMenuOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
-
-  const roleColor = userRole === 'admin' ? 'text-red-400' : userRole === 'artist' ? 'text-purple-400' : 'text-blue-400';
-  const roleBg    = userRole === 'admin' ? 'bg-red-600'   : userRole === 'artist' ? 'bg-purple-600'   : 'bg-blue-600';
-
-  return (
-    <header className="
-      hidden md:flex
-      fixed top-0 left-0 right-0 z-50
-      h-16
-      bg-zinc-950/95 backdrop-blur-2xl
-      border-b border-zinc-800/50
-      items-center gap-3 px-5
-    ">
-      {/* Logo */}
-      <Link to="/" className="flex items-center gap-2 shrink-0 mr-1 group">
-        <div className="w-8 h-8 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-600/30 group-hover:shadow-red-500/50 transition-shadow">
-          <Music size={15} className="text-white" />
-        </div>
-        <span className="text-[17px] font-black italic tracking-tight text-white">MOOZIK</span>
-      </Link>
-
-      {/* Nav ← → */}
-      <div className="flex items-center gap-1 shrink-0">
-        <button
-          onClick={() => navigate(-1)}
-          className="w-8 h-8 bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-600 transition-all active:scale-95"
-        >
-          <ArrowLeft size={15} strokeWidth={2.5} />
-        </button>
-        <button
-          onClick={() => navigate(1)}
-          className="w-8 h-8 bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-600 transition-all active:scale-95"
-        >
-          <ArrowRight size={15} strokeWidth={2.5} />
-        </button>
-      </div>
-
-      {/* Search */}
-      <div className="flex-1 max-w-xl relative mx-2">
-        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none z-10" />
-        <input
-          ref={searchRef}
-          type="text"
-          placeholder="Rechercher des titres, artistes, albums..."
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Escape') { setSearchTerm(''); searchRef.current?.blur(); } }}
-          className="w-full h-10 bg-zinc-900 border border-zinc-800 rounded-full pl-9 pr-20 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-600 focus:bg-zinc-800/80 transition-all duration-200"
-        />
-        {!searchTerm && (
-          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[11px] text-zinc-700 font-mono bg-zinc-800/80 px-1.5 py-0.5 rounded-md border border-zinc-700/50 pointer-events-none select-none">⌘K</span>
-        )}
-        {searchTerm && (
-          <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition">
-            <X size={13} />
-          </button>
-        )}
-      </div>
-
-      {/* Right actions */}
-      <div className="flex items-center gap-2 shrink-0 ml-auto">
-
-        {/* Offline */}
-        {!isOnline && (
-          <div className="flex items-center gap-1.5 text-[11px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2.5 py-1 rounded-full">
-            <WifiOff size={12} /> <span className="font-semibold">Hors-ligne</span>
-          </div>
-        )}
-
-        {/* Premium */}
-        {!isPremium ? (
-          <Link to="/premium" className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white text-xs font-black px-4 py-2 rounded-full transition-all active:scale-95 shadow-md shadow-amber-600/20">
-            <Crown size={13} /> Abonnez-vous
-          </Link>
-        ) : (
-          <div className="flex items-center gap-1.5 text-[11px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-3 py-1.5 rounded-full font-bold">
-            <Crown size={12} /> Premium
-          </div>
-        )}
-
-        {/* Notifications */}
-        {isLoggedIn && (
-          <Link to="/notifications" className="relative w-9 h-9 bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-600 transition-all">
-            <Bell size={16} />
-            {unreadNotifs > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 bg-red-600 text-[9px] font-black text-white rounded-full flex items-center justify-center border border-zinc-950">
-                {unreadNotifs > 99 ? '99+' : unreadNotifs}
-              </span>
-            )}
-          </Link>
-        )}
-
-        {/* Avatar + dropdown */}
-        {isLoggedIn ? (
-          <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setUserMenuOpen(o => !o)}
-              className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-600 rounded-full pl-1 pr-2.5 py-1 transition-all"
-            >
-              <div className={`w-7 h-7 ${roleBg} rounded-full flex items-center justify-center text-xs font-black overflow-hidden shrink-0`}>
-                {userAvatar ? <img src={userAvatar} className="w-full h-full object-cover" alt="" /> : (userNom || userEmail || '?')[0].toUpperCase()}
-              </div>
-              <ChevronDown size={13} className={`text-zinc-500 transition-transform duration-200 ${userMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {userMenuOpen && (
-              <div className="absolute top-full right-0 mt-2 w-56 bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden z-50">
-                <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-800/60">
-                  <div className={`w-9 h-9 ${roleBg} rounded-full flex items-center justify-center text-sm font-black overflow-hidden shrink-0`}>
-                    {userAvatar ? <img src={userAvatar} className="w-full h-full object-cover" alt="" /> : (userNom || userEmail || '?')[0].toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
-                    <p className={`text-sm font-bold truncate ${roleColor}`}>{userNom || userEmail}</p>
-                    <p className="text-[10px] text-zinc-600 uppercase tracking-widest">{userRole}</p>
-                  </div>
-                </div>
-                <div className="py-1">
-                  <Link to="/account" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition">
-                    <Settings size={15} /> Mon compte
-                  </Link>
-                  <Link to="/settings" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition">
-                    <Sliders size={15} /> Paramètres
-                  </Link>
-                  {userRole === 'admin' && (
-                    <Link to="/dashboard" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-zinc-800/60 transition">
-                      <Zap size={15} /> Dashboard admin
-                    </Link>
-                  )}
-                </div>
-                <div className="border-t border-zinc-800/60 py-1">
-                  <button onClick={() => { onLogout(); setUserMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-500 hover:text-red-400 hover:bg-red-500/5 transition">
-                    <LogOut size={15} /> Déconnexion
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <button onClick={onLogin} className="flex items-center gap-2 text-sm font-bold text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-500 px-4 py-2 rounded-full transition-all active:scale-95">
-            <LogIn size={14} /> Connexion
-          </button>
-        )}
-
-        {/* Séparateur */}
-        <div className="w-px h-6 bg-zinc-800 mx-1" />
-
-        {/* Import */}
-        {canUpload && (
-          <button onClick={onImport} className="flex items-center gap-2 text-xs font-semibold text-zinc-400 hover:text-white transition px-3 py-2 rounded-xl hover:bg-zinc-800/60">
-            <Upload size={14} /> Importer
-          </button>
-        )}
-
-        {/* Toggle thème */}
-        <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-full p-1">
-          <button onClick={() => setDarkMode(false)} className={`p-1.5 rounded-full transition-all ${!darkMode ? 'bg-zinc-700 text-white' : 'text-zinc-600 hover:text-zinc-400'}`}>
-            <Sun size={13} />
-          </button>
-          <button onClick={() => setDarkMode(true)} className={`p-1.5 rounded-full transition-all ${darkMode ? 'bg-zinc-700 text-white' : 'text-zinc-600 hover:text-zinc-400'}`}>
-            <Moon size={13} />
-          </button>
-        </div>
-      </div>
-    </header>
-  );
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SOUS-COMPOSANT : PANEL DROIT (Tendances + File d'attente)
-// ─────────────────────────────────────────────────────────────────────────────
-const MoozikRightPanel = ({ musiques, queue, setQueue, currentSong, setCurrentSong, setIsPlaying, isPlaying, visible }) => {
-  const top5 = React.useMemo(
-    () => [...musiques].sort((a, b) => getTrendingScore(b) - getTrendingScore(a)).slice(0, 5),
-    [musiques]
-  );
-
-  const playSong = (song) => { setCurrentSong(song); setIsPlaying(true); };
-  const removeFromQueue = (idx) => setQueue(prev => prev.filter((_, i) => i !== idx));
-  const playFromQueue = (idx) => {
-    const song = queue[idx];
-    setCurrentSong(song);
-    setIsPlaying(true);
-    setQueue(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  if (!visible) return null;
-
-  const RankBadge = ({ rank }) => {
-    const cls = rank === 1 ? 'text-amber-400' : rank === 2 ? 'text-zinc-300' : rank === 3 ? 'text-orange-400' : 'text-zinc-600';
-    return <span className={`w-5 text-center text-xs font-black shrink-0 ${cls}`}>{rank}</span>;
-  };
-
-  return (
-    <>
-      <style>{`
-        @keyframes eq-bar { from { transform: scaleY(0.3); } to { transform: scaleY(1); } }
-      `}</style>
-      <aside className="
-        hidden md:flex flex-col
-        fixed right-0 top-16 bottom-24
-        w-72 xl:w-80
-        bg-zinc-950/98 backdrop-blur-xl
-        border-l border-zinc-800/50
-        z-30 overflow-hidden
-      ">
-        {/* ── TENDANCES ── */}
-        <section className="shrink-0 border-b border-zinc-800/50">
-          <div className="flex items-center justify-between px-5 pt-5 pb-3">
-            <div className="flex items-center gap-2">
-              <Flame size={15} className="text-red-500" />
-              <span className="text-sm font-black text-white">Tendances</span>
-            </div>
-            <Link to="/trending" className="text-[11px] font-bold text-red-500 hover:text-red-400 transition">
-              Tout voir →
-            </Link>
-          </div>
-          <ul className="px-3 pb-3 space-y-0.5">
-            {top5.map((song, i) => {
-              const isCurrent = currentSong?._id === song._id;
-              return (
-                <li
-                  key={song._id}
-                  onClick={() => playSong(song)}
-                  className={`flex items-center gap-3 px-2 py-2.5 rounded-xl transition-all cursor-pointer group ${isCurrent ? 'bg-zinc-800/80 ring-1 ring-zinc-700/50' : 'hover:bg-zinc-900/80'}`}
-                >
-                  <RankBadge rank={i + 1} />
-                  <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0">
-                    <img src={song.image} alt={song.titre} className="w-full h-full object-cover" />
-                    <div className={`absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity ${isCurrent ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                      {isCurrent && isPlaying ? <Pause size={13} fill="white" className="text-white" /> : <Play size={13} fill="white" className="text-white" />}
-                    </div>
-                    {isCurrent && isPlaying && (
-                      <div className="absolute bottom-1 left-1 right-1 flex items-end justify-center gap-0.5 h-3">
-                        {[1,2,3].map(j => (
-                          <div key={j} className="w-0.5 bg-red-500 rounded-full" style={{ height: `${40 + j * 20}%`, animation: `eq-bar ${0.5 + j * 0.15}s ease-in-out infinite alternate`, animationDelay: `${j * 0.1}s` }} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-bold truncate transition ${isCurrent ? 'text-red-400' : 'text-zinc-200 group-hover:text-white'}`}>{song.titre}</p>
-                    <p className="text-[10px] text-zinc-600 truncate">{song.artiste}</p>
-                  </div>
-                  <button
-                    onClick={e => { e.stopPropagation(); /* menu contextuel si besoin */ }}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-zinc-600 hover:text-white transition"
-                  >
-                    <BarChart2 size={12} />
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-
-        {/* ── FILE D'ATTENTE ── */}
-        <section className="flex flex-col flex-1 min-h-0">
-          <div className="flex items-center justify-between px-5 pt-4 pb-3 shrink-0">
-            <div className="flex items-center gap-2">
-              <Music2 size={15} className="text-zinc-400" />
-              <span className="text-sm font-black text-white">File d'attente</span>
-              {queue.length > 0 && (
-                <span className="text-[10px] text-zinc-600 bg-zinc-800 px-1.5 py-0.5 rounded-full font-bold">{queue.length}</span>
-              )}
-            </div>
-            {queue.length > 0 && (
-              <button onClick={() => setQueue([])} className="text-[11px] font-bold text-red-500 hover:text-red-400 transition">
-                Effacer
-              </button>
-            )}
-          </div>
-
-          <div
-            className="flex-1 overflow-y-auto px-3 pb-3 space-y-0.5"
-            style={{ overscrollBehavior: 'contain', scrollbarWidth: 'thin', scrollbarColor: '#27272a transparent' }}
-          >
-            {queue.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 text-center px-4">
-                <div className="w-10 h-10 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-3">
-                  <Music2 size={16} className="text-zinc-700" />
-                </div>
-                <p className="text-xs text-zinc-700 italic">File vide — ajoutez des titres via le menu ···</p>
-              </div>
-            ) : (
-              queue.map((song, i) => {
-                const isCurrent = currentSong?._id === song._id;
-                return (
-                  <div
-                    key={`${song._id}-${i}`}
-                    onClick={() => playFromQueue(i)}
-                    className={`flex items-center gap-3 px-2 py-2.5 rounded-xl transition-all cursor-pointer group ${isCurrent ? 'bg-zinc-800/80 ring-1 ring-zinc-700/50' : 'hover:bg-zinc-900/80'}`}
-                  >
-                    <span className="text-[10px] text-zinc-700 font-mono w-4 text-center shrink-0 group-hover:opacity-0 transition-opacity">{i + 1}</span>
-                    <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0">
-                      <img src={song.image} alt={song.titre} className="w-full h-full object-cover" />
-                      <div className={`absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity ${isCurrent ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                        {isCurrent && isPlaying ? <Pause size={13} fill="white" className="text-white" /> : <Play size={13} fill="white" className="text-white" />}
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-semibold truncate transition ${isCurrent ? 'text-red-400' : 'text-zinc-200 group-hover:text-white'}`}>{song.titre}</p>
-                      <p className="text-[10px] text-zinc-600 truncate">{song.artiste}</p>
-                    </div>
-                    <button
-                      onClick={e => { e.stopPropagation(); removeFromQueue(i); }}
-                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/10 text-zinc-600 hover:text-red-400 transition"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </section>
-      </aside>
-    </>
-  );
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // APP INNER
@@ -475,6 +131,7 @@ const AppInner = () => {
   const [dragOverId, setDragOverId]           = useState(null);
   const [dragSongId, setDragSongId]           = useState(null);
   const [unreadNotifs, setUnreadNotifs]       = useState(0);
+  const [sessionExpiredMsg, setSessionExpiredMsg] = useState('');
 
   // ── Auth ──────────────────────────────────────────────────────
   const [isAdmin, setIsAdmin]           = useState(false);
@@ -744,7 +401,7 @@ const AppInner = () => {
     } catch {}
   }, []);
 
-  // Audio init
+  // Audio init — créé une seule fois, EQ initialisé au premier geste utilisateur
   useEffect(() => {
     const audio = new Audio();
     audio.crossOrigin = 'anonymous';
@@ -752,7 +409,9 @@ const AppInner = () => {
     return () => { audio.pause(); audio.src = ''; };
   }, []);
 
+  // initAudioEngine idempotent : ne recrée pas le graphe EQ s'il existe déjà
   const initAudioEngine = useCallback(() => {
+    if (audioContextRef.current?.ctx) return;
     initEQ12(audioRef, eqFiltersRef, audioContextRef, () => setAudioReady(true));
     eqGainsRef.current.forEach((gain, i) => { if (eqFiltersRef.current[i]) eqFiltersRef.current[i].gain.value = gain; });
   }, []);
@@ -777,6 +436,30 @@ const AppInner = () => {
     draw();
     return () => cancelAnimationFrame(rafId);
   }, [audioReady]);
+
+    const handleSessionExpired = useCallback((message) => {
+    // 1. Afficher le toast
+    setSessionExpiredMsg(message);
+  
+    // 2. Nettoyer la session locale
+    clearLocalSession();
+  
+    // 3. Réinitialiser tous les states auth
+    setToken('');
+    setIsAdmin(false);
+    setIsArtist(false);
+    setIsUser(false);
+    setUserRole('');
+    setUserEmail('');
+    setUserNom('');
+    setUserArtistId('');
+    setUserId('');
+    setUserAvatar(null);
+    setIsPrimary(false);
+    setUserPlaylists([]);
+  }, []);
+  
+  useSessionGuard(handleSessionExpired);
 
   // ── handleNext / handlePrev ────────────────────────────────────
   const handleNext = useCallback(() => {
@@ -831,10 +514,20 @@ const AppInner = () => {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentSong?.src) return;
+    // Annuler tout play() en attente sur l'ancienne piste
+    audio.pause();
     audio.src = currentSong.src.replace(/^http:\/\//, 'https://');
-    audio.playbackRate = playbackRate; audio.load(); playCountedRef.current = false;
-    if (isPlaying) { audioContextRef.current?.ctx?.resume(); audio.play().catch(() => {}); }
-  }, [currentSong]);
+    audio.playbackRate = playbackRate;
+    audio.load();
+    playCountedRef.current = false;
+    if (isPlaying) {
+      audioContextRef.current?.ctx?.resume();
+      // Attendre que suffisamment de données soient chargées avant de jouer
+      // → évite le double play() en cascade et le glitch audio
+      const onReady = () => { audio.play().catch(() => {}); };
+      audio.addEventListener('canplay', onReady, { once: true });
+    }
+  }, [currentSong]); // isPlaying intentionnellement absent : géré par l'effect ci-dessous
 
   useEffect(() => {
     const audio = audioRef.current; if (!audio) return;
@@ -908,6 +601,7 @@ const AppInner = () => {
     { to: '/recommendations', icon: <Sparkles size={16}/>,  label: 'Pour vous' },
     { to: '/notifications',   icon: <Bell size={16}/>,      label: 'Notifications' },
     { to: '/account',         icon: <Settings size={16}/>,  label: 'Mon compte' },
+    { to: '/sessions',        icon: <Shield size={16}/>,    label: 'Sessions' },
     { to: '/settings',        icon: <Sliders size={16}/>,   label: 'Paramètres' },
   ] : [];
   const navLinksArtist = isArtist ? [
@@ -966,6 +660,10 @@ const NavLink = ({ to, icon, label, colorClass }) => (
   </NavLinkRRD>
 );
 
+
+
+
+
   // ────────────────────────────────────────────────────────────────
   // RENDER
   // ────────────────────────────────────────────────────────────────
@@ -976,6 +674,13 @@ const NavLink = ({ to, icon, label, colorClass }) => (
 
       {/* ════════ MODALS ════════ */}
       {showLoginModal     && <LoginModal onLogin={handleLogin} onClose={() => setShowLoginModal(false)} />}
+      {sessionExpiredMsg && (
+        <SessionExpiredToast
+          message={sessionExpiredMsg}
+          onClose={() => setSessionExpiredMsg('')}
+          onLogin={() => setShowLoginModal(true)}
+        />
+      )}
       {showUpload         && <UploadModal token={token} artists={artists} albums={albums} onClose={() => setShowUpload(false)} onSuccess={chargerMusiques} userRole={userRole} userArtistId={userArtistId} userNom={userNom} />}
       {showCreatePlaylist && <CreatePlaylistModal token={token} onClose={() => setShowCreatePlaylist(false)} onSuccess={() => chargerUserPlaylists(token)} />}
       {showListenParty   && <ListenPartyModal token={token} isLoggedIn={isLoggedIn} currentSong={currentSong} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} isPlaying={isPlaying} onClose={() => setShowListenParty(false)} />}
@@ -1312,9 +1017,16 @@ const NavLink = ({ to, icon, label, colorClass }) => (
             <Route path="/recommendations"   element={<RecommendationsView token={token} currentSong={currentSong} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} isPlaying={isPlaying}/>}/>
             <Route path="/share/:shareToken" element={<Suspense fallback={<ViewLoader/>}><SharePageView setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}/></Suspense>}/>
             <Route path="/notifications"     element={isLoggedIn
-              ? <div className="max-w-xl mx-auto py-6"><h1 className="text-xl font-black mb-6 flex items-center gap-2"><Bell size={20} className="text-red-400"/> Notifications</h1><NotificationsPanel token={token} isPage={true} onPlaySong={(sid) => { const s = musiques.find(m => m._id === sid); if (s) { setCurrentSong(s); setIsPlaying(true); } }}/></div>
+              ? <div className="w-full mx-auto py-6"><h1 className="text-xl font-black mb-6 flex items-center gap-2"><Bell size={20} className="text-red-400"/> Notifications</h1><NotificationsPanel token={token} isPage={true} onPlaySong={(sid) => { const s = musiques.find(m => m._id === sid); if (s) { setCurrentSong(s); setIsPlaying(true); } }}/></div>
               : <div className="p-8 text-zinc-500">Connectez-vous</div>
             }/>
+            <Route
+              path="/sessions"
+              element={isLoggedIn
+                ? <SessionsView />
+                : <div className="p-8 text-zinc-500">Connectez-vous</div>
+              }
+            />
             <Route path="/settings"          element={<SettingsView token={token} isAdmin={isAdmin} isLoggedIn={isLoggedIn} userNom={userNom} userEmail={userEmail} userRole={userRole} isPrimary={isPrimary} musiques={musiques} isAudioCached={isAudioCached} cachedIds={cachedIds} cacheAudio={cacheAudio} removeCached={removeCached}/>}/>
             <Route path="/account"           element={isLoggedIn ? <AccountView token={token} userNom={userNom} userEmail={userEmail} userRole={userRole} userId={userId} userArtistId={userArtistId} isAdmin={isAdmin} isArtist={isArtist} isUser={isUser} musiques={musiques} userPlaylists={userPlaylists} onUpdateProfile={handleUpdateProfile} isLoggedIn={isLoggedIn}/> : <div className="p-8 text-zinc-600">Connectez-vous</div>}/>
             <Route path="/premium"           element={<SubscriptionView token={token} isLoggedIn={isLoggedIn}/>}/>

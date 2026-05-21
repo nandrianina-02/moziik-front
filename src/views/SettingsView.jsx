@@ -269,7 +269,7 @@ const SettingsView = ({
   }, [isAdmin, token]);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5 pb-10 animate-in fade-in duration-500">
+    <div className="w-full mx-auto space-y-5 pb-10 animate-in fade-in duration-500">
       <div className="flex items-center gap-3 mb-2">
         <div className="w-10 h-10 bg-zinc-800 rounded-2xl flex items-center justify-center">
           <Settings size={18} className="text-red-400" />

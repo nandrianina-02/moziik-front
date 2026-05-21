@@ -289,7 +289,7 @@ const AdminTeamView = ({ token, currentAdminId, isPrimary }) => {
   // RENDER
   // ─────────────────────────────────────────────────────────
   return (
-    <div className="space-y-5 animate-in fade-in duration-400 max-w-4xl mx-auto">
+    <div className="space-y-5 animate-in fade-in duration-400 mx-auto">
 
       <ConfirmModal config={confirm} onClose={() => setConfirm(null)}/>
 

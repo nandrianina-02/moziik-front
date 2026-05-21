@@ -5,6 +5,7 @@ import {
   LogIn, LogOut, Settings, User, ChevronDown, WifiOff,
   ArrowLeft, ArrowRight, Zap,
 } from 'lucide-react';
+import MoziikLogo from '../../assets/logo.png';
 
 /* ── Petite pastille rouge (notifications) ─────────────────── */
 const Badge = ({ count }) =>
@@ -95,8 +96,12 @@ const MoozikHeader = ({
       ">
         {/* ─── Logo ─── */}
         <Link to="/" className="flex items-center gap-2 shrink-0 group mr-2">
-          <div className="w-8 h-8 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-600/30 group-hover:shadow-red-500/50 transition-shadow">
-            <Music size={15} className="text-white" />
+          <div className="w-8 h-8 rounded-xl overflow-hidden shadow-lg shadow-red-600/30 group-hover:shadow-red-500/50 transition-shadow">
+            <img 
+              src={MoziikLogo}
+              alt="Logo" 
+              className="w-full h-full object-cover"
+            />
           </div>
           <span className="text-[17px] font-black italic tracking-tight text-white">MOOZIK</span>
         </Link>

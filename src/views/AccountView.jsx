@@ -1069,7 +1069,7 @@ const AccountView = ({
       aria-label="Mon compte"
       style={{
         fontFamily: "'DM Sans', sans-serif",
-        maxWidth: 760, margin: '0 auto',
+        // maxWidth: 760, margin: '0 auto',
         padding: '2rem 1rem 4rem',
         display: 'flex', flexDirection: 'column', gap: 20,
         color: '#fff',

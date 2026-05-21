@@ -4,9 +4,9 @@ import { API } from '../config/api';
 
 // ─── Endpoint map ─────────────────────────────────────────────────────────────
 const ENDPOINTS = {
-  admin:  { login:    '/admin/login' },
-  artist: { login:    '/artists/login' },
-  user:   { login:    '/users/login', register: '/users/register' },
+  admin:  { login: '/admin/login' },
+  artist: { login: '/artists/login' },
+  user:   { login: '/users/login', register: '/users/register' },
 };
 
 // ─── Clés localStorage centralisées ──────────────────────────────────────────
@@ -33,20 +33,52 @@ const persistSession = (data) => {
   });
 };
 
+/**
+ * Efface toutes les clés de session du localStorage.
+ * Appelé lors d'un logout ou d'une session révoquée.
+ */
+export const clearLocalSession = () => {
+  Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
+};
+
+/**
+ * Déconnexion propre : notifie le serveur puis nettoie le localStorage.
+ * N'échoue jamais (le logout local se fait même si la requête échoue).
+ */
+export const logoutFromServer = async () => {
+  const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+  if (token) {
+    try {
+      await fetch(`${API}/sessions/logout`, {
+        method:  'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      // Ignore les erreurs réseau — le nettoyage local se fait quand même
+    }
+  }
+  clearLocalSession();
+};
+
+/**
+ * Détecte si une réponse 401 indique une session révoquée
+ * (nouvelle connexion depuis un autre appareil).
+ */
+export const isSessionExpiredResponse = (data) =>
+  data?.message === 'SESSION_EXPIRED' || data?.message === 'SESSION_INVALID';
+
 // ─── Validation client ────────────────────────────────────────────────────────
-// FIX : seuil password aligné sur le backend (6 car. minimum, pas 8)
-// FIX : validation appelée AVANT setLoading pour ne pas bloquer sur loading=true
 const validate = ({ mode, isRegister, email, password, nom }) => {
   if (!email.includes('@') || !email.includes('.'))
     return 'Adresse email invalide.';
   if (password.length < 6)
     return 'Mot de passe trop court (6 caractères minimum).';
   if (mode === 'user' && isRegister && !nom.trim())
-    return 'Veuillez entrer un nom d\'affichage.';
+    return "Veuillez entrer un nom d'affichage.";
   return null;
 };
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
+// ─── Hook principal ───────────────────────────────────────────────────────────
 export const useAuth = (onLogin) => {
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState('');
@@ -58,14 +90,10 @@ export const useAuth = (onLogin) => {
   }, []);
 
   const submit = useCallback(async ({ mode, isRegister, email, password, nom }) => {
-    // FIX CRITIQUE : validation AVANT setLoading(true)
-    // Avant : setLoading(true) était appelé en premier, puis validate() faisait
-    // un return anticipé sans jamais atteindre le finally → loading restait true
-    // indéfiniment, le bouton restait bloqué sur "Création en cours…"
     const validationError = validate({ mode, isRegister, email, password, nom });
     if (validationError) {
       setError(validationError);
-      return; // ← on sort AVANT d'avoir mis loading à true : aucun blocage
+      return;
     }
 
     setLoading(true);
@@ -89,7 +117,6 @@ export const useAuth = (onLogin) => {
       if (!res.ok) {
         setError(data.message || 'Erreur de connexion. Veuillez réessayer.');
       } else if (isRegister && !data.token) {
-        // Inscription sans token = vérification email requise
         setSuccessMsg(data.message);
       } else {
         persistSession(data);
@@ -98,7 +125,7 @@ export const useAuth = (onLogin) => {
     } catch {
       setError('Impossible de contacter le serveur. Vérifiez votre connexion.');
     } finally {
-      setLoading(false); // ← atteint dans tous les cas (try/catch)
+      setLoading(false);
     }
   }, [onLogin]);
 

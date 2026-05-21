@@ -687,7 +687,7 @@ const AdminArtistView = ({ token, adminId, adminNom }) => {
       {ConfirmDialog}
       {PromptDialog}
 
-      <div className="space-y-5 animate-in fade-in duration-500 max-w-5xl mx-auto">
+      <div className="space-y-5 animate-in fade-in duration-500 mx-auto">
 
         {/* ── Header ──────────────────────────────────── */}
         <header className="flex items-center gap-4">

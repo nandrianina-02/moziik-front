@@ -41,7 +41,7 @@ const GlobalSearchView = ({
   if (!searchTerm) return null;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in duration-300">
+    <div className="w-full mx-auto space-y-8 animate-in fade-in duration-300">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

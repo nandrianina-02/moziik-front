@@ -359,7 +359,7 @@ export const HistoryView = ({ token, currentSong, setCurrentSong, setIsPlaying }
   }, {});
 
   return (
-    <div className="animate-in fade-in duration-500 max-w-2xl mx-auto">
+    <div className="animate-in fade-in duration-500 w-full mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-purple-600/20 rounded-2xl flex items-center justify-center">

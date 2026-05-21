@@ -256,7 +256,7 @@ const OfflineLibraryView = ({
   // ── Empty state ──────────────────────────────
   if (cachedSongs.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center px-6">
+      <div className="w-full flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center px-6">
         <div className="relative">
           <div className="w-24 h-24 rounded-3xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
             <WifiOff size={36} className="text-zinc-700" />
@@ -280,11 +280,11 @@ const OfflineLibraryView = ({
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="w-full space-y-6 mx-auto">
 
       {/* ── En-tête ── */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="w-full flex items-start justify-between gap-4">
+        <div w-full>
           <h1 className="text-2xl font-black flex items-center gap-3">
             <div className="w-10 h-10 bg-green-500/15 border border-green-500/25 rounded-2xl flex items-center justify-center">
               <WifiOff size={18} className="text-green-400" />
