@@ -4,7 +4,7 @@
 // ════════════════════════════════════════════
 
 const CACHE_NAME       = 'moozik-audio-offline';
-const STATIC_CACHE     = 'moozik-static-v2';
+const STATIC_CACHE     = 'moozik-static-v3';
 const APP_SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -113,35 +113,40 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // ── 5. App shell (HTML, JS, CSS) → Network first, cache fallback ──
-  if (
-    url.hostname === self.location.hostname &&
-    (
-      request.destination === 'document' ||
-      request.destination === 'script' ||
-      request.destination === 'style' ||
-      url.pathname === '/' ||
-      url.pathname.endsWith('.html') ||
-      url.pathname.endsWith('.js') ||
-      url.pathname.endsWith('.css')
-    )
-  ) {
-    event.respondWith(
-      fetch(request)
-        .then(response => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(STATIC_CACHE).then(c => c.put(request, clone)).catch(() => {});
-          }
-          return response;
+  // ── 5. App shell (HTML, JS, CSS) ───────────────────────────────
+  if (url.hostname === self.location.hostname) {
+    const isHTML = request.destination === 'document' || url.pathname === '/' || url.pathname.endsWith('.html');
+    const isAsset = request.destination === 'script' || request.destination === 'style' || url.pathname.endsWith('.js') || url.pathname.endsWith('.css');
+
+    if (isHTML) {
+      // HTML → Network first, fallback cache (toujours la version fraîche)
+      event.respondWith(
+        fetch(request)
+          .then(res => {
+            if (res.ok) caches.open(STATIC_CACHE).then(c => c.put(request, res.clone())).catch(() => {});
+            return res;
+          })
+          .catch(() => caches.match(request).then(c => c || caches.match('/index.html')))
+      );
+      return;
+    }
+
+    if (isAsset) {
+      // JS/CSS avec hash → Cache first (immutables), puis mise à jour silencieuse en fond
+      event.respondWith(
+        caches.open(STATIC_CACHE).then(async cache => {
+          const cached = await cache.match(request);
+          // Fetch en arrière-plan pour mettre à jour le cache
+          const fetchPromise = fetch(request).then(res => {
+            if (res.ok) cache.put(request, res.clone()).catch(() => {});
+            return res;
+          }).catch(() => null);
+          // Servir immédiatement depuis le cache si dispo (stale-while-revalidate)
+          return cached || fetchPromise || caches.match('/index.html');
         })
-        .catch(() =>
-          caches.match(request).then(cached =>
-            cached || caches.match('/index.html')
-          )
-        )
-    );
-    return;
+      );
+      return;
+    }
   }
 });
 

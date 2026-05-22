@@ -123,6 +123,11 @@ const AppInner = () => {
   // ── UI ────────────────────────────────────────────────────────
   const [isLoading, setIsLoading]             = useState(true);
   const [searchTerm, setSearchTerm]           = useState('');
+  // Pagination infinite scroll
+  const [songsPage, setSongsPage]             = useState(1);
+  const [hasMore, setHasMore]                 = useState(true);
+  const [isFetchingMore, setIsFetchingMore]   = useState(false);
+  const loaderRef                             = useRef(null);
   const [activeMenu, setActiveMenu]           = useState(null);
   const [showEQ, setShowEQ]                   = useState(false);
   const [showUpload, setShowUpload]           = useState(false);
@@ -190,13 +195,15 @@ const AppInner = () => {
   const { isPremium } = useSubscription(token);
   const [showRadio, setShowRadio] = useState(false);
 
-  // Recherche → redirect home
+  // Recherche → redirect home + recharger avec debounce
   const prevSearchRef = useRef('');
   useEffect(() => {
-    const hasTerm = searchTerm.trim().length > 0;
+    const hasTerm = debouncedSearch.trim().length > 0;
     if (hasTerm && location.pathname !== '/') navigate('/');
-    prevSearchRef.current = searchTerm;
-  }, [searchTerm]);
+    prevSearchRef.current = debouncedSearch;
+    // Recharger la liste filtrée côté serveur
+    chargerMusiques();
+  }, [debouncedSearch]);
 
   // EQ
   const [activePreset, setActivePreset] = useState('Flat');
@@ -296,19 +303,29 @@ const AppInner = () => {
     }
   };
 
+  // ── Hook debounce ────────────────────────────────────────────
+  const useDebounce = (value, delay) => {
+    const [debounced, setDebounced] = useState(value);
+    useEffect(() => {
+      const t = setTimeout(() => setDebounced(value), delay);
+      return () => clearTimeout(t);
+    }, [value, delay]);
+    return debounced;
+  };
+  const debouncedSearch = useDebounce(searchTerm, 400);
+
   // ── DATA ──────────────────────────────────────────────────────
+  // Charge la première page uniquement (20 titres) — le reste via infinite scroll
   const chargerMusiques = async () => {
     try {
-      let allSongs = []; let page = 1; let totalPages = 1;
-      do {
-        const data = await fetch(`${API}/songs?page=${page}&limit=50`).then(r => r.json());
-        if (Array.isArray(data)) { allSongs = data; break; }
-        allSongs = [...allSongs, ...(data.songs || [])];
-        totalPages = data.pagination?.pages || 1;
-        page++;
-      } while (page <= totalPages);
-      const sortedSongs = sortByTrending(allSongs);
+      const q = debouncedSearch ? `&q=${encodeURIComponent(debouncedSearch)}` : '';
+      const data = await fetch(`${API}/songs?page=1&limit=20${q}`).then(r => r.json());
+      const songs = Array.isArray(data) ? data : (data.songs || []);
+      const pages = data.pagination?.pages || 1;
+      const sortedSongs = sortByTrending(songs);
       setMusiques(sortedSongs);
+      setSongsPage(1);
+      setHasMore(pages > 1);
       if (sortedSongs.length === 0) return;
       setCurrentSong(prev => {
         if (prev) return prev;
@@ -319,6 +336,27 @@ const AppInner = () => {
     } catch (e) { console.error('Erreur musiques:', e); }
     finally { setIsLoading(false); }
   };
+
+  // Charge la page suivante (appelé par l'IntersectionObserver)
+  const chargerPlus = useCallback(async () => {
+    if (isFetchingMore || !hasMore) return;
+    setIsFetchingMore(true);
+    try {
+      const nextPage = songsPage + 1;
+      const q = debouncedSearch ? `&q=${encodeURIComponent(debouncedSearch)}` : '';
+      const data = await fetch(`${API}/songs?page=${nextPage}&limit=20${q}`).then(r => r.json());
+      const songs = Array.isArray(data) ? data : (data.songs || []);
+      const pages = data.pagination?.pages || 1;
+      setMusiques(prev => {
+        const existingIds = new Set(prev.map(s => s._id));
+        const newSongs = songs.filter(s => !existingIds.has(s._id));
+        return sortByTrending([...prev, ...newSongs]);
+      });
+      setSongsPage(nextPage);
+      setHasMore(nextPage < pages);
+    } catch (e) { console.error('Erreur chargement page suivante:', e); }
+    finally { setIsFetchingMore(false); }
+  }, [isFetchingMore, hasMore, songsPage, debouncedSearch]);
 
   const getDailySong = (songs) => {
     const today = new Date().toISOString().slice(0, 10);
@@ -333,6 +371,18 @@ const AppInner = () => {
   const chargerUserPlaylists = async (t) => { if (!t) return; try { const d = await fetch(`${API}/user-playlists/mine`, { headers: { Authorization: `Bearer ${t}` } }).then(r => r.json()); setUserPlaylists(Array.isArray(d) ? d : []); } catch {} };
 
   useEffect(() => { chargerMusiques(); chargerPlaylists(); chargerArtists(); chargerAlbums(); }, []);
+
+  // ── IntersectionObserver : charge la page suivante quand on arrive en bas ──
+  useEffect(() => {
+    const el = loaderRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) chargerPlus(); },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [chargerPlus]);
   useEffect(() => { if (token && (isAdmin || isArtist || isUser)) chargerUserPlaylists(token); }, [token, isAdmin, isArtist, isUser]);
 
   // ── ACTIONS ───────────────────────────────────────────────────
@@ -401,7 +451,7 @@ const AppInner = () => {
     } catch {}
   }, []);
 
-  // Audio init — créé une seule fois, EQ initialisé au premier geste utilisateur
+  // Audio init
   useEffect(() => {
     const audio = new Audio();
     audio.crossOrigin = 'anonymous';
@@ -409,9 +459,7 @@ const AppInner = () => {
     return () => { audio.pause(); audio.src = ''; };
   }, []);
 
-  // initAudioEngine idempotent : ne recrée pas le graphe EQ s'il existe déjà
   const initAudioEngine = useCallback(() => {
-    if (audioContextRef.current?.ctx) return;
     initEQ12(audioRef, eqFiltersRef, audioContextRef, () => setAudioReady(true));
     eqGainsRef.current.forEach((gain, i) => { if (eqFiltersRef.current[i]) eqFiltersRef.current[i].gain.value = gain; });
   }, []);
@@ -514,20 +562,10 @@ const AppInner = () => {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentSong?.src) return;
-    // Annuler tout play() en attente sur l'ancienne piste
-    audio.pause();
     audio.src = currentSong.src.replace(/^http:\/\//, 'https://');
-    audio.playbackRate = playbackRate;
-    audio.load();
-    playCountedRef.current = false;
-    if (isPlaying) {
-      audioContextRef.current?.ctx?.resume();
-      // Attendre que suffisamment de données soient chargées avant de jouer
-      // → évite le double play() en cascade et le glitch audio
-      const onReady = () => { audio.play().catch(() => {}); };
-      audio.addEventListener('canplay', onReady, { once: true });
-    }
-  }, [currentSong]); // isPlaying intentionnellement absent : géré par l'effect ci-dessous
+    audio.playbackRate = playbackRate; audio.load(); playCountedRef.current = false;
+    if (isPlaying) { audioContextRef.current?.ctx?.resume(); audio.play().catch(() => {}); }
+  }, [currentSong]);
 
   useEffect(() => {
     const audio = audioRef.current; if (!audio) return;
@@ -1057,6 +1095,14 @@ const NavLink = ({ to, icon, label, colorClass }) => (
               />
             }/>
           </Routes>
+
+          {/* ── Sentinel infinite scroll ── */}
+          <div ref={loaderRef} style={{ height: 1 }} />
+          {isFetchingMore && (
+            <div style={{ textAlign: 'center', padding: '16px 0', color: '#52525b', fontSize: 13 }}>
+              Chargement…
+            </div>
+          )}
         </main>
 
         {/* ─── PANEL DROIT (Tendances + File d'attente) ─── */}

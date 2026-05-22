@@ -292,6 +292,117 @@ const AdminAlertBanner = ({ token, isAdmin }) => {
   );
 };
 
+
+// ════════════════════════════════════════════
+// COMPOSANT : SALUTATION PERSONNALISÉE
+// ════════════════════════════════════════════
+const UserGreeting = ({ userNom, isLoggedIn }) => {
+  const [msgIndex, setMsgIndex] = useState(0);
+  const [animating, setAnimating] = useState(false);
+
+  const hour = new Date().getHours();
+
+  const getPeriod = () => {
+    if (hour >= 5  && hour < 12) return { label: 'Bonjour',        color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' };
+    if (hour >= 12 && hour < 14) return { label: 'Bon appétit',    color: '#10B981', bg: 'rgba(16,185,129,0.12)' };
+    if (hour >= 14 && hour < 18) return { label: 'Bon après-midi', color: '#6366F1', bg: 'rgba(99,102,241,0.12)' };
+    if (hour >= 18 && hour < 22) return { label: 'Bonsoir',        color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)' };
+    return                               { label: 'Bonne nuit',     color: '#3B82F6', bg: 'rgba(59,130,246,0.12)' };
+  };
+
+  const period = getPeriod();
+
+  const messageGroups = [
+    // matin
+    [
+      { pip: '#6366F1', text: 'Votre sélection personnalisée est prête' },
+      { pip: '#10B981', text: '3 nouveautés depuis votre dernière visite' },
+      { pip: '#F59E0B', text: 'Un artiste émergent attend votre écoute' },
+    ],
+    // après-midi
+    [
+      { pip: '#EC4899', text: 'Continuez à explorer vos artistes favoris' },
+      { pip: '#3B82F6', text: 'La Radio IA a composé une playlist pour vous' },
+      { pip: '#10B981', text: 'Vos goûts évoluent · nouvelles recommandations' },
+    ],
+    // soir / nuit
+    [
+      { pip: '#8B5CF6', text: 'Découvrez un son qui correspond à votre humeur' },
+      { pip: '#F59E0B', text: 'Vos artistes tendance ont sorti du contenu' },
+      { pip: '#EC4899', text: 'Reprenez là où vous vous étiez arrêté' },
+    ],
+  ];
+
+  const timeGroup = hour < 14 ? 0 : hour < 19 ? 1 : 2;
+  const msgs = messageGroups[timeGroup];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAnimating(true);
+      setTimeout(() => {
+        setMsgIndex(i => (i + 1) % msgs.length);
+        setAnimating(false);
+      }, 300);
+    }, 3200);
+    return () => clearInterval(interval);
+  }, [msgs.length]);
+
+  if (!isLoggedIn) return null;
+  const displayName = userNom || 'Mélomane';
+  const initial = displayName.charAt(0).toUpperCase();
+
+  // const initial = userNom.charAt(0).toUpperCase();
+  const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const msg = msgs[msgIndex];
+
+  return (
+    <div
+      className="relative flex items-center gap-4 rounded-2xl border border-zinc-800/60 bg-zinc-900/60 px-5 py-4 overflow-hidden"
+      style={{ borderLeft: `3px solid ${period.color}` }}
+    >
+      {/* Avatar */}
+      <div
+        className="shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold"
+        style={{ background: period.bg, color: period.color }}
+      >
+        {initial}
+      </div>
+
+      {/* Corps */}
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] text-zinc-500 mb-0.5">{period.label} 👋</p>
+        <p className="text-lg font-black text-white truncate leading-tight">{userNom}</p>
+
+        {/* Message rotatif */}
+        <div className="h-[18px] overflow-hidden mt-1">
+          <div
+            className="flex items-center gap-1.5 transition-all duration-300"
+            style={{
+              opacity: animating ? 0 : 1,
+              transform: animating ? 'translateY(6px)' : 'translateY(0)',
+            }}
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full shrink-0"
+              style={{ background: msg.pip }}
+            />
+            <span className="text-[11px] text-zinc-500 truncate">{msg.text}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Badge heure + streak */}
+      <div className="shrink-0 flex flex-col items-end gap-1.5">
+        <span className="text-[10px] text-zinc-600">{timeStr}</span>
+        <div className="flex items-center gap-1 bg-zinc-800 border border-zinc-700 rounded-full px-2.5 py-1">
+          <Flame size={11} className="text-orange-400" />
+          <span className="text-[10px] font-bold text-zinc-400">7 jours</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Section partages récents ─────────────────
 const RecentSharesSection = ({ token, setCurrentSong, setIsPlaying, currentSong, musiques }) => {
   const [shares, setShares] = useState([]);
@@ -899,6 +1010,10 @@ const HomeView = ({
     <div className="flex flex-col gap-10 md:gap-14">
 
       {isAdmin && <AdminAlertBanner token={token} isAdmin={isAdmin} />}
+
+      {/* ══ SALUTATION ══ */}
+      
+      <UserGreeting userNom={userNom} isLoggedIn={isLoggedIn} />
 
       {isLoggedIn && !subscribed && (
         <button onClick={subscribe} disabled={pushLoading}
