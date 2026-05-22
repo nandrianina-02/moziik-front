@@ -176,7 +176,7 @@ export const TrendingView = ({ setCurrentSong, setIsPlaying, currentSong, isPlay
 // ════════════════════════════════════════════
 // StoriesBar — Barre de stories (style Instagram)
 // ════════════════════════════════════════════
-export const StoriesBar = ({ token, isLoggedIn, onArtistClick }) => {
+export const StoriesBar = ({ token, isLoggedIn, onArtistClick, onEmpty }) => {
   const [feed, setFeed]         = useState([]);
   const [active, setActive]     = useState(null);
   const [progress, setProgress] = useState(0);
@@ -187,7 +187,11 @@ export const StoriesBar = ({ token, isLoggedIn, onArtistClick }) => {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
       .then(r => r.ok ? r.json() : [])
-      .then(d => setFeed(Array.isArray(d) ? d : []))
+      .then(d => {
+        const stories = Array.isArray(d) ? d : [];
+        setFeed(stories);
+        if (stories.length === 0) onEmpty?.(); // ← ajouter cette ligne
+      })
       .catch(() => {});
   }, [token]);
 

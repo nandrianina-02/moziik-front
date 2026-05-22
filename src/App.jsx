@@ -65,6 +65,7 @@ import { useSessionGuard } from './hooks/useSessionGuard';
 import { clearLocalSession } from './hooks/useAuth';
 import SessionExpiredToast from './components/ui/SessionExpiredToast';
 import SessionsView from './views/SessionsView';
+import UserGreeting from './components/ui/UserGreeting.jsx';
 
 
 const DashboardView     = lazy(() => import('./views/EnhancedDashboardView'));
@@ -195,6 +196,17 @@ const AppInner = () => {
   const { isPremium } = useSubscription(token);
   const [showRadio, setShowRadio] = useState(false);
 
+  // ── Hook debounce ────────────────────────────────────────────
+  const useDebounce = (value, delay) => {
+    const [debounced, setDebounced] = useState(value);
+    useEffect(() => {
+      const t = setTimeout(() => setDebounced(value), delay);
+      return () => clearTimeout(t);
+    }, [value, delay]);
+    return debounced;
+  };
+  const debouncedSearch = useDebounce(searchTerm, 400);
+
   // Recherche → redirect home + recharger avec debounce
   const prevSearchRef = useRef('');
   useEffect(() => {
@@ -302,17 +314,6 @@ const AppInner = () => {
       if (uid) { if (avatar) localStorage.setItem(`moozik_avatar_${uid}`, avatar); else localStorage.removeItem(`moozik_avatar_${uid}`); }
     }
   };
-
-  // ── Hook debounce ────────────────────────────────────────────
-  const useDebounce = (value, delay) => {
-    const [debounced, setDebounced] = useState(value);
-    useEffect(() => {
-      const t = setTimeout(() => setDebounced(value), delay);
-      return () => clearTimeout(t);
-    }, [value, delay]);
-    return debounced;
-  };
-  const debouncedSearch = useDebounce(searchTerm, 400);
 
   // ── DATA ──────────────────────────────────────────────────────
   // Charge la première page uniquement (20 titres) — le reste via infinite scroll
@@ -1078,6 +1079,14 @@ const NavLink = ({ to, icon, label, colorClass }) => (
             <Route path="/admin-team"        element={isAdmin ? <AdminTeamView token={token} currentAdminId={userId} isPrimary={isPrimary}/> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
             <Route path="/library"           element={<OfflineLibraryView musiques={musiques} currentSong={currentSong} setIsPlaying={setIsPlaying} setCurrentSong={setCurrentSong} isPlaying={isPlaying} isAudioCached={isAudioCached} removeCached={removeCached} />}/>
             <Route path="/" element={
+              <>
+              <UserGreeting
+                userNom={userNom}
+                isLoggedIn={isLoggedIn}
+                newSongsCount={musiques.filter(s => Date.now() - new Date(s.createdAt) < 604800000).length}
+                lastArtist={musiques[0]?.artiste}
+                streak={7}
+              />
               <HomeView musiques={musiques} {...songProps}
                 isAdmin={isAdmin} isArtist={isArtist} isUser={isUser}
                 userArtistId={userArtistId} playlists={playlists} userPlaylists={userPlaylists}
@@ -1093,6 +1102,7 @@ const NavLink = ({ to, icon, label, colorClass }) => (
                 isAudioCached={isAudioCached} cachedIds={cachedIds}
                 playAll={playAll} onInfiniteRadio={handleInfiniteRadio}
               />
+              </>
             }/>
           </Routes>
 

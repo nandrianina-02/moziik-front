@@ -18,6 +18,7 @@ export const usePushNotifications = (token) => {
   const [subscribed, setSubscribed]   = useState(false);
   const [loading, setLoading]         = useState(false);
 
+
   // Vérifier si déjà abonné
   useEffect(() => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
