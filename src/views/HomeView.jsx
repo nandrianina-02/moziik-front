@@ -672,7 +672,7 @@ const HomeView = ({
   setShowEQ, initAudioEngine, searchTerm, setShowUpload,
   onAddToUserPlaylist, isLoggedIn, userNom, userId,
   onDeleted, onRefresh, onTogglePlaylistVisibility,
-  isAudioCached, cachedIds,
+  isAudioCached, cachedIds,cacheAudio, removeCached,
   onInfiniteRadio,
 }) => {
   const songs = Array.isArray(musiques) ? musiques : [];
@@ -693,6 +693,8 @@ const HomeView = ({
   const pourVousShowMore   = useShowMore(8);
   // ← MODIF : "voir plus" pour l'ambiance contextuelle
   const ambianceShowMore   = useShowMore(8);
+  const [hasStories, setHasStories] = useState(true);
+
 
   const [showAd, setShowAd]             = useState(false);
   const [selectedMood, setSelectedMood] = useState(null);
@@ -859,17 +861,11 @@ const HomeView = ({
     if (full) { setCurrentSong(full); setIsPlaying(true); }
   }, [songs, setCurrentSong, setIsPlaying]);
 
-  if (searchTerm) return (
-    <GlobalSearchView
-      searchTerm={searchTerm} currentSong={currentSong}
-      setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}
-      isPlaying={isPlaying} toggleLike={toggleLike} />
-  );
+
 
   // ── Caps & tranches visibles ───────────────────────────────────────────────
   const MAX = 20;
 
-  const [hasStories, setHasStories] = useState(true);
 
 
   const top24hCapped    = top24h.slice(0, MAX);
@@ -898,6 +894,25 @@ const HomeView = ({
     'Énergie': '⚡', 'Focus': '🎯', 'Chill': '🌊',
     'Fête': '🎉', 'Romance': '🌙', 'Motivant': '🔥', 'Gospel': '✨', 'Nostalgie': '🎵',
   };
+
+    if (searchTerm) return (
+      <GlobalSearchView
+        searchTerm={searchTerm}
+        currentSong={currentSong}
+        setCurrentSong={setCurrentSong}
+        setIsPlaying={setIsPlaying}
+        isPlaying={isPlaying}
+        toggleLike={toggleLike}
+        addToQueue={addToQueue}             
+        token={token}                          
+        isLoggedIn={isLoggedIn}              
+        userPlaylists={userPlaylists}          
+        onAddToUserPlaylist={onAddToUserPlaylist} 
+        isAudioCached={isAudioCached}         
+        cacheAudio={cacheAudio}              
+        removeCached={removeCached}           
+      />
+    );
 
   return (
     <div className="flex flex-col gap-10 md:gap-14">

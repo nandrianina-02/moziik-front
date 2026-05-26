@@ -80,10 +80,19 @@ const getTrendingScore = (song) => {
   const isRecent = song.createdAt && (Date.now() - new Date(song.createdAt).getTime()) < ONE_WEEK;
   return (song.plays || 0) + (song.likes || 0) * 3 + (isRecent ? 15 : 0);
 };
+
 const sortByTrending = (songs) =>
   [...songs].sort((a, b) => getTrendingScore(b) - getTrendingScore(a));
 
-
+  // ── Hook debounce ────────────────────────────────────────────
+  const useDebounce = (value, delay) => {
+    const [debounced, setDebounced] = useState(value);
+    useEffect(() => {
+      const t = setTimeout(() => setDebounced(value), delay);
+      return () => clearTimeout(t);
+    }, [value, delay]);
+    return debounced;
+  };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // APP INNER
@@ -196,15 +205,7 @@ const AppInner = () => {
   const { isPremium } = useSubscription(token);
   const [showRadio, setShowRadio] = useState(false);
 
-  // ── Hook debounce ────────────────────────────────────────────
-  const useDebounce = (value, delay) => {
-    const [debounced, setDebounced] = useState(value);
-    useEffect(() => {
-      const t = setTimeout(() => setDebounced(value), delay);
-      return () => clearTimeout(t);
-    }, [value, delay]);
-    return debounced;
-  };
+
   const debouncedSearch = useDebounce(searchTerm, 400);
 
   // Recherche → redirect home + recharger avec debounce
@@ -214,7 +215,7 @@ const AppInner = () => {
     if (hasTerm && location.pathname !== '/') navigate('/');
     prevSearchRef.current = debouncedSearch;
     // Recharger la liste filtrée côté serveur
-    chargerMusiques();
+    if (!hasTerm) chargerMusiques();
   }, [debouncedSearch]);
 
   // EQ
@@ -1101,6 +1102,7 @@ const NavLink = ({ to, icon, label, colorClass }) => (
                 onTogglePlaylistVisibility={togglePlaylistVisibility}
                 isAudioCached={isAudioCached} cachedIds={cachedIds}
                 playAll={playAll} onInfiniteRadio={handleInfiniteRadio}
+                cacheAudio={cacheAudio} removeCached={removeCached}
               />
               </>
             }/>
