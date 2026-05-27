@@ -198,7 +198,7 @@ const AppInner = () => {
   useEffect(() => { applyDynamicTheme(dominantColor); }, [dominantColor]);
   const { listeners, connected } = useRealtimeListeners(token, currentSong);
   const { isOnline, wasOffline } = useOfflineDetection();
-  const { cacheAudio, removeCached, isAudioCached } = useAudioCache();
+  const { cacheAudio, removeCached, isAudioCached, getCachedUrl } = useAudioCache();
   useWakeLock(isPlaying);
   useAppBadge(unreadNotifs);
   const { lang, setLang, t } = useI18n();
@@ -564,9 +564,16 @@ const AppInner = () => {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentSong?.src) return;
-    audio.src = currentSong.src.replace(/^http:\/\//, 'https://');
-    audio.playbackRate = playbackRate; audio.load(); playCountedRef.current = false;
-    if (isPlaying) { audioContextRef.current?.ctx?.resume(); audio.play().catch(() => {}); }
+    let blobUrl = null;
+    getCachedUrl(currentSong).then(resolvedUrl => {
+      if (resolvedUrl.startsWith('blob:')) blobUrl = resolvedUrl;
+      audio.src = resolvedUrl;
+      audio.playbackRate = playbackRate;
+      audio.load();
+      playCountedRef.current = false;
+      if (isPlaying) { audioContextRef.current?.ctx?.resume(); audio.play().catch(() => {}); }
+    });
+    return () => { if (blobUrl) URL.revokeObjectURL(blobUrl); };
   }, [currentSong]);
 
   useEffect(() => {
