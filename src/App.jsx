@@ -25,46 +25,48 @@ import { SongListSkeleton } from './components/ui/Skeletons';
 import { OfflineBanner, CacheButton } from './components/ui/OfflineBanner';
 
 import HomeView from './views/HomeView';
-import SettingsView from './views/SettingsView';
-import AlbumView from './views/AlbumView';
-import ArtistView from './views/ArtistView';
-import PlaylistView from './views/PlaylistView';
-import UserPlaylistView from './views/UserPlaylistView';
-import FavoritesView from './views/FavoritesView';
-import ArtistsAdminView from './views/ArtistsAdminView';
-import MyAlbumsView from './views/MyAlbumsView';
-import ArtistsListView from './views/ArtistsListView';
-import AccountView from './views/AccountView';
-import UsersAdminView from './views/UsersAdminView';
-import PublicPlaylistsView from './views/PublicPlaylistsView';
-import SmartLinkPage from './views/SmartLinkPage';
-import ArtistDashboard from './views/ArtistDashboard';
-import AdminCertificationsView from './views/AdminCertificationsView';
+
+// ── Vues secondaires chargées en différé (lazy) ──────────────────────────────
+const SettingsView           = lazy(() => import('./views/SettingsView'));
+const AlbumView              = lazy(() => import('./views/AlbumView'));
+const ArtistView             = lazy(() => import('./views/ArtistView'));
+const PlaylistView           = lazy(() => import('./views/PlaylistView'));
+const UserPlaylistView       = lazy(() => import('./views/UserPlaylistView'));
+const FavoritesView          = lazy(() => import('./views/FavoritesView'));
+const ArtistsAdminView       = lazy(() => import('./views/ArtistsAdminView'));
+const MyAlbumsView           = lazy(() => import('./views/MyAlbumsView'));
+const ArtistsListView        = lazy(() => import('./views/ArtistsListView'));
+const AccountView            = lazy(() => import('./views/AccountView'));
+const UsersAdminView         = lazy(() => import('./views/UsersAdminView'));
+const PublicPlaylistsView    = lazy(() => import('./views/PublicPlaylistsView'));
+const SmartLinkPage          = lazy(() => import('./views/SmartLinkPage'));
+const ArtistDashboard        = lazy(() => import('./views/ArtistDashboard'));
+const AdminCertificationsView = lazy(() => import('./views/AdminCertificationsView'));
 import { usePushNotifications } from './hooks/usePushNotifications';
 import { useI18n } from './hooks/useI18n';
-import SubscriptionView from './views/SubscriptionView';
+const SubscriptionView       = lazy(() => import('./views/SubscriptionView'));
+const ArtistAnalyticsView    = lazy(() => import('./views/ArtistAnalyticsView'));
+const AdminLibraryView       = lazy(() => import('./views/AdminLibraryView'));
+const AdminArtistView        = lazy(() => import('./views/AdminArtistView'));
+const AdminTeamView          = lazy(() => import('./views/AdminTeamView'));
+const OfflineLibraryView     = lazy(() => import('./views/OfflineLibraryView'));
+const ResetPassword          = lazy(() => import('./components/modals/ResetPassword'));
+const VerifyEmail            = lazy(() => import('./components/modals/VerifyEmail'));
+const SessionsView           = lazy(() => import('./views/SessionsView'));
+const FullPlayerPage         = lazy(() => import('./components/player/FullPlayerPage'));
+const RadioView              = lazy(() => import('./views/RadioView'));
 import { EventsView } from './components/MonetisationComponents.jsx';
 import { AdminMonetisationView } from './components/RevenueComponents.jsx';
 import { AudioAdPlayer } from './components/MonetisationComponents.jsx';
 import useSubscription from './hooks/useSubscription';
 import { NotificationsPanel, HistoryView, RecommendationsView, SharePageView } from './components/social/SocialFeatures';
 import { TrendingView, ListenPartyModal, LoyaltyWidget } from './components/SocialComponents';
-import ArtistAnalyticsView from './views/ArtistAnalyticsView.jsx';
-import AdminLibraryView from './views/AdminLibraryView';
-import FullPlayerPage from './components/player/FullPlayerPage';
 import { eqBands, eqPresets, initEQ12 } from './components/player/constants/eq.js';
-import RadioView from './views/RadioView';
-import AdminArtistView from './views/AdminArtistView';
-import AdminTeamView from './views/AdminTeamView';
-import OfflineLibraryView from './views/OfflineLibraryView.jsx';
-import ResetPassword from './components/modals/ResetPassword.jsx';
-import VerifyEmail from './components/modals/VerifyEmail.jsx';
 import MoozikHeader from './components/layout/MoozikHeader.jsx';
 import MoozikRightPanel from './components/layout/MoozikRightPanel.jsx';
 import { useSessionGuard } from './hooks/useSessionGuard';
 import { clearLocalSession } from './hooks/useAuth';
 import SessionExpiredToast from './components/ui/SessionExpiredToast';
-import SessionsView from './views/SessionsView';
 import UserGreeting from './components/ui/UserGreeting.jsx';
 
 
@@ -95,6 +97,35 @@ const sortByTrending = (songs) =>
   };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// NAVLINK — composant de navigation de la sidebar
+// Défini en dehors de AppInner pour éviter d'être recréé à chaque rendu.
+// ─────────────────────────────────────────────────────────────────────────────
+const NavLink = ({ to, icon, label, colorClass }) => (
+  <NavLinkRRD
+    to={to}
+    end
+    className={({ isActive }) =>
+      `relative flex items-center gap-3 px-3 py-[9px] rounded-xl text-[13.5px] font-medium
+       transition-all duration-200 ease-out cursor-pointer select-none group
+       ${isActive
+         ? 'text-white bg-gradient-to-r from-red-600 via-red-500 to-red-400 shadow-[0_0_18px_rgba(220,38,38,0.5),0_0_40px_rgba(220,38,38,0.15)] scale-[1.01]'
+         : `${colorClass || 'text-zinc-400'} hover:text-white hover:bg-white/[0.05]`
+       }`
+    }
+  >
+    {({ isActive }) => (
+      <>
+        <span className={`shrink-0 transition-all duration-200
+          ${isActive ? 'opacity-100 drop-shadow-[0_0_6px_rgba(255,255,255,0.6)]' : 'opacity-50 group-hover:opacity-80'}`}>
+          {icon}
+        </span>
+        <span className={isActive ? 'font-semibold tracking-wide' : ''}>{label}</span>
+      </>
+    )}
+  </NavLinkRRD>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // APP INNER
 // ─────────────────────────────────────────────────────────────────────────────
 const AppInner = () => {
@@ -121,7 +152,7 @@ const AppInner = () => {
   const [repeatMode, setRepeatMode]     = useState(0);
   const [currentTime, setCurrentTime]   = useState(0);
   const [duration, setDuration]         = useState(0);
-  const [volume, setVolume]             = useState(100);
+  const [volume, setVolume]             = useState(() => Number(localStorage.getItem('moozik_volume')) || 80);
   const [showListenParty, setShowListenParty] = useState(false);
   const [playContext, setPlayContext]   = useState('trending');
 
@@ -599,7 +630,7 @@ const AppInner = () => {
   }, [handleNext, handlePrev]);
 
   useEffect(() => { if (audioRef.current) audioRef.current.playbackRate = playbackRate; }, [playbackRate]);
-  useEffect(() => { if (audioRef.current) audioRef.current.volume = volume / 100; }, [volume]);
+  useEffect(() => { if (audioRef.current) audioRef.current.volume = volume / 100; localStorage.setItem('moozik_volume', volume); }, [volume]);
 
   useEffect(() => {
     if (sleepRef.current) clearInterval(sleepRef.current);
@@ -681,31 +712,6 @@ const AppInner = () => {
     playByCategory: (song) => playByCategory(song, musiques),
   };
 
-  // ── Sidebar nav link component ─────────────────────────────────
-const NavLink = ({ to, icon, label, colorClass }) => (
-  <NavLinkRRD
-    to={to}
-    end
-    className={({ isActive }) =>
-      `relative flex items-center gap-3 px-3 py-[9px] rounded-xl text-[13.5px] font-medium
-       transition-all duration-200 ease-out cursor-pointer select-none group
-       ${isActive
-         ? 'text-white bg-gradient-to-r from-red-600 via-red-500 to-red-400 shadow-[0_0_18px_rgba(220,38,38,0.5),0_0_40px_rgba(220,38,38,0.15)] scale-[1.01]'
-         : `${colorClass || 'text-zinc-400'} hover:text-white hover:bg-white/[0.05]`
-       }`
-    }
-  >
-    {({ isActive }) => (
-      <>
-        <span className={`shrink-0 transition-all duration-200
-          ${isActive ? 'opacity-100 drop-shadow-[0_0_6px_rgba(255,255,255,0.6)]' : 'opacity-50 group-hover:opacity-80'}`}>
-          {icon}
-        </span>
-        <span className={isActive ? 'font-semibold tracking-wide' : ''}>{label}</span>
-      </>
-    )}
-  </NavLinkRRD>
-);
 
 
 
@@ -1024,7 +1030,7 @@ const NavLink = ({ to, icon, label, colorClass }) => (
         >
           <Routes>
             <Route path="/player" element={
-              <FullPlayerPage
+              <Suspense fallback={<ViewLoader/>}><FullPlayerPage
                 currentSong={currentSong} setCurrentSong={setCurrentSong}
                 isPlaying={isPlaying} setIsPlaying={setIsPlaying}
                 currentTime={currentTime} duration={duration}
@@ -1043,21 +1049,21 @@ const NavLink = ({ to, icon, label, colorClass }) => (
                 userId={userId} isAdmin={isAdmin}
                 onOpenListenParty={() => setShowListenParty(true)}
                 smartMode={smartMode} setSmartMode={setSmartMode}
-              />
+              /></Suspense>
             }/>
-            <Route path="/favorites"         element={<FavoritesView musiques={musiques} {...songProps} isPlaying={isPlaying} setQueue={setQueue} playAll={playAll} />}/>
-            <Route path="/playlist/:id"      element={<PlaylistView playlists={playlists} {...songProps} playAll={playAll}  />}/>
-            <Route path="/my-playlist/:id"   element={<UserPlaylistView token={token} {...songProps} isOwner={isUser || isAdmin} playAll={playAll} setQueue={setQueue} />}/>
-            <Route path="/artist/:id"        element={<ArtistView {...songProps} playAll={playAll} setQueue={setQueue} />}/>
-            <Route path="/album/:id"         element={<AlbumView {...songProps} isArtist={isArtist} isAdmin={isAdmin} userArtistId={userArtistId} playAll={playAll} />}/>
-            <Route path="/my-albums"         element={<MyAlbumsView token={token} userArtistId={userArtistId} userNom={userNom} />}/>
-            <Route path="/artists-list"      element={<ArtistsListView artists={artists} />}/>
-            <Route path="/public-playlists"  element={<PublicPlaylistsView {...songProps} />}/>
+            <Route path="/favorites"         element={<Suspense fallback={<ViewLoader/>}><FavoritesView musiques={musiques} {...songProps} isPlaying={isPlaying} setQueue={setQueue} playAll={playAll} /></Suspense>}/>
+            <Route path="/playlist/:id"      element={<Suspense fallback={<ViewLoader/>}><PlaylistView playlists={playlists} {...songProps} playAll={playAll}  /></Suspense>}/>
+            <Route path="/my-playlist/:id"   element={<Suspense fallback={<ViewLoader/>}><UserPlaylistView token={token} {...songProps} isOwner={isUser || isAdmin} playAll={playAll} setQueue={setQueue} /></Suspense>}/>
+            <Route path="/artist/:id"        element={<Suspense fallback={<ViewLoader/>}><ArtistView {...songProps} playAll={playAll} setQueue={setQueue} /></Suspense>}/>
+            <Route path="/album/:id"         element={<Suspense fallback={<ViewLoader/>}><AlbumView {...songProps} isArtist={isArtist} isAdmin={isAdmin} userArtistId={userArtistId} playAll={playAll} /></Suspense>}/>
+            <Route path="/my-albums"         element={<Suspense fallback={<ViewLoader/>}><MyAlbumsView token={token} userArtistId={userArtistId} userNom={userNom} /></Suspense>}/>
+            <Route path="/artists-list"      element={<Suspense fallback={<ViewLoader/>}><ArtistsListView artists={artists} /></Suspense>}/>
+            <Route path="/public-playlists"  element={<Suspense fallback={<ViewLoader/>}><PublicPlaylistsView {...songProps} /></Suspense>}/>
             <Route path="/dashboard"         element={isAdmin ? <Suspense fallback={<ViewLoader/>}><DashboardView token={token}/></Suspense> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
-            <Route path="/admin-artists"     element={isAdmin ? <ArtistsAdminView token={token}/> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
-            <Route path="/admin-users"       element={isAdmin ? <UsersAdminView token={token} musiques={musiques}/> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
-            <Route path="/admin-library"     element={isAdmin ? <AdminLibraryView token={token} currentSong={currentSong} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} isPlaying={isPlaying}/> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
-            <Route path="/admin-certifications" element={isAdmin ? <AdminCertificationsView token={token}/> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
+            <Route path="/admin-artists"     element={isAdmin ? <Suspense fallback={<ViewLoader/>}><ArtistsAdminView token={token}/></Suspense> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
+            <Route path="/admin-users"       element={isAdmin ? <Suspense fallback={<ViewLoader/>}><UsersAdminView token={token} musiques={musiques}/></Suspense> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
+            <Route path="/admin-library"     element={isAdmin ? <Suspense fallback={<ViewLoader/>}><AdminLibraryView token={token} currentSong={currentSong} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} isPlaying={isPlaying}/></Suspense> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
+            <Route path="/admin-certifications" element={isAdmin ? <Suspense fallback={<ViewLoader/>}><AdminCertificationsView token={token}/></Suspense> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
             <Route path="/admin-monetisation"   element={isAdmin ? <AdminMonetisationView token={token}/> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
             <Route path="/profile/:userId"   element={<Suspense fallback={<ViewLoader/>}><PublicProfileView token={token} currentSong={currentSong} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} isPlaying={isPlaying}/></Suspense>}/>
             <Route path="/history"           element={isLoggedIn ? <HistoryView token={token} currentSong={currentSong} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying}/> : <div className="p-8 text-zinc-500">Connectez-vous</div>}/>
@@ -1070,22 +1076,22 @@ const NavLink = ({ to, icon, label, colorClass }) => (
             <Route
               path="/sessions"
               element={isLoggedIn
-                ? <SessionsView />
+                ? <Suspense fallback={<ViewLoader/>}><SessionsView /></Suspense>
                 : <div className="p-8 text-zinc-500">Connectez-vous</div>
               }
             />
-            <Route path="/settings"          element={<SettingsView token={token} isAdmin={isAdmin} isLoggedIn={isLoggedIn} userNom={userNom} userEmail={userEmail} userRole={userRole} isPrimary={isPrimary} musiques={musiques} isAudioCached={isAudioCached} cachedIds={cachedIds} cacheAudio={cacheAudio} removeCached={removeCached}/>}/>
-            <Route path="/account"           element={isLoggedIn ? <AccountView token={token} userNom={userNom} userEmail={userEmail} userRole={userRole} userId={userId} userArtistId={userArtistId} isAdmin={isAdmin} isArtist={isArtist} isUser={isUser} musiques={musiques} userPlaylists={userPlaylists} onUpdateProfile={handleUpdateProfile} isLoggedIn={isLoggedIn}/> : <div className="p-8 text-zinc-600">Connectez-vous</div>}/>
-            <Route path="/premium"           element={<SubscriptionView token={token} isLoggedIn={isLoggedIn}/>}/>
+            <Route path="/settings"          element={<Suspense fallback={<ViewLoader/>}><SettingsView token={token} isAdmin={isAdmin} isLoggedIn={isLoggedIn} userNom={userNom} userEmail={userEmail} userRole={userRole} isPrimary={isPrimary} musiques={musiques} isAudioCached={isAudioCached} cachedIds={cachedIds} cacheAudio={cacheAudio} removeCached={removeCached}/></Suspense>}/>
+            <Route path="/account"           element={isLoggedIn ? <Suspense fallback={<ViewLoader/>}><AccountView token={token} userNom={userNom} userEmail={userEmail} userRole={userRole} userId={userId} userArtistId={userArtistId} isAdmin={isAdmin} isArtist={isArtist} isUser={isUser} musiques={musiques} userPlaylists={userPlaylists} onUpdateProfile={handleUpdateProfile} isLoggedIn={isLoggedIn}/></Suspense> : <div className="p-8 text-zinc-600">Connectez-vous</div>}/>
+            <Route path="/premium"           element={<Suspense fallback={<ViewLoader/>}><SubscriptionView token={token} isLoggedIn={isLoggedIn}/></Suspense>}/>
             <Route path="/events"            element={<EventsView token={token} isLoggedIn={isLoggedIn} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} currentSong={currentSong}/>}/>
             <Route path="/trending"          element={<TrendingView setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} currentSong={currentSong} isPlaying={isPlaying} token={token} musiques={musiques}/>}/>
-            <Route path="/a/:slug"           element={<SmartLinkPage token={token} isLoggedIn={isLoggedIn} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} currentSong={currentSong} isPlaying={isPlaying}/>}/>
-            <Route path="/artist-dashboard"  element={isArtist ? <ArtistDashboard token={token} userArtistId={userArtistId} userNom={userNom}/> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
-            <Route path="/reset-password"    element={<ResetPassword />}/>
-            <Route path="/verify-email"      element={<VerifyEmail />}/>
-            <Route path="/admin-studio"      element={isAdmin ? <AdminArtistView token={token} adminId={userId} adminNom={userNom}/> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
-            <Route path="/admin-team"        element={isAdmin ? <AdminTeamView token={token} currentAdminId={userId} isPrimary={isPrimary}/> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
-            <Route path="/library"           element={<OfflineLibraryView musiques={musiques} currentSong={currentSong} setIsPlaying={setIsPlaying} setCurrentSong={setCurrentSong} isPlaying={isPlaying} isAudioCached={isAudioCached} removeCached={removeCached} />}/>
+            <Route path="/a/:slug"           element={<Suspense fallback={<ViewLoader/>}><SmartLinkPage token={token} isLoggedIn={isLoggedIn} setCurrentSong={setCurrentSong} setIsPlaying={setIsPlaying} currentSong={currentSong} isPlaying={isPlaying}/></Suspense>}/>
+            <Route path="/artist-dashboard"  element={isArtist ? <Suspense fallback={<ViewLoader/>}><ArtistDashboard token={token} userArtistId={userArtistId} userNom={userNom}/></Suspense> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
+            <Route path="/reset-password"    element={<Suspense fallback={<ViewLoader/>}><ResetPassword /></Suspense>}/>
+            <Route path="/verify-email"      element={<Suspense fallback={<ViewLoader/>}><VerifyEmail /></Suspense>}/>
+            <Route path="/admin-studio"      element={isAdmin ? <Suspense fallback={<ViewLoader/>}><AdminArtistView token={token} adminId={userId} adminNom={userNom}/></Suspense> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
+            <Route path="/admin-team"        element={isAdmin ? <Suspense fallback={<ViewLoader/>}><AdminTeamView token={token} currentAdminId={userId} isPrimary={isPrimary}/></Suspense> : <div className="p-8 text-zinc-600">Accès refusé</div>}/>
+            <Route path="/library"           element={<Suspense fallback={<ViewLoader/>}><OfflineLibraryView musiques={musiques} currentSong={currentSong} setIsPlaying={setIsPlaying} setCurrentSong={setCurrentSong} isPlaying={isPlaying} isAudioCached={isAudioCached} removeCached={removeCached} /></Suspense>}/>
             <Route path="/" element={
               <>
               <UserGreeting
@@ -1349,7 +1355,7 @@ const NavLink = ({ to, icon, label, colorClass }) => (
         <div className="fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowRadio(false)}/>
           <div className="relative ml-auto w-full h-full bg-zinc-950 border-l border-zinc-800/60 shadow-2xl flex flex-col overflow-hidden">
-            <RadioView token={token} currentSong={currentSong} setCurrentSong={setCurrentSong} isPlaying={isPlaying} setIsPlaying={setIsPlaying} musiques={musiques} onClose={() => setShowRadio(false)}/>
+            <Suspense fallback={<ViewLoader/>}><RadioView token={token} currentSong={currentSong} setCurrentSong={setCurrentSong} isPlaying={isPlaying} setIsPlaying={setIsPlaying} musiques={musiques} onClose={() => setShowRadio(false)}/></Suspense>
           </div>
         </div>
       )}
